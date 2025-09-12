@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Menu Upload</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 500px; margin: 50px auto; padding: 20px; }
+        .upload-form { background: #f9f9f9; padding: 30px; border-radius: 10px; }
+        input[type="file"] { width: 100%; padding: 10px; margin: 10px 0; }
+        button { background: #007bff; color: white; padding: 12px 30px; border: none; border-radius: 5px; cursor: pointer; width: 100%; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="upload-form">
+        <h2>Upload Menu File</h2>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" id="menu_file" name="menu_file" accept=".xlsx,.xls,.pdf" required>
+            <button type="submit">Upload Menu</button>
+        </form>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                const response = await fetch('/business/menu/upload', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('access_token')
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = '<p style="color: green;">' + result.message + '</p>';
+                } else {
+                    resultDiv.innerHTML = '<p style="color: red;">Error: ' + (result.detail || result.error) + '</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<p style="color: red;">Upload failed: ' + error.message + '</p>';
+            }
+        });
+    </script>
+</body>
+</html>

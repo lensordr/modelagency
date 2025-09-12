@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Business Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Business Dashboard - {{ restaurant_name }}</h1>
+        <p>Welcome, {{ user.username }}!</p>
+        
+        <div class="dashboard-sections">
+            <div class="section">
+                <h2>🏽 Tables</h2>
+                <div id="tables-info">Loading tables...</div>
+                <button onclick="loadTables()">Refresh Tables</button>
+            </div>
+            
+            <div class="section">
+                <h2>📊 Test API</h2>
+                <button onclick="testAPI()">Test Dashboard API</button>
+                <div id="api-result"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        async function loadTables() {
+            document.getElementById('tables-info').innerHTML = 'Testing API call...';
+            try {
+                console.log('Making API call to /business/dashboard');
+                const response = await fetch('/business/dashboard');
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Data received:', data);
+                
+                document.getElementById('tables-info').innerHTML = 
+                    `<p>Found ${data.tables.length} tables:</p>
+                     <ul>${data.tables.map(t => `<li>Table ${t.table_number} - ${t.status}</li>`).join('')}</ul>`;
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('tables-info').innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testAPI() {
+            try {
+                const response = await fetch('/business/dashboard');
+                const data = await response.json();
+                document.getElementById('api-result').innerHTML = 
+                    `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('api-result').innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        // Load tables on page load
+        loadTables();
+    </script>
+</body>
+</html>
