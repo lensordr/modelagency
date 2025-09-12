@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Analytics Test</title>
+    <link rel="stylesheet" href="/static/analytics.css">
+</head>
+<body>
+    <div class="analytics-container">
+        <div id="analytics-summary">
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-icon">💰</div>
+                    <div class="kpi-value">€196.00</div>
+                    <div class="kpi-label">Total Revenue</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="top-items-list">
+            <div class="top-item-row">
+                <div class="item-rank">#1</div>
+                <div class="item-info">
+                    <div class="item-name">Caesar Salad</div>
+                    <div class="item-category">Food</div>
+                </div>
+                <div class="item-stats">
+                    <div class="stat">
+                        <span class="stat-value">6</span>
+                        <span class="stat-label">Sold</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">€57.00</span>
+                        <span class="stat-label">Revenue</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        console.log('Analytics summary element:', document.getElementById('analytics-summary'));
+        console.log('Top items element:', document.getElementById('top-items-list'));
+    </script>
+</body>
+</html>

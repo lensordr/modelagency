@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Analytics - Restaurant Management</title>
+    <link rel="stylesheet" href="/static/business.css">
+    <link rel="stylesheet" href="/static/analytics.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="analytics-header">
+            <h1>Advanced Analytics Dashboard</h1>
+            <div class="analytics-controls">
+                <div class="period-selector">
+                    <button class="period-btn active" data-period="day">Day</button>
+                    <button class="period-btn" data-period="week">Week</button>
+                    <button class="period-btn" data-period="month">Month</button>
+                </div>
+                <input type="date" id="analytics-date" class="date-picker">
+                <button id="refresh-analytics" class="refresh-btn">🔄 Refresh</button>
+            </div>
+        </header>
+
+        <div id="analytics-loader" class="loader" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading analytics...</p>
+        </div>
+
+        <div id="analytics-error" class="error-message" style="display: none;"></div>
+
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="summary-card">
+                <h3>Total Orders</h3>
+                <div class="summary-value" id="total-orders">0</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Sales</h3>
+                <div class="summary-value" id="total-sales">€0.00</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Tips</h3>
+                <div class="summary-value" id="total-tips">€0.00</div>
+            </div>
+            <div class="summary-card">
+                <h3>Avg Order Value</h3>
+                <div class="summary-value" id="avg-order-value">€0.00</div>
+            </div>
+        </div>
+
+        <!-- Main Analytics Grid -->
+        <div class="analytics-grid">
+            <!-- Top Items Section -->
+            <div class="analytics-section">
+                <div class="section-header">
+                    <h2>Top Selling Items</h2>
+                    <div id="top-items-summary" class="section-summary"></div>
+                </div>
+                <div id="top-items-list" class="top-items-container"></div>
+            </div>
+
+            <!-- Categories Section -->
+            <div class="analytics-section">
+                <div class="section-header">
+                    <h2>Category Performance</h2>
+                </div>
+                <div class="categories-container">
+                    <div class="chart-container">
+                        <canvas id="categories-chart"></canvas>
+                    </div>
+                    <div id="categories-table" class="categories-table-container"></div>
+                </div>
+            </div>
+
+            <!-- Trends Section -->
+            <div class="analytics-section full-width">
+                <div class="section-header">
+                    <h2>Sales Trends (Last 7 Days)</h2>
+                </div>
+                <div class="chart-container">
+                    <canvas id="trends-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="navigation">
+            <a href="/business" class="nav-btn">← Back to Dashboard</a>
+            <a href="/business/sales" class="nav-btn">Sales Reports</a>
+        </div>
+    </div>
+
+    <script src="/static/analytics-dashboard.js"></script>
+</body>
+</html>
