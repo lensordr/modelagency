@@ -51,3 +51,9 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Large media files
+*.mp4
+*.avi
+*.mov
+*.mkv
