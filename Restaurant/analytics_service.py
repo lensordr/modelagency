@@ -23,9 +23,9 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             start_date = target_date_obj.replace(month=1, day=1)
             end_date = target_date_obj  # Up to the selected date, not end of year
         
-        # Count total orders (count analytics records as each represents one order)
+        # Count unique orders (count distinct order IDs from item names)
         orders_query = db.query(
-            func.count(AnalyticsRecord.id)
+            func.count(func.distinct(func.substr(AnalyticsRecord.item_name, 1, func.instr(AnalyticsRecord.item_name, ' - ') - 1)))
         ).filter(
             func.date(AnalyticsRecord.checkout_date) >= start_date,
             func.date(AnalyticsRecord.checkout_date) <= end_date
@@ -76,10 +76,10 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             categories_query = categories_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         categories = categories_query.group_by(AnalyticsRecord.item_category).all()
         
-        # Waiter performance - count analytics records
+        # Waiter performance - count distinct orders
         waiter_performance_query = db.query(
             AnalyticsRecord.waiter_id,
-            func.count(AnalyticsRecord.id).label('total_orders'),
+            func.count(func.distinct(func.substr(AnalyticsRecord.item_name, 1, func.instr(AnalyticsRecord.item_name, ' - ') - 1))).label('total_orders'),
             func.sum(AnalyticsRecord.total_price).label('total_sales'),
             func.sum(AnalyticsRecord.tip_amount).label('total_tips'),
             func.sum(AnalyticsRecord.quantity).label('total_items')
@@ -109,7 +109,7 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
         for i in range(7):
             trend_date = target_date_obj - timedelta(days=6-i)
             day_data_query = db.query(
-                func.count(AnalyticsRecord.id).label('orders'),
+                func.count(func.distinct(func.substr(AnalyticsRecord.item_name, 1, func.instr(AnalyticsRecord.item_name, ' - ') - 1))).label('orders'),
                 func.sum(AnalyticsRecord.total_price).label('revenue')
             ).filter(
                 func.date(AnalyticsRecord.checkout_date) == trend_date

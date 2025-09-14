@@ -164,12 +164,10 @@ def init_sample_data(db: Session):
         if not existing_item:
             create_menu_item(db, **item_data)
     
-    # Only create default admin if no setup was completed
-    from setup import is_setup_complete
-    if not is_setup_complete():
-        existing_admin = get_user_by_username(db, 'admin')
-        if not existing_admin:
-            create_user(db, 'admin', 'rrares', 'admin')
+    # Always create default admin if it doesn't exist
+    existing_admin = get_user_by_username(db, 'admin')
+    if not existing_admin:
+        create_user(db, 'admin', 'rrares', 'admin')
     
     db.commit()
 
@@ -287,42 +285,46 @@ def finish_order_with_waiter(db: Session, table_number: int, waiter_id: int):
     return order
 
 def update_analytics_from_order(db: Session, order):
-    """Create one AnalyticsRecord entry per finished order for real-time analytics"""
+    """Create separate AnalyticsRecord entries for each category in the order"""
     from models import AnalyticsRecord
     
-    # Check if analytics record already exists for this order
-    existing_record = db.query(AnalyticsRecord).filter(
+    # Check if analytics records already exist for this order
+    existing_records = db.query(AnalyticsRecord).filter(
         AnalyticsRecord.table_number == order.table_number,
         AnalyticsRecord.waiter_id == order.waiter_id,
-        AnalyticsRecord.item_name == f"Order #{order.id}"
-    ).first()
+        AnalyticsRecord.item_name.like(f"Order #{order.id}%")
+    ).all()
     
-    if existing_record:
-        print(f"Analytics record already exists for order {order.id}, skipping")
+    if existing_records:
+        print(f"Analytics records already exist for order {order.id}, skipping")
         return
     
-    # Calculate order totals
-    total_price = sum(item.menu_item.price * item.qty for item in order.order_items)
-    total_quantity = sum(item.qty for item in order.order_items)
+    # Group items by category
+    category_totals = {}
+    for item in order.order_items:
+        category = item.menu_item.category
+        if category not in category_totals:
+            category_totals[category] = {'quantity': 0, 'total_price': 0}
+        category_totals[category]['quantity'] += item.qty
+        category_totals[category]['total_price'] += item.menu_item.price * item.qty
     
-    # Get primary item (first item or most expensive)
-    primary_item = max(order.order_items, key=lambda x: x.menu_item.price * x.qty)
+    # Create one record per category
+    for category, totals in category_totals.items():
+        analytics_record = AnalyticsRecord(
+            table_number=order.table_number,
+            waiter_id=order.waiter_id,
+            item_name=f"Order #{order.id} - {category}",
+            item_category=category,
+            quantity=totals['quantity'],
+            unit_price=totals['total_price'] / totals['quantity'],
+            total_price=totals['total_price'],
+            tip_amount=(order.tip_amount or 0) * (totals['total_price'] / sum(cat['total_price'] for cat in category_totals.values())),  # Proportional tip
+            checkout_date=order.created_at
+        )
+        db.add(analytics_record)
     
-    # Create one record per order
-    analytics_record = AnalyticsRecord(
-        table_number=order.table_number,
-        waiter_id=order.waiter_id,
-        item_name=f"Order #{order.id}",  # Use order ID as item name
-        item_category="Mixed" if len(order.order_items) > 1 else primary_item.menu_item.category,
-        quantity=total_quantity,
-        unit_price=total_price / total_quantity,  # Average price per item
-        total_price=total_price,
-        tip_amount=order.tip_amount or 0,
-        checkout_date=order.created_at
-    )
-    db.add(analytics_record)
     db.commit()
-    print(f"Created analytics record for order {order.id}")
+    print(f"Created {len(category_totals)} analytics records for order {order.id} categories: {list(category_totals.keys())}")
 
 # User operations
 def create_user(db: Session, username: str, password: str, role: str = 'waiter'):

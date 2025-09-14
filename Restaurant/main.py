@@ -37,22 +37,18 @@ except ImportError as e:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    try:
-        from migrate_db import migrate_database  # type: ignore
-        migrate_database()
-    except ImportError:
-        pass
-    
     create_tables()
+    
+    # Always initialize sample data
+    db = next(get_db())
+    init_sample_data(db)
+    db.close()
     
     if is_setup_complete():
         config = get_setup_config()
         print(f"\nWelcome back to {config.get('restaurant_name', 'TablePulse')}!")
-        db = next(get_db())
-        init_sample_data(db)
-        db.close()
     else:
-        print("\nSetup required - visit the setup URL shown below")
+        print("\nSetup available at /setup - using default data for now")
     
     yield
 
@@ -440,6 +436,15 @@ async def mark_order_viewed(
     table = get_table_by_number(db, table_number)
     if table:
         table.has_extra_order = False
+        
+        # Clear is_new_extra flag from all order items for this table
+        active_order = get_active_order_by_table(db, table_number)
+        if active_order:
+            db.query(OrderItem).filter(
+                OrderItem.order_id == active_order.id,
+                OrderItem.is_new_extra == True
+            ).update({OrderItem.is_new_extra: False})
+        
         db.commit()
     return {"message": "Order marked as viewed"}
 

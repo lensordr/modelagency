@@ -658,6 +658,45 @@ button:disabled {
     background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%) !important;
 }
 
+/* Notification Badge */
+.notification-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #e53e3e;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse-badge 2s infinite;
+    box-shadow: 0 2px 4px rgba(229, 62, 62, 0.3);
+}
+
+@keyframes pulse-badge {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+@keyframes blink-red {
+    0% { background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%); }
+    50% { background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%); }
+    100% { background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%); }
+}
+
+.nav-btn {
+    position: relative;
+}
+
+.nav-btn.has-notifications {
+    animation: blink-red 1.5s infinite;
+}
+
 /* Improved scrollbar */
 ::-webkit-scrollbar {
     width: 8px;

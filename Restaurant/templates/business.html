@@ -65,9 +65,9 @@
 
         <div id="analytics" class="section-content" style="display: none;">
             <div class="dashboard-section">
-                <h2>📊 Sales Analytics</h2>
-                <div style="margin-bottom: 1rem;">
-                    <a href="/business/analytics" target="_blank" class="nav-btn" style="background: #007bff; color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px;">🚀 Advanced Analytics Dashboard</a>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2>📊 Sales Analytics</h2>
+                    <a href="/business/analytics" target="_blank" style="background: #007bff; color: white; text-decoration: none; padding: 0.3rem 0.8rem; border-radius: 4px; font-size: 0.85rem;">📈 Advanced</a>
                 </div>
             <div class="sales-controls">
                 <div class="period-selector">
@@ -75,9 +75,6 @@
                     <button onclick="loadSales('week')" class="period-btn" id="week-btn">This Week</button>
                     <button onclick="loadSales('month')" class="period-btn" id="month-btn">This Month</button>
                     <button onclick="loadSales('year')" class="period-btn" id="year-btn">This Year</button>
-                </div>
-                <div class="filter-controls">
-                    <button onclick="toggleOverallView()" class="toggle-btn" id="overall-btn">Show Overall</button>
                 </div>
             </div>
                 <div id="sales-summary"></div>
@@ -111,6 +108,6 @@
         <div id="message"></div>
     </div>
 
-    <script src="/static/business.js"></script>
+    <script src="/static/business_no_auth.js"></script>
 </body>
 </html>

@@ -30,15 +30,18 @@
         <div class="header">
             <h1>📊 Analytics Dashboard</h1>
             <div class="controls">
-                <button class="btn active" onclick="setPeriod('day')" id="day-btn">Day</button>
-                <button class="btn" onclick="setPeriod('week')" id="week-btn">Week</button>
-                <button class="btn" onclick="setPeriod('month')" id="month-btn">Month</button>
-                <button class="btn" onclick="setPeriod('year')" id="year-btn">Year</button>
-                <select id="waiter-filter" onchange="loadData()" style="margin-left: 10px; padding: 8px;">
-                    <option value="">All Waiters</option>
-                </select>
-                <input type="date" id="date-picker" onchange="loadData()">
-                <button class="btn" onclick="loadData()">🔄 Refresh</button>
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                    <button class="btn active" onclick="setPeriod('day')" id="day-btn">Day</button>
+                    <button class="btn" onclick="setPeriod('week')" id="week-btn">Week</button>
+                    <button class="btn" onclick="setPeriod('month')" id="month-btn">Month</button>
+                    <button class="btn" onclick="setPeriod('year')" id="year-btn">Year</button>
+                    <select id="waiter-filter" onchange="loadData()" style="margin-left: 20px; padding: 8px;">
+                        <option value="">All Waiters</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="date" id="date-picker" onchange="loadData()">
+                </div>
             </div>
         </div>
 
@@ -102,6 +105,11 @@
 
         function setPeriod(period) {
             currentPeriod = period;
+            // Auto-set to today's date when period buttons are clicked
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date-picker').value = today;
+            currentDate = today;
+            
             document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(period + '-btn').classList.add('active');
             loadData();

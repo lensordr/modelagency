@@ -8,8 +8,13 @@ const checkoutSound = new Audio('/static/sounds/checkout-request.mp3');
 // Track previous state for sound alerts
 let previousTables = [];
 
+// Track notifications
+let notificationCount = 0;
+let currentSection = 'live-orders';
+
 document.addEventListener('DOMContentLoaded', function() {
     currentDate = new Date().toISOString().split('T')[0];
+    currentSection = 'live-orders';
     showSection('live-orders');
     
     document.getElementById('upload-form').addEventListener('submit', uploadMenu);
@@ -103,6 +108,8 @@ function checkForSoundAlerts(currentTables) {
         return;
     }
     
+    let newNotifications = 0;
+    
     currentTables.forEach(currentTable => {
         const previousTable = previousTables.find(t => t.table_number === currentTable.table_number);
         
@@ -115,6 +122,12 @@ function checkForSoundAlerts(currentTables) {
                 } catch (e) {
                     console.log('Sound not available');
                 }
+                
+                // Add notification if not on live orders tab
+                if (currentSection !== 'live-orders') {
+                    newNotifications++;
+                    console.log(`New order notification added for table ${currentTable.table_number}`);
+                }
             }
             
             // Check for checkout requests
@@ -124,9 +137,22 @@ function checkForSoundAlerts(currentTables) {
                 } catch (e) {
                     console.log('Sound not available');
                 }
+                
+                // Add notification if not on live orders tab
+                if (currentSection !== 'live-orders') {
+                    newNotifications++;
+                    console.log(`Checkout notification added for table ${currentTable.table_number}`);
+                }
             }
         }
     });
+    
+    // Update notification count
+    if (newNotifications > 0) {
+        notificationCount += newNotifications;
+        console.log(`Total notifications: ${notificationCount}`);
+        updateNotificationBadge();
+    }
 }
 
 function displayTables() {
@@ -474,6 +500,8 @@ function updatePeriodButtons(activePeriod) {
 
 function showSection(sectionName) {
     console.log('Showing section:', sectionName);
+    currentSection = sectionName;
+    
     document.querySelectorAll('.section-content').forEach(section => {
         section.style.display = 'none';
     });
@@ -485,7 +513,10 @@ function showSection(sectionName) {
     document.getElementById(sectionName).style.display = 'block';
     document.getElementById(sectionName + '-btn').classList.add('active');
     
+    // Clear notifications when viewing live orders
     if (sectionName === 'live-orders') {
+        console.log('Clearing notifications - switched to live orders');
+        clearNotifications();
         loadDashboard();
     } else if (sectionName === 'analytics') {
         loadSales(currentPeriod);
@@ -603,4 +634,25 @@ async function loadWaitersForModal() {
     } catch (error) {
         console.error('Error loading waiters for modal:', error);
     }
+}
+
+function updateNotificationBadge() {
+    const liveOrdersBtn = document.getElementById('live-orders-btn');
+    
+    console.log(`Updating notifications: hasNotifications=${notificationCount > 0}, section=${currentSection}`);
+    
+    if (notificationCount > 0 && currentSection !== 'live-orders') {
+        liveOrdersBtn.classList.add('has-notifications');
+        console.log('Button blinking started');
+    } else {
+        liveOrdersBtn.classList.remove('has-notifications');
+        console.log('Button blinking stopped');
+    }
+}
+
+function clearNotifications() {
+    console.log('Clearing all notifications');
+    notificationCount = 0;
+    const liveOrdersBtn = document.getElementById('live-orders-btn');
+    liveOrdersBtn.classList.remove('has-notifications');
 }
