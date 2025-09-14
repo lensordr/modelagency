@@ -7,7 +7,7 @@ from sqlalchemy import func, extract
 from typing import List
 import sys
 import os
-from datetime import date
+from datetime import date, timedelta
 
 # Add current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -456,30 +456,8 @@ async def checkout_table(
     from models import AnalyticsRecord
     from datetime import datetime
     
-    # Get order details before finishing
-    order_details = get_order_details(db, table_number)
-    table = get_table_by_number(db, table_number)
-    
-    if order_details and order_details.get('items'):
-        # Create analytics records for each item
-        checkout_time = datetime.now()
-        tip_per_item = (table.tip_amount or 0) / len(order_details['items']) if order_details['items'] else 0
-        
-        for item in order_details['items']:
-            analytics_record = AnalyticsRecord(
-                checkout_date=checkout_time,
-                table_number=table_number,
-                waiter_id=waiter_id,
-                item_name=item['name'],
-                item_category='Food',
-                quantity=item['qty'],
-                unit_price=item['total'] / item['qty'],
-                total_price=item['total'],
-                tip_amount=tip_per_item
-            )
-            db.add(analytics_record)
-    
     finish_order_with_waiter(db, table_number, waiter_id)
+    table = get_table_by_number(db, table_number)
     # Clear table status after checkout
     if table:
         table.status = 'free'
@@ -528,6 +506,67 @@ async def add_waiter_route(
 ):
     create_waiter(db, name)
     return {"message": "Waiter added successfully"}
+
+@app.get("/business/top-menu-items")
+async def get_top_menu_items(
+    period: str = "day",
+    target_date: str = None,
+    limit: int = 5,
+    waiter_id: int = None,
+    db: Session = Depends(get_db)
+):
+    from models import Order, OrderItem, MenuItem
+    from datetime import datetime, timedelta
+    
+    if target_date is None:
+        from datetime import date
+        target_date = date.today().isoformat()
+    
+    target_date_obj = datetime.strptime(target_date, "%Y-%m-%d").date()
+    
+    # Calculate date range
+    if period == "day":
+        start_date = target_date_obj
+        end_date = target_date_obj
+    elif period == "week":
+        start_date = target_date_obj - timedelta(days=target_date_obj.weekday())
+        end_date = start_date + timedelta(days=6)
+    elif period == "month":
+        start_date = target_date_obj.replace(day=1)
+        next_month = start_date.replace(month=start_date.month + 1) if start_date.month < 12 else start_date.replace(year=start_date.year + 1, month=1)
+        end_date = next_month - timedelta(days=1)
+    else:  # year
+        start_date = target_date_obj.replace(month=1, day=1)
+        end_date = target_date_obj.replace(month=12, day=31)
+    
+    # Query top menu items from actual orders
+    query = db.query(
+        MenuItem.name,
+        func.sum(OrderItem.qty).label('total_quantity'),
+        func.sum(OrderItem.qty * MenuItem.price).label('total_revenue')
+    ).join(OrderItem).join(Order).filter(
+        Order.status == 'finished',
+        func.date(Order.created_at) >= start_date,
+        func.date(Order.created_at) <= end_date
+    )
+    
+    if waiter_id:
+        query = query.filter(Order.waiter_id == waiter_id)
+    
+    top_items = query.group_by(MenuItem.id, MenuItem.name).order_by(
+        func.sum(OrderItem.qty).desc()
+    ).limit(limit).all()
+    
+    return {
+        'items': [
+            {
+                'name': item.name,
+                'quantity': item.total_quantity,
+                'revenue': float(item.total_revenue)
+            }
+            for item in top_items
+        ]
+    }
 
 @app.get("/business/sales")
 async def get_sales_route(

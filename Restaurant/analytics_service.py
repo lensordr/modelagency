@@ -23,7 +23,7 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             start_date = target_date_obj.replace(month=1, day=1)
             end_date = target_date_obj  # Up to the selected date, not end of year
         
-        # Count total orders (count individual records)
+        # Count total orders (count analytics records as each represents one order)
         orders_query = db.query(
             func.count(AnalyticsRecord.id)
         ).filter(
@@ -46,19 +46,21 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             totals_query = totals_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         totals = totals_query.first()
         
-        # Top items
+        # Top items from actual orders
+        from models import Order, OrderItem, MenuItem
         top_items_query = db.query(
-            AnalyticsRecord.item_name.label('name'),
-            func.sum(AnalyticsRecord.quantity).label('quantity'),
-            func.sum(AnalyticsRecord.total_price).label('revenue')
-        ).filter(
-            func.date(AnalyticsRecord.checkout_date) >= start_date,
-            func.date(AnalyticsRecord.checkout_date) <= end_date
+            MenuItem.name.label('name'),
+            func.sum(OrderItem.qty).label('quantity'),
+            func.sum(OrderItem.qty * MenuItem.price).label('revenue')
+        ).join(OrderItem).join(Order).filter(
+            Order.status == 'finished',
+            func.date(Order.created_at) >= start_date,
+            func.date(Order.created_at) <= end_date
         )
         if waiter_id:
-            top_items_query = top_items_query.filter(AnalyticsRecord.waiter_id == waiter_id)
-        top_items = top_items_query.group_by(AnalyticsRecord.item_name).order_by(
-            func.sum(AnalyticsRecord.quantity).desc()
+            top_items_query = top_items_query.filter(Order.waiter_id == waiter_id)
+        top_items = top_items_query.group_by(MenuItem.id, MenuItem.name).order_by(
+            func.sum(OrderItem.qty).desc()
         ).limit(10).all()
         
         # Categories
@@ -74,7 +76,7 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             categories_query = categories_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         categories = categories_query.group_by(AnalyticsRecord.item_category).all()
         
-        # Waiter performance - count individual records
+        # Waiter performance - count analytics records
         waiter_performance_query = db.query(
             AnalyticsRecord.waiter_id,
             func.count(AnalyticsRecord.id).label('total_orders'),
@@ -131,8 +133,9 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             'top_items': [
                 {
                     'name': item.name,
-                    'quantity': item.quantity,
-                    'revenue': float(item.revenue)
+                    'quantity_sold': item.quantity,
+                    'revenue': float(item.revenue),
+                    'category': 'Food'  # Default category since we don't have it in this query
                 }
                 for item in top_items
             ],
@@ -185,35 +188,38 @@ def get_top_items_by_period(db: Session, period: str = "day", target_date: str =
             start_date = target_date_obj.replace(month=1, day=1)
             end_date = target_date_obj
         
-        # Query top items with comprehensive metrics
+        # Query top items from actual orders
+        from models import Order, OrderItem, MenuItem
         top_items_query = db.query(
-            AnalyticsRecord.item_name,
-            AnalyticsRecord.item_category,
-            func.sum(AnalyticsRecord.quantity).label('total_quantity'),
-            func.sum(AnalyticsRecord.total_price).label('total_revenue'),
-            func.count(func.distinct(AnalyticsRecord.checkout_date)).label('orders_count'),
-            func.avg(AnalyticsRecord.unit_price).label('avg_price')
-        ).filter(
+            MenuItem.name,
+            MenuItem.category,
+            func.sum(OrderItem.qty).label('total_quantity'),
+            func.sum(OrderItem.qty * MenuItem.price).label('total_revenue'),
+            func.count(func.distinct(Order.id)).label('orders_count'),
+            func.avg(MenuItem.price).label('avg_price')
+        ).join(OrderItem).join(Order).filter(
             and_(
-                func.date(AnalyticsRecord.checkout_date) >= start_date,
-                func.date(AnalyticsRecord.checkout_date) <= end_date
+                Order.status == 'finished',
+                func.date(Order.created_at) >= start_date,
+                func.date(Order.created_at) <= end_date
             )
         )
         if waiter_id:
-            top_items_query = top_items_query.filter(AnalyticsRecord.waiter_id == waiter_id)
+            top_items_query = top_items_query.filter(Order.waiter_id == waiter_id)
         top_items = top_items_query.group_by(
-            AnalyticsRecord.item_name,
-            AnalyticsRecord.item_category
+            MenuItem.id,
+            MenuItem.name,
+            MenuItem.category
         ).order_by(
-            desc(func.sum(AnalyticsRecord.quantity))
+            desc(func.sum(OrderItem.qty))
         ).limit(limit).all()
         
         # Format results
         items_data = []
         for item in top_items:
             items_data.append({
-                'name': item.item_name,
-                'category': item.item_category,
+                'name': item.name,
+                'category': item.category,
                 'quantity_sold': item.total_quantity,
                 'revenue': float(item.total_revenue),
                 'orders_appeared_in': item.orders_count,

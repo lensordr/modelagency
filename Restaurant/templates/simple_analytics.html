@@ -114,7 +114,7 @@
             
             try {
                 let dashboardUrl = `/business/analytics/dashboard?period=${currentPeriod}&target_date=${currentDate}`;
-                let topItemsUrl = `/business/analytics/top-items?period=${currentPeriod}&target_date=${currentDate}&limit=10`;
+                let topItemsUrl = `/business/top-menu-items?period=${currentPeriod}&target_date=${currentDate}&limit=10`;
                 let categoriesUrl = `/business/analytics/categories?period=${currentPeriod}&target_date=${currentDate}`;
                 
                 if (currentWaiterId) {
@@ -122,6 +122,8 @@
                     topItemsUrl += `&waiter_id=${currentWaiterId}`;
                     categoriesUrl += `&waiter_id=${currentWaiterId}`;
                 }
+                
+                console.log('Top items URL:', topItemsUrl);
                 
                 const [dashboard, topItems, categories] = await Promise.all([
                     fetch(dashboardUrl).then(r => r.json()),
@@ -131,7 +133,7 @@
                 console.log('Dashboard data:', dashboard);
 
                 updateSummary(dashboard.summary);
-                updateTopItems(topItems.top_items || []);
+                updateTopItems(topItems.items || []);
                 updateCategoriesChart(categories.categories || []);
                 updateTrendsChart(dashboard.trends || []);
                 updateWaiterPerformance(dashboard.waiters || []);
@@ -150,16 +152,23 @@
 
         function updateTopItems(items) {
             const container = document.getElementById('top-items');
+            console.log('Top items data:', items);
+            
+            if (!items || items.length === 0) {
+                container.innerHTML = '<p style="color: #666; text-align: center; padding: 20px;">No top items data available</p>';
+                return;
+            }
+            
             container.innerHTML = items.map((item, index) => `
                 <div class="item">
                     <div>
                         <span class="rank">#${index + 1}</span>
-                        <strong>${item.name}</strong>
-                        <div style="font-size: 12px; color: #666;">${item.category}</div>
+                        <strong>${item.name || 'Unknown'}</strong>
+                        <div style="font-size: 12px; color: #666;">${item.category || 'Food'}</div>
                     </div>
                     <div style="text-align: right;">
-                        <div><strong>${item.quantity_sold}</strong> sold</div>
-                        <div style="font-size: 12px;">€${item.revenue.toFixed(2)}</div>
+                        <div><strong>${item.quantity || 0}</strong> sold</div>
+                        <div style="font-size: 12px;">€${(item.revenue || 0).toFixed(2)}</div>
                     </div>
                 </div>
             `).join('');
