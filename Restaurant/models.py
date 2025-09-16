@@ -5,20 +5,50 @@ from datetime import datetime
 
 Base = declarative_base()
 
+class Restaurant(Base):
+    __tablename__ = "restaurants"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    subdomain = Column(String(50), unique=True, nullable=False)
+    plan_type = Column(String(20), default='trial')  # trial, basic, professional
+    trial_ends_at = Column(DateTime)
+    subscription_status = Column(String(20), default='trial')  # trial, active, cancelled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    active = Column(Boolean, default=True)
+    
+    # Relationships
+    users = relationship("User", back_populates="restaurant")
+    tables = relationship("Table", back_populates="restaurant")
+    menu_items = relationship("MenuItem", back_populates="restaurant")
+    waiters = relationship("Waiter", back_populates="restaurant")
+    orders = relationship("Order", back_populates="restaurant")
+    analytics_records = relationship("AnalyticsRecord", back_populates="restaurant")
+
 class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String(50), unique=True, nullable=False)
+    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
+    username = Column(String(50), nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), default='waiter')  # 'admin', 'waiter'
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    restaurant = relationship("Restaurant", back_populates="users")
+    
+    __table_args__ = (
+        # Username should be unique per restaurant
+        {'sqlite_autoincrement': True}
+    )
 
 class Table(Base):
     __tablename__ = "tables"
     
-    table_number = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
+    table_number = Column(Integer, nullable=False)
     code = Column(String(3), nullable=False)
     status = Column(String(10), default='free')  # 'free' or 'occupied'
     has_extra_order = Column(Boolean, default=False)
@@ -26,39 +56,46 @@ class Table(Base):
     checkout_method = Column(String(10))  # 'cash' or 'card'
     tip_amount = Column(Float, default=0.0)
     
+    restaurant = relationship("Restaurant", back_populates="tables")
     orders = relationship("Order", back_populates="table")
 
 class MenuItem(Base):
     __tablename__ = "menu_items"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
+    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
     name = Column(String(100), nullable=False)
     ingredients = Column(String(500))
     price = Column(Float, nullable=False)
     category = Column(String(50), default='Food')
     active = Column(Boolean, default=True)
     
+    restaurant = relationship("Restaurant", back_populates="menu_items")
     order_items = relationship("OrderItem", back_populates="menu_item")
 
 class Waiter(Base):
     __tablename__ = "waiters"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
+    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
     name = Column(String(100), nullable=False)
     active = Column(Boolean, default=True)
     
+    restaurant = relationship("Restaurant", back_populates="waiters")
     orders = relationship("Order", back_populates="waiter")
 
 class Order(Base):
     __tablename__ = "orders"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    table_number = Column(Integer, ForeignKey('tables.table_number'))
+    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
+    table_id = Column(Integer, ForeignKey('tables.id'))
     waiter_id = Column(Integer, ForeignKey('waiters.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(10), default='active')  # 'active' or 'finished'
     tip_amount = Column(Float, default=0.0)
     
+    restaurant = relationship("Restaurant", back_populates="orders")
     table = relationship("Table", back_populates="orders")
     waiter = relationship("Waiter", back_populates="orders")
     order_items = relationship("OrderItem", back_populates="order")
@@ -81,6 +118,7 @@ class AnalyticsRecord(Base):
     __tablename__ = "analytics_records"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
+    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
     checkout_date = Column(DateTime, nullable=False)
     table_number = Column(Integer, nullable=False)
     waiter_id = Column(Integer, ForeignKey('waiters.id'))
@@ -91,6 +129,7 @@ class AnalyticsRecord(Base):
     total_price = Column(Float, nullable=False)
     tip_amount = Column(Float, default=0.0)
     
+    restaurant = relationship("Restaurant", back_populates="analytics_records")
     waiter = relationship("Waiter")
 
 # Database setup

@@ -1,18 +1,26 @@
 from sqlalchemy.orm import Session
-from models import Table, MenuItem, Order, OrderItem, Waiter, User
+from models import Table, MenuItem, Order, OrderItem, Waiter, User, Restaurant
 from datetime import datetime, date, timedelta
 from sqlalchemy import func, extract
 from auth import get_password_hash
+from tenant import get_current_restaurant_id
 
 # Table operations
-def get_all_tables(db: Session):
-    return db.query(Table).all()
+def get_all_tables(db: Session, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    return db.query(Table).filter(Table.restaurant_id == restaurant_id).all()
 
-def get_table_by_number(db: Session, table_number: int):
-    return db.query(Table).filter(Table.table_number == table_number).first()
+def get_table_by_number(db: Session, table_number: int, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    return db.query(Table).filter(
+        Table.table_number == table_number,
+        Table.restaurant_id == restaurant_id
+    ).first()
 
-def update_table_status(db: Session, table_number: int, status: str):
-    table = get_table_by_number(db, table_number)
+def update_table_status(db: Session, table_number: int, status: str, restaurant_id: int = None):
+    table = get_table_by_number(db, table_number, restaurant_id)
     if table:
         table.status = status
         db.commit()
@@ -20,14 +28,23 @@ def update_table_status(db: Session, table_number: int, status: str):
     return table
 
 # Menu operations
-def get_active_menu_items(db: Session):
-    return db.query(MenuItem).filter(MenuItem.active == True).order_by(MenuItem.category, MenuItem.name).all()
+def get_active_menu_items(db: Session, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    return db.query(MenuItem).filter(
+        MenuItem.active == True,
+        MenuItem.restaurant_id == restaurant_id
+    ).order_by(MenuItem.category, MenuItem.name).all()
 
-def get_menu_items_by_category(db: Session, include_inactive: bool = False):
-    if include_inactive:
-        items = db.query(MenuItem).order_by(MenuItem.category, MenuItem.name).all()
-    else:
-        items = db.query(MenuItem).filter(MenuItem.active == True).order_by(MenuItem.category, MenuItem.name).all()
+def get_menu_items_by_category(db: Session, include_inactive: bool = False, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    
+    query = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id)
+    if not include_inactive:
+        query = query.filter(MenuItem.active == True)
+    
+    items = query.order_by(MenuItem.category, MenuItem.name).all()
     categories = {}
     for item in items:
         if item.category not in categories:
@@ -35,27 +52,51 @@ def get_menu_items_by_category(db: Session, include_inactive: bool = False):
         categories[item.category].append(item)
     return categories
 
-def get_menu_item_by_id(db: Session, item_id: int):
-    return db.query(MenuItem).filter(MenuItem.id == item_id).first()
+def get_menu_item_by_id(db: Session, item_id: int, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    return db.query(MenuItem).filter(
+        MenuItem.id == item_id,
+        MenuItem.restaurant_id == restaurant_id
+    ).first()
 
-def toggle_menu_item_active(db: Session, item_id: int):
-    item = get_menu_item_by_id(db, item_id)
+def toggle_menu_item_active(db: Session, item_id: int, restaurant_id: int = None):
+    item = get_menu_item_by_id(db, item_id, restaurant_id)
     if item:
         item.active = not item.active
         db.commit()
         db.refresh(item)
     return item
 
-def create_menu_item(db: Session, name: str, ingredients: str, price: float, category: str = 'Food'):
-    item = MenuItem(name=name, ingredients=ingredients, price=price, category=category)
+def create_menu_item(db: Session, name: str, ingredients: str, price: float, category: str = 'Food', restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    item = MenuItem(
+        restaurant_id=restaurant_id,
+        name=name, 
+        ingredients=ingredients, 
+        price=price, 
+        category=category
+    )
     db.add(item)
     db.commit()
     db.refresh(item)
     return item
 
 # Order operations
-def create_order(db: Session, table_number: int, items: list):
-    order = Order(table_number=table_number)
+def create_order(db: Session, table_number: int, items: list, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    
+    # Get table by number and restaurant
+    table = get_table_by_number(db, table_number, restaurant_id)
+    if not table:
+        raise ValueError(f"Table {table_number} not found")
+    
+    order = Order(
+        restaurant_id=restaurant_id,
+        table_id=table.id
+    )
     db.add(order)
     db.commit()
     db.refresh(order)
@@ -92,28 +133,37 @@ def add_items_to_order(db: Session, order_id: int, items: list):
     db.commit()
     print(f"Committed changes to order {order_id}")
 
-def get_active_order_by_table(db: Session, table_number: int):
+def get_active_order_by_table(db: Session, table_number: int, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    
+    # Get table first
+    table = get_table_by_number(db, table_number, restaurant_id)
+    if not table:
+        return None
+    
     return db.query(Order).filter(
-        Order.table_number == table_number,
+        Order.table_id == table.id,
+        Order.restaurant_id == restaurant_id,
         Order.status == 'active'
     ).first()
 
-def finish_order(db: Session, table_number: int):
-    order = get_active_order_by_table(db, table_number)
+def finish_order(db: Session, table_number: int, restaurant_id: int = None):
+    order = get_active_order_by_table(db, table_number, restaurant_id)
     if order:
         order.status = 'finished'
         db.commit()
         db.refresh(order)
     return order
 
-def get_order_details(db: Session, table_number: int):
-    order = get_active_order_by_table(db, table_number)
+def get_order_details(db: Session, table_number: int, restaurant_id: int = None):
+    order = get_active_order_by_table(db, table_number, restaurant_id)
     if not order:
         return None
     
     details = {
         'order_id': order.id,
-        'table_number': order.table_number,
+        'table_number': table_number,
         'created_at': order.created_at,
         'items': [],
         'total': 0
@@ -140,14 +190,32 @@ def get_order_details(db: Session, table_number: int):
     return details
 
 # Initialize tables with sample data
-def init_sample_data(db: Session):
+def init_sample_data(db: Session, restaurant_id: int = None):
+    # Skip if no restaurant context (during migration)
+    try:
+        if restaurant_id is None:
+            restaurant_id = get_current_restaurant_id()
+    except:
+        # During migration, create for first restaurant
+        restaurant = db.query(Restaurant).first()
+        if not restaurant:
+            return
+        restaurant_id = restaurant.id
+    
     # Create tables 1-10 with random 3-digit codes
     table_codes = ['123', '456', '789', '321', '654', '987', '147', '258', '369', '741']
     
     for i in range(1, 11):
-        existing_table = get_table_by_number(db, i)
+        existing_table = db.query(Table).filter(
+            Table.table_number == i,
+            Table.restaurant_id == restaurant_id
+        ).first()
         if not existing_table:
-            table = Table(table_number=i, code=table_codes[i-1])
+            table = Table(
+                restaurant_id=restaurant_id,
+                table_number=i, 
+                code=table_codes[i-1]
+            )
             db.add(table)
     
     # Create sample menu items
@@ -160,14 +228,31 @@ def init_sample_data(db: Session):
     ]
     
     for item_data in sample_items:
-        existing_item = db.query(MenuItem).filter(MenuItem.name == item_data['name']).first()
+        existing_item = db.query(MenuItem).filter(
+            MenuItem.name == item_data['name'],
+            MenuItem.restaurant_id == restaurant_id
+        ).first()
         if not existing_item:
+            item_data['restaurant_id'] = restaurant_id
             create_menu_item(db, **item_data)
     
-    # Always create default admin if it doesn't exist
-    existing_admin = get_user_by_username(db, 'admin')
+    # Create default admin for this restaurant
+    existing_admin = db.query(User).filter(
+        User.username == 'admin',
+        User.restaurant_id == restaurant_id
+    ).first()
     if not existing_admin:
-        create_user(db, 'admin', 'rrares', 'admin')
+        create_user(db, 'admin', 'rrares', 'admin', restaurant_id)
+    
+    # Create sample waiters
+    sample_waiters = ['John Smith', 'Maria Garcia', 'David Johnson']
+    for waiter_name in sample_waiters:
+        existing_waiter = db.query(Waiter).filter(
+            Waiter.name == waiter_name,
+            Waiter.restaurant_id == restaurant_id
+        ).first()
+        if not existing_waiter:
+            create_waiter(db, waiter_name, restaurant_id)
     
     db.commit()
 
@@ -198,7 +283,10 @@ def get_sales_by_table_and_period(db: Session, period: str = 'day', target_date:
     
     return query.all()
 
-def get_total_sales_summary(db: Session, period: str = 'day', target_date: date = None, waiter_id: int = None):
+def get_total_sales_summary(db: Session, period: str = 'day', target_date: date = None, waiter_id: int = None, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    
     if not target_date:
         target_date = date.today()
     
@@ -206,7 +294,7 @@ def get_total_sales_summary(db: Session, period: str = 'day', target_date: date 
     sales_query = db.query(
         func.count(func.distinct(Order.id)).label('total_orders'),
         func.sum(OrderItem.qty * MenuItem.price).label('total_sales')
-    ).join(OrderItem).join(MenuItem)
+    ).join(OrderItem).join(MenuItem).filter(Order.restaurant_id == restaurant_id)
     
     if period == 'day':
         sales_query = sales_query.filter(func.date(Order.created_at) == target_date)
@@ -229,7 +317,10 @@ def get_total_sales_summary(db: Session, period: str = 'day', target_date: date 
     # Get tips from finished orders
     tips_query = db.query(
         func.sum(Order.tip_amount).label('total_tips')
-    ).filter(Order.status == 'finished')
+    ).filter(
+        Order.status == 'finished',
+        Order.restaurant_id == restaurant_id
+    )
     
     # Filter by waiter if specified
     if waiter_id:
@@ -253,26 +344,41 @@ def get_total_sales_summary(db: Session, period: str = 'day', target_date: date 
         'total_tips': float(tips_result.total_tips or 0) if tips_result.total_tips else 0.0
     }
 # Waiter operations
-def get_all_waiters(db: Session):
-    return db.query(Waiter).filter(Waiter.active == True).all()
+def get_all_waiters(db: Session, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    return db.query(Waiter).filter(
+        Waiter.active == True,
+        Waiter.restaurant_id == restaurant_id
+    ).all()
 
-def create_waiter(db: Session, name: str):
-    waiter = Waiter(name=name)
+def create_waiter(db: Session, name: str, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    waiter = Waiter(restaurant_id=restaurant_id, name=name)
     db.add(waiter)
     db.commit()
     db.refresh(waiter)
     return waiter
 
-def delete_waiter(db: Session, waiter_id: int):
-    waiter = db.query(Waiter).filter(Waiter.id == waiter_id).first()
+def delete_waiter(db: Session, waiter_id: int, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    waiter = db.query(Waiter).filter(
+        Waiter.id == waiter_id,
+        Waiter.restaurant_id == restaurant_id
+    ).first()
     if waiter:
         waiter.active = False
         db.commit()
     return waiter
 
-def finish_order_with_waiter(db: Session, table_number: int, waiter_id: int):
-    order = get_active_order_by_table(db, table_number)
-    table = get_table_by_number(db, table_number)
+def finish_order_with_waiter(db: Session, table_number: int, waiter_id: int, restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    
+    order = get_active_order_by_table(db, table_number, restaurant_id)
+    table = get_table_by_number(db, table_number, restaurant_id)
     if order and table:
         order.status = 'finished'
         order.waiter_id = waiter_id
@@ -281,16 +387,23 @@ def finish_order_with_waiter(db: Session, table_number: int, waiter_id: int):
         db.refresh(order)
         
         # Update analytics records for real-time dashboard
-        update_analytics_from_order(db, order)
+        update_analytics_from_order(db, order, restaurant_id)
     return order
 
-def update_analytics_from_order(db: Session, order):
+def update_analytics_from_order(db: Session, order, restaurant_id: int = None):
     """Create separate AnalyticsRecord entries for each category in the order"""
     from models import AnalyticsRecord
     
+    if restaurant_id is None:
+        restaurant_id = order.restaurant_id
+    
+    # Get table number from table relationship
+    table_number = order.table.table_number if order.table else 0
+    
     # Check if analytics records already exist for this order
     existing_records = db.query(AnalyticsRecord).filter(
-        AnalyticsRecord.table_number == order.table_number,
+        AnalyticsRecord.restaurant_id == restaurant_id,
+        AnalyticsRecord.table_number == table_number,
         AnalyticsRecord.waiter_id == order.waiter_id,
         AnalyticsRecord.item_name.like(f"Order #{order.id}%")
     ).all()
@@ -311,7 +424,8 @@ def update_analytics_from_order(db: Session, order):
     # Create one record per category
     for category, totals in category_totals.items():
         analytics_record = AnalyticsRecord(
-            table_number=order.table_number,
+            restaurant_id=restaurant_id,
+            table_number=table_number,
             waiter_id=order.waiter_id,
             item_name=f"Order #{order.id} - {category}",
             item_category=category,
@@ -327,16 +441,37 @@ def update_analytics_from_order(db: Session, order):
     print(f"Created {len(category_totals)} analytics records for order {order.id} categories: {list(category_totals.keys())}")
 
 # User operations
-def create_user(db: Session, username: str, password: str, role: str = 'waiter'):
+def create_user(db: Session, username: str, password: str, role: str = 'waiter', restaurant_id: int = None):
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
     password_hash = get_password_hash(password)
-    user = User(username=username, password_hash=password_hash, role=role)
+    user = User(
+        restaurant_id=restaurant_id,
+        username=username, 
+        password_hash=password_hash, 
+        role=role
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
 
-def get_user_by_username(db: Session, username: str):
-    return db.query(User).filter(User.username == username, User.active == True).first()
+def get_user_by_username(db: Session, username: str, restaurant_id: int = None):
+    if restaurant_id is None:
+        try:
+            restaurant_id = get_current_restaurant_id()
+        except:
+            # During migration or setup, find any user
+            return db.query(User).filter(
+                User.username == username, 
+                User.active == True
+            ).first()
+    
+    return db.query(User).filter(
+        User.username == username, 
+        User.active == True,
+        User.restaurant_id == restaurant_id
+    ).first()
 
 def get_sales_by_waiter_and_period(db: Session, waiter_id: int, period: str = 'day', target_date: date = None):
     if not target_date:

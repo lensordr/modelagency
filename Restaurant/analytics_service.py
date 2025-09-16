@@ -4,7 +4,7 @@ from datetime import datetime, date, timedelta
 from models import AnalyticsRecord, Waiter, MenuItem
 from typing import Optional, Dict, List
 
-def get_analytics_for_period(db: Session, target_date: str, period: str = "day", waiter_id: int = None):
+def get_analytics_for_period(db: Session, target_date: str, period: str = "day", waiter_id: int = None, restaurant_id: int = None):
     """Get analytics data for a specific period"""
     try:
         target_date_obj = datetime.strptime(target_date, "%Y-%m-%d").date()
@@ -23,13 +23,15 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             start_date = target_date_obj.replace(month=1, day=1)
             end_date = target_date_obj  # Up to the selected date, not end of year
         
-        # Count unique orders (count distinct order IDs from item names)
+        # Count total analytics records as orders (each record = 1 order)
         orders_query = db.query(
-            func.count(func.distinct(func.substr(AnalyticsRecord.item_name, 1, func.instr(AnalyticsRecord.item_name, ' - ') - 1)))
+            func.count(AnalyticsRecord.id)
         ).filter(
             func.date(AnalyticsRecord.checkout_date) >= start_date,
             func.date(AnalyticsRecord.checkout_date) <= end_date
         )
+        if restaurant_id:
+            orders_query = orders_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
         if waiter_id:
             orders_query = orders_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         total_orders = orders_query.scalar() or 0
@@ -42,6 +44,8 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             func.date(AnalyticsRecord.checkout_date) >= start_date,
             func.date(AnalyticsRecord.checkout_date) <= end_date
         )
+        if restaurant_id:
+            totals_query = totals_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
         if waiter_id:
             totals_query = totals_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         totals = totals_query.first()
@@ -57,6 +61,8 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             func.date(Order.created_at) >= start_date,
             func.date(Order.created_at) <= end_date
         )
+        if restaurant_id:
+            top_items_query = top_items_query.filter(Order.restaurant_id == restaurant_id)
         if waiter_id:
             top_items_query = top_items_query.filter(Order.waiter_id == waiter_id)
         top_items = top_items_query.group_by(MenuItem.id, MenuItem.name).order_by(
@@ -72,6 +78,8 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             func.date(AnalyticsRecord.checkout_date) >= start_date,
             func.date(AnalyticsRecord.checkout_date) <= end_date
         )
+        if restaurant_id:
+            categories_query = categories_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
         if waiter_id:
             categories_query = categories_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         categories = categories_query.group_by(AnalyticsRecord.item_category).all()
@@ -87,22 +95,29 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             func.date(AnalyticsRecord.checkout_date) >= start_date,
             func.date(AnalyticsRecord.checkout_date) <= end_date
         )
+        if restaurant_id:
+            waiter_performance_query = waiter_performance_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
         if waiter_id:
             waiter_performance_query = waiter_performance_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         waiter_performance = waiter_performance_query.group_by(AnalyticsRecord.waiter_id).all()
         
-        # Get waiter names
+        # Get waiter names (only from current restaurant)
         waiters_data = []
         for wp in waiter_performance:
-            waiter = db.query(Waiter).filter(Waiter.id == wp.waiter_id).first()
-            waiters_data.append({
-                'name': waiter.name if waiter else f'Waiter {wp.waiter_id}',
-                'total_orders': wp.total_orders,
-                'total_sales': float(wp.total_sales or 0),
-                'total_tips': float(wp.total_tips or 0),
-                'total_items': wp.total_items or 0,
-                'avg_order_value': float(wp.total_sales or 0) / max(wp.total_orders, 1)
-            })
+            waiter_query = db.query(Waiter).filter(Waiter.id == wp.waiter_id)
+            if restaurant_id:
+                waiter_query = waiter_query.filter(Waiter.restaurant_id == restaurant_id)
+            waiter = waiter_query.first()
+            
+            if waiter:  # Only include waiters from current restaurant
+                waiters_data.append({
+                    'name': waiter.name,
+                    'total_orders': wp.total_orders,
+                    'total_sales': float(wp.total_sales or 0),
+                    'total_tips': float(wp.total_tips or 0),
+                    'total_items': wp.total_items or 0,
+                    'avg_order_value': float(wp.total_sales or 0) / max(wp.total_orders, 1)
+                })
         
         # Trends (last 7 days)
         trends = []
@@ -114,6 +129,8 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             ).filter(
                 func.date(AnalyticsRecord.checkout_date) == trend_date
             )
+            if restaurant_id:
+                day_data_query = day_data_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
             if waiter_id:
                 day_data_query = day_data_query.filter(AnalyticsRecord.waiter_id == waiter_id)
             day_data = day_data_query.first()
@@ -124,11 +141,16 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
                 'revenue': float(day_data.revenue or 0)
             })
         
+        # Recalculate summary based on filtered waiters data
+        filtered_total_orders = sum(w['total_orders'] for w in waiters_data)
+        filtered_total_sales = sum(w['total_sales'] for w in waiters_data)
+        filtered_total_tips = sum(w['total_tips'] for w in waiters_data)
+        
         return {
             'summary': {
-                'total_orders': total_orders,
-                'total_sales': float(totals.total_sales or 0),
-                'total_tips': float(totals.total_tips or 0)
+                'total_orders': filtered_total_orders,
+                'total_sales': filtered_total_sales,
+                'total_tips': filtered_total_tips
             },
             'top_items': [
                 {
@@ -162,7 +184,7 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             'error': str(e)
         }
 
-def get_top_items_by_period(db: Session, period: str = "day", target_date: str = None, limit: int = 10, waiter_id: int = None) -> Dict:
+def get_top_items_by_period(db: Session, period: str = "day", target_date: str = None, limit: int = 10, waiter_id: int = None, restaurant_id: int = None) -> Dict:
     """Get top selling items for day/week/month with detailed analytics"""
     try:
         if target_date is None:
@@ -263,7 +285,7 @@ def get_top_items_by_period(db: Session, period: str = "day", target_date: str =
             'top_items': []
         }
 
-def get_item_performance_trends(db: Session, item_name: str, days: int = 30) -> Dict:
+def get_item_performance_trends(db: Session, item_name: str, days: int = 30, restaurant_id: int = None) -> Dict:
     """Get performance trends for a specific item over time"""
     try:
         end_date = date.today()
@@ -337,7 +359,7 @@ def get_item_performance_trends(db: Session, item_name: str, days: int = 30) -> 
             'daily_trends': []
         }
 
-def get_category_comparison(db: Session, period: str = "month", target_date: str = None, waiter_id: int = None) -> Dict:
+def get_category_comparison(db: Session, period: str = "month", target_date: str = None, waiter_id: int = None, restaurant_id: int = None) -> Dict:
     """Compare performance across categories"""
     try:
         if target_date is None:

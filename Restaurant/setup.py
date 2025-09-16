@@ -67,8 +67,21 @@ def process_uploaded_menu(db: Session, file_content: bytes, filename: str):
     elif filename.endswith('.pdf'):
         process_pdf_content(db, file_content)
 
-def process_excel_content(db: Session, file_content: bytes):
+def process_excel_content(db: Session, file_content: bytes, restaurant_id: int = None):
     try:
+        from tenant import get_current_restaurant_id
+        from models import MenuItem
+        if restaurant_id is None:
+            try:
+                restaurant_id = get_current_restaurant_id()
+            except:
+                restaurant_id = 1  # Default to first restaurant
+        
+        # Clear existing menu items for this restaurant only
+        deleted_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
+        db.commit()
+        print(f"Cleared {deleted_count} existing menu items for restaurant {restaurant_id}")
+        
         import openpyxl
         import io
         wb = openpyxl.load_workbook(io.BytesIO(file_content))
@@ -82,16 +95,29 @@ def process_excel_content(db: Session, file_content: bytes):
                 price = float(row[2])
                 category = str(row[3]).strip() if len(row) > 3 and row[3] else 'Food'
                 
-                create_menu_item(db, name, ingredients, price, category)
+                create_menu_item(db, name, ingredients, price, category, restaurant_id)
                 items_added += 1
         
-        print(f"Added {items_added} menu items from Excel")
+        print(f"Replaced menu with {items_added} items for restaurant {restaurant_id}")
         
     except Exception as e:
         print(f"Error processing Excel file: {e}")
 
-def process_pdf_content(db: Session, file_content: bytes):
+def process_pdf_content(db: Session, file_content: bytes, restaurant_id: int = None):
     try:
+        from tenant import get_current_restaurant_id
+        from models import MenuItem
+        if restaurant_id is None:
+            try:
+                restaurant_id = get_current_restaurant_id()
+            except:
+                restaurant_id = 1  # Default to first restaurant
+        
+        # Clear existing menu items for this restaurant only
+        deleted_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
+        db.commit()
+        print(f"Cleared {deleted_count} existing menu items for restaurant {restaurant_id}")
+        
         import PyPDF2
         import io
         pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
@@ -113,10 +139,10 @@ def process_pdf_content(db: Session, file_content: bytes):
                 ingredients = ingredients.strip()
                 category = category.strip()
                 
-                create_menu_item(db, name, ingredients, price, category)
+                create_menu_item(db, name, ingredients, price, category, restaurant_id)
                 items_added += 1
         
-        print(f"Added {items_added} menu items from PDF")
+        print(f"Replaced menu with {items_added} items for restaurant {restaurant_id}")
         
     except Exception as e:
         print(f"Error processing PDF file: {e}")

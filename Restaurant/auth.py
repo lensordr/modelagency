@@ -56,8 +56,25 @@ def require_admin(current_user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
-def authenticate_user(db: Session, username: str, password: str):
-    user = db.query(User).filter(User.username == username, User.active is True).first()
+def authenticate_user(db: Session, username: str, password: str, restaurant_id: int = None):
+    from tenant import get_current_restaurant_id
+    
+    if restaurant_id is None:
+        try:
+            restaurant_id = get_current_restaurant_id()
+        except:
+            # Fallback to any user if no tenant context
+            user = db.query(User).filter(User.username == username, User.active == True).first()
+            if not user or not verify_password(password, user.password_hash):
+                return False
+            return user
+    
+    user = db.query(User).filter(
+        User.username == username, 
+        User.active == True,
+        User.restaurant_id == restaurant_id
+    ).first()
+    
     if not user or not verify_password(password, user.password_hash):
         return False
     return user

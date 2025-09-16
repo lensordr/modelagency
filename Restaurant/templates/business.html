@@ -67,7 +67,7 @@
             <div class="dashboard-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                     <h2>📊 Sales Analytics</h2>
-                    <a href="/business/analytics" target="_blank" style="background: #007bff; color: white; text-decoration: none; padding: 0.3rem 0.8rem; border-radius: 4px; font-size: 0.85rem;">📈 Advanced</a>
+                    <a href="javascript:void(0)" onclick="window.open(window.location.pathname.includes('/r/') ? window.location.pathname.replace('/business/dashboard', '/business/analytics') : '/business/analytics', '_blank')" style="background: #007bff; color: white; text-decoration: none; padding: 0.3rem 0.8rem; border-radius: 4px; font-size: 0.85rem; cursor: pointer;">📈 Advanced</a>
                 </div>
             <div class="sales-controls">
                 <div class="period-selector">
@@ -78,11 +78,7 @@
                 </div>
             </div>
                 <div id="sales-summary"></div>
-                <div id="top-items-mini" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                    <h4 style="margin: 0 0 10px 0; color: #333;">🏆 Today's Top Items</h4>
-                    <div id="top-items-list"></div>
-                </div>
-                <div id="table-sales"></div>
+
             </div>
         </div>
 
@@ -108,6 +104,6 @@
         <div id="message"></div>
     </div>
 
-    <script src="/static/business_no_auth.js"></script>
+    <script src="/static/business_no_auth.js?v=2"></script>
 </body>
 </html>

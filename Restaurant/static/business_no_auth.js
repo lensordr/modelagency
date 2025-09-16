@@ -84,19 +84,37 @@ function logout() {
 
 async function loadDashboard() {
     try {
-        const response = await fetch('/business/dashboard');
-        const data = await response.json();
+        const url = '/business/tables';
+        console.log('Current URL:', window.location.href);
+        console.log('Loading dashboard from:', url);
         
-        if (response.ok) {
-            // Check for sound alerts before updating tables
-            checkForSoundAlerts(data.tables);
-            
-            tables = data.tables;
-            displayTables();
-            
-            // Update previous state
-            previousTables = JSON.parse(JSON.stringify(data.tables));
+        const response = await fetch(url);
+        console.log('Response status:', response.status);
+        console.log('Response URL:', response.url);
+        console.log('Response headers:', response.headers.get('content-type'));
+        
+        if (!response.ok) {
+            console.error('Response not OK:', response.status, response.statusText);
+            const text = await response.text();
+            console.error('Response body:', text.substring(0, 200));
+            return;
         }
+        
+        const text = await response.text();
+        console.log('Raw response:', text.substring(0, 100));
+        
+        const data = JSON.parse(text);
+        console.log('Tables data received:', data);
+        
+        // Check for sound alerts before updating tables
+        checkForSoundAlerts(data);
+        
+        tables = data;
+        displayTables();
+        console.log('Tables set:', tables.length, 'tables');
+        
+        // Update previous state
+        previousTables = JSON.parse(JSON.stringify(data));
     } catch (error) {
         console.error('Error loading dashboard:', error);
     }
@@ -157,6 +175,12 @@ function checkForSoundAlerts(currentTables) {
 
 function displayTables() {
     const tablesGrid = document.getElementById('tables-grid');
+    if (!tablesGrid) {
+        console.error('tables-grid element not found!');
+        return;
+    }
+    
+    console.log('Displaying', tables.length, 'tables');
     tablesGrid.innerHTML = '';
     
     tables.forEach(table => {
@@ -183,6 +207,8 @@ function displayTables() {
         
         tablesGrid.appendChild(tableCard);
     });
+    
+    console.log('Tables displayed successfully');
 }
 
 async function showOrderDetails(tableNumber) {
@@ -417,17 +443,20 @@ async function loadSales(period) {
         if (response.ok) {
             displaySalesData(data);
             updatePeriodButtons(period);
-            loadTopItems();
         }
     } catch (error) {
         console.error('Error loading sales:', error);
+        // Clear data on error
+        displaySalesData({summary: {total_orders: 0, total_sales: 0, total_tips: 0}, waiters: []});
     }
 }
 
 async function loadTopItems() {
     try {
-        const response = await fetch(`/business/top-menu-items?period=day&limit=5`);
+        console.log(`Loading top items for period: ${currentPeriod}`);
+        const response = await fetch(`/business/top-menu-items?period=${currentPeriod}&limit=5&_t=${Date.now()}`);
         const data = await response.json();
+        console.log('Top items response:', data);
         
         if (data.items && data.items.length > 0) {
             const container = document.getElementById('top-items-list');
@@ -454,7 +483,6 @@ async function loadTopItems() {
 
 function displaySalesData(data) {
     const summaryDiv = document.getElementById('sales-summary');
-    const tableSalesDiv = document.getElementById('table-sales');
     
     summaryDiv.innerHTML = `
         <div class="sales-summary-cards">
@@ -472,25 +500,6 @@ function displaySalesData(data) {
             </div>
         </div>
     `;
-    
-    if (data.waiters && data.waiters.length > 0) {
-        tableSalesDiv.innerHTML = `
-            <h4>👨🍳 Waiter Performance</h4>
-            <div class="table-sales-grid">
-                ${data.waiters.map(waiter => `
-                    <div class="table-sale-card waiter-summary">
-                        <div class="table-sale-header">${waiter.name}</div>
-                        <div class="table-sale-stats">
-                            <div>Orders: ${waiter.total_orders}</div>
-                            <div>Sales: €${waiter.total_sales.toFixed(2)}</div>
-                            <div>Tips: €${waiter.total_tips.toFixed(2)}</div>
-                            <div>Avg: €${waiter.avg_order_value.toFixed(2)}</div>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
 }
 
 function updatePeriodButtons(activePeriod) {
@@ -520,7 +529,6 @@ function showSection(sectionName) {
         loadDashboard();
     } else if (sectionName === 'analytics') {
         loadSales(currentPeriod);
-        loadTopItems();
     } else if (sectionName === 'menu-management') {
         loadMenuItems();
     } else if (sectionName === 'waiters-new') {
