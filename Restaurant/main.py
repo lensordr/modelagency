@@ -1175,13 +1175,23 @@ async def checkout_table(
         total_quantity = sum(item.qty for item in order.order_items)
         total_price = sum(item.menu_item.price * item.qty for item in order.order_items)
         
+        # Get primary category (most expensive item's category)
+        primary_category = "Food"
+        if order.order_items:
+            max_price = 0
+            for item in order.order_items:
+                item_total = item.menu_item.price * item.qty
+                if item_total > max_price:
+                    max_price = item_total
+                    primary_category = item.menu_item.category
+        
         # Create ONE analytics record per order
         analytics_record = AnalyticsRecord(
             restaurant_id=restaurant_id,
             table_number=table_number,
             waiter_id=waiter_id,
             item_name=f"Order #{order.id}",
-            item_category="Mixed",
+            item_category=primary_category,
             quantity=total_quantity,
             unit_price=total_price / total_quantity if total_quantity > 0 else 0,
             total_price=total_price,
