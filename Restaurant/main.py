@@ -883,6 +883,24 @@ async def debug_restaurants(db: Session = Depends(get_db)):
         ]
     }
 
+@app.get("/debug/menu/{restaurant_id}")
+async def debug_menu(restaurant_id: int, db: Session = Depends(get_db)):
+    menu_items = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).all()
+    return {
+        "restaurant_id": restaurant_id,
+        "menu_count": len(menu_items),
+        "items": [
+            {
+                "id": item.id,
+                "name": item.name,
+                "category": item.category,
+                "price": item.price,
+                "active": item.active
+            }
+            for item in menu_items
+        ]
+    }
+
 @app.get("/test-csv")
 async def test_csv():
     import csv
