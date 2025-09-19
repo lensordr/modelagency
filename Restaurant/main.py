@@ -934,23 +934,44 @@ async def upload_menu_file(
         print(f"MENU UPLOAD: File size: {len(file_content)} bytes")
         
         # Count current menu items before upload
-        current_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).count()
-        print(f"MENU UPLOAD: Current menu items for restaurant {restaurant_id}: {current_count}")
+        try:
+            current_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).count()
+            print(f"MENU UPLOAD: Current menu items for restaurant {restaurant_id}: {current_count}")
+        except Exception as e:
+            print(f"MENU UPLOAD: Error counting current items: {e}")
+            db.rollback()
+            current_count = 0
         
         if menu_file.filename.endswith(('.xlsx', '.xls')):
             from setup import process_excel_content
             print(f"MENU UPLOAD: Processing Excel file for restaurant {restaurant_id}")
-            process_excel_content(db, file_content, restaurant_id)
+            try:
+                process_excel_content(db, file_content, restaurant_id)
+                db.commit()
+            except Exception as e:
+                print(f"MENU UPLOAD: Excel processing error: {e}")
+                db.rollback()
+                raise
         elif menu_file.filename.endswith('.pdf'):
             from setup import process_pdf_content
             print(f"MENU UPLOAD: Processing PDF file for restaurant {restaurant_id}")
-            process_pdf_content(db, file_content, restaurant_id)
+            try:
+                process_pdf_content(db, file_content, restaurant_id)
+                db.commit()
+            except Exception as e:
+                print(f"MENU UPLOAD: PDF processing error: {e}")
+                db.rollback()
+                raise
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format. Use Excel (.xlsx, .xls) or PDF files.")
         
         # Count menu items after upload
-        new_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).count()
-        print(f"MENU UPLOAD: New menu items for restaurant {restaurant_id}: {new_count}")
+        try:
+            new_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).count()
+            print(f"MENU UPLOAD: New menu items for restaurant {restaurant_id}: {new_count}")
+        except Exception as e:
+            print(f"MENU UPLOAD: Error counting new items: {e}")
+            new_count = 0
         
         return JSONResponse({"message": "Menu uploaded successfully", "items_count": new_count})
     except Exception as e:
