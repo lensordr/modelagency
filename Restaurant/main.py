@@ -1171,34 +1171,32 @@ async def checkout_table(
     table = get_table_by_number(db, table_number, restaurant_id)
     
     if order and table:
-        # Calculate total order values
-        total_quantity = sum(item.qty for item in order.order_items)
-        total_price = sum(item.menu_item.price * item.qty for item in order.order_items)
+        # Group items by category
+        category_totals = {}
+        for item in order.order_items:
+            category = item.menu_item.category
+            if category not in category_totals:
+                category_totals[category] = {'quantity': 0, 'total_price': 0}
+            category_totals[category]['quantity'] += item.qty
+            category_totals[category]['total_price'] += item.menu_item.price * item.qty
         
-        # Get primary category (most expensive item's category)
-        primary_category = "Food"
-        if order.order_items:
-            max_price = 0
-            for item in order.order_items:
-                item_total = item.menu_item.price * item.qty
-                if item_total > max_price:
-                    max_price = item_total
-                    primary_category = item.menu_item.category
+        total_order_price = sum(cat['total_price'] for cat in category_totals.values())
         
-        # Create ONE analytics record per order
-        analytics_record = AnalyticsRecord(
-            restaurant_id=restaurant_id,
-            table_number=table_number,
-            waiter_id=waiter_id,
-            item_name=f"Order #{order.id}",
-            item_category=primary_category,
-            quantity=total_quantity,
-            unit_price=total_price / total_quantity if total_quantity > 0 else 0,
-            total_price=total_price,
-            tip_amount=table.tip_amount or 0.0,
-            checkout_date=datetime.utcnow()
-        )
-        db.add(analytics_record)
+        # Create one analytics record per category
+        for category, totals in category_totals.items():
+            analytics_record = AnalyticsRecord(
+                restaurant_id=restaurant_id,
+                table_number=table_number,
+                waiter_id=waiter_id,
+                item_name=f"Order #{order.id}",
+                item_category=category,
+                quantity=totals['quantity'],
+                unit_price=totals['total_price'] / totals['quantity'] if totals['quantity'] > 0 else 0,
+                total_price=totals['total_price'],
+                tip_amount=(table.tip_amount or 0.0) * (totals['total_price'] / total_order_price) if total_order_price > 0 else 0,
+                checkout_date=datetime.utcnow()
+            )
+            db.add(analytics_record)
         
         # Finish the order
         finish_order_with_waiter(db, table_number, waiter_id, restaurant_id)
@@ -1211,7 +1209,7 @@ async def checkout_table(
         table.tip_amount = 0.0
         db.commit()
         
-        print(f"Created 1 analytics record for order {order.id}: €{total_price} + €{table.tip_amount or 0} tip")
+        print(f"Created {len(category_totals)} analytics records for order {order.id}: €{total_order_price} + €{table.tip_amount or 0} tip")
     
     return {"message": "Table checkout completed successfully"}
 
