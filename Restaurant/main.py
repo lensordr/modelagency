@@ -817,7 +817,7 @@ async def get_business_menu(request: Request, db: Session = Depends(get_db)):
             restaurant_id = 1  # fallback
         
         print(f"Business menu API: Using restaurant_id={restaurant_id}")
-        categories = get_menu_items_by_category(db, include_inactive=True, restaurant_id=restaurant_id)
+        categories = get_menu_items_by_category(db, include_inactive=False, restaurant_id=restaurant_id)
         menu_by_category = {}
         for category, items in categories.items():
             menu_by_category[category] = [
@@ -1158,13 +1158,8 @@ async def checkout_table(
 async def get_menu_items_route(request: Request, db: Session = Depends(get_db)):
     try:
         restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        referer = request.headers.get('referer', '')
-        if '/r/marios' in referer:
-            restaurant_id = 2
-        elif '/r/sushi' in referer:
-            restaurant_id = 3
         print(f"Menu items API: Using restaurant_id={restaurant_id}")
-        categories = get_menu_items_by_category(db, include_inactive=True, restaurant_id=restaurant_id)
+        categories = get_menu_items_by_category(db, include_inactive=False, restaurant_id=restaurant_id)
         print(f"Found {len(categories)} categories for restaurant {restaurant_id}")
         items = []
         for category, category_items in categories.items():
