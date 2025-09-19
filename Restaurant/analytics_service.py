@@ -90,10 +90,10 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             categories_query = categories_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         categories = categories_query.group_by(AnalyticsRecord.item_category).all()
         
-        # Waiter performance - count distinct orders
+        # Waiter performance - count distinct orders (simplified for PostgreSQL compatibility)
         waiter_performance_query = db.query(
             AnalyticsRecord.waiter_id,
-            func.count(func.distinct(func.substr(AnalyticsRecord.item_name, 1, func.instr(AnalyticsRecord.item_name, ' - ') - 1))).label('total_orders'),
+            func.count(AnalyticsRecord.id).label('total_orders'),
             func.sum(AnalyticsRecord.total_price).label('total_sales'),
             func.sum(AnalyticsRecord.tip_amount).label('total_tips'),
             func.sum(AnalyticsRecord.quantity).label('total_items')
@@ -127,12 +127,12 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
                     'avg_order_value': float(wp.total_sales or 0) / max(wp.total_orders, 1)
                 })
         
-        # Trends (last 7 days)
+        # Trends (last 7 days) - simplified for PostgreSQL compatibility
         trends = []
         for i in range(7):
             trend_date = target_date_obj - timedelta(days=6-i)
             day_data_query = db.query(
-                func.count(func.distinct(func.substr(AnalyticsRecord.item_name, 1, func.instr(AnalyticsRecord.item_name, ' - ') - 1))).label('orders'),
+                func.count(AnalyticsRecord.id).label('orders'),
                 func.sum(AnalyticsRecord.total_price).label('revenue')
             ).filter(
                 func.date(AnalyticsRecord.checkout_date) == trend_date
