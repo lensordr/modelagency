@@ -79,6 +79,7 @@ def process_excel_content(db: Session, file_content: bytes, restaurant_id: int =
         
         # Clear existing menu items for this restaurant only
         deleted_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
+        db.commit()
         print(f"Cleared {deleted_count} existing menu items for restaurant {restaurant_id}")
         
         import openpyxl
@@ -114,6 +115,7 @@ def process_pdf_content(db: Session, file_content: bytes, restaurant_id: int = N
         
         # Clear existing menu items for this restaurant only
         deleted_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
+        db.commit()
         print(f"Cleared {deleted_count} existing menu items for restaurant {restaurant_id}")
         
         import PyPDF2

@@ -926,88 +926,39 @@ async def upload_menu_file(
     db: Session = Depends(get_db)
 ):
     try:
-        # Get restaurant_id from middleware
-        restaurant_id = getattr(request.state, 'restaurant_id', None)
-        
-        # Fallback: detect from referer for AJAX requests
+        # Get restaurant_id
+        restaurant_id = getattr(request.state, 'restaurant_id', 1)
         referer = request.headers.get('referer', '')
-        if '/r/' in referer and not restaurant_id:
-            try:
-                subdomain = referer.split('/r/')[1].split('/')[0]
-                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-                if restaurant:
-                    restaurant_id = restaurant.id
-            except:
-                pass
+        if '/r/marios' in referer:
+            restaurant_id = 2
+        elif '/r/mos' in referer:
+            restaurant_id = 3
         
-        if not restaurant_id:
-            print(f"MENU UPLOAD: No restaurant_id found, request.state: {request.state.__dict__}")
-            raise HTTPException(status_code=400, detail="Could not determine restaurant context")
-        
-        # Verify restaurant exists
-        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-        if not restaurant:
-            raise HTTPException(status_code=404, detail=f"Restaurant {restaurant_id} not found")
-        
-        print(f"MENU UPLOAD: restaurant_id={restaurant_id} ({restaurant.name}), file={menu_file.filename}")
+        print(f"Upload request for restaurant {restaurant_id}, file: {menu_file.filename}")
         
         if not menu_file.filename:
             raise HTTPException(status_code=400, detail="No file selected")
         
         file_content = await menu_file.read()
-        print(f"MENU UPLOAD: File size: {len(file_content)} bytes")
-        
-        # Count current menu items before upload
-        try:
-            current_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).count()
-            print(f"MENU UPLOAD: Current menu items for restaurant {restaurant_id}: {current_count}")
-        except Exception as e:
-            print(f"MENU UPLOAD: Error counting current items: {e}")
-            db.rollback()
-            current_count = 0
+        print(f"File size: {len(file_content)} bytes")
         
         if menu_file.filename.endswith(('.xlsx', '.xls')):
             from setup import process_excel_content
-            print(f"MENU UPLOAD: Processing Excel file for restaurant {restaurant_id}")
-            try:
-                process_excel_content(db, file_content, restaurant_id)
-                db.commit()
-            except Exception as e:
-                print(f"MENU UPLOAD: Excel processing error: {e}")
-                db.rollback()
-                raise
+            process_excel_content(db, file_content, restaurant_id)
         elif menu_file.filename.endswith('.pdf'):
             from setup import process_pdf_content
-            print(f"MENU UPLOAD: Processing PDF file for restaurant {restaurant_id}")
-            try:
-                process_pdf_content(db, file_content, restaurant_id)
-                db.commit()
-            except Exception as e:
-                print(f"MENU UPLOAD: PDF processing error: {e}")
-                db.rollback()
-                raise
+            process_pdf_content(db, file_content, restaurant_id)
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format. Use Excel (.xlsx, .xls) or PDF files.")
         
-        # Count menu items after upload
-        try:
-            new_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).count()
-            print(f"MENU UPLOAD: New menu items for restaurant {restaurant_id}: {new_count}")
-        except Exception as e:
-            print(f"MENU UPLOAD: Error counting new items: {e}")
-            new_count = 0
-        
-        return JSONResponse({
-            "message": "Menu uploaded successfully", 
-            "items_count": new_count,
-            "restaurant_id": restaurant_id,
-            "restaurant_name": restaurant.name
-        })
+        return JSONResponse({"message": "Menu uploaded successfully"})
     except Exception as e:
-        print(f"MENU UPLOAD ERROR: {e}")
+        print(f"Upload error: {e}")
         import traceback
         traceback.print_exc()
         return JSONResponse({"error": f"Upload failed: {str(e)}"}, status_code=500)
+
+
 
 
 

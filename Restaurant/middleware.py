@@ -1,8 +1,14 @@
 from fastapi import Request, HTTPException
+from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from models import get_db, Restaurant
 from tenant import get_restaurant_from_request, set_tenant_context
+import os
+
+# Initialize templates
+templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
+templates = Jinja2Templates(directory=templates_dir)
 
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -50,10 +56,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             
         except HTTPException as e:
             print(f"Restaurant not found: {e}")
-            # Show access denied page for inactive/deleted restaurants
-            if '/r/' in str(request.url.path):
-                return templates.TemplateResponse("access_denied.html", {"request": request})
-            # Return 404 for API requests
+            # Return 404 for all requests
             from fastapi.responses import JSONResponse
             return JSONResponse({"detail": "Restaurant not found or inactive"}, status_code=404)
         except Exception as e:
