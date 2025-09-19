@@ -990,18 +990,35 @@ async def upload_menu_file(request: Request, menu_file: UploadFile = File(...), 
         wb = openpyxl.load_workbook(io.BytesIO(content))
         ws = wb.active
         
-        db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
+        # Deactivate existing items instead of deleting
+        db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).update({MenuItem.active: False})
+        
         count = 0
         for row in ws.iter_rows(min_row=2, values_only=True):
             if row and len(row) >= 3 and row[0] and row[2]:
-                db.add(MenuItem(
-                    name=str(row[0]).strip(),
-                    ingredients=str(row[1] or '').strip(), 
-                    price=float(row[2]),
-                    category=str(row[3] if len(row) > 3 and row[3] else 'Food').strip(),
-                    restaurant_id=restaurant_id,
-                    active=True
-                ))
+                name = str(row[0]).strip()
+                # Check if item exists
+                existing = db.query(MenuItem).filter(
+                    MenuItem.restaurant_id == restaurant_id,
+                    MenuItem.name == name
+                ).first()
+                
+                if existing:
+                    # Update existing item
+                    existing.ingredients = str(row[1] or '').strip()
+                    existing.price = float(row[2])
+                    existing.category = str(row[3] if len(row) > 3 and row[3] else 'Food').strip()
+                    existing.active = True
+                else:
+                    # Add new item
+                    db.add(MenuItem(
+                        name=name,
+                        ingredients=str(row[1] or '').strip(), 
+                        price=float(row[2]),
+                        category=str(row[3] if len(row) > 3 and row[3] else 'Food').strip(),
+                        restaurant_id=restaurant_id,
+                        active=True
+                    ))
                 count += 1
         db.commit()
         return {"message": "Success", "items": count, "restaurant_id": restaurant_id}
