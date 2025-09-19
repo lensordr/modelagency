@@ -59,6 +59,8 @@ def require_admin(current_user: User = Depends(get_current_user)):
 def authenticate_user(db: Session, username: str, password: str, restaurant_id: int = None):
     from tenant import get_current_restaurant_id
     
+    print(f"Auth: Looking for user '{username}' in restaurant {restaurant_id}")
+    
     if restaurant_id is None:
         try:
             restaurant_id = get_current_restaurant_id()
@@ -75,6 +77,16 @@ def authenticate_user(db: Session, username: str, password: str, restaurant_id: 
         User.restaurant_id == restaurant_id
     ).first()
     
-    if not user or not verify_password(password, user.password_hash):
+    if not user:
+        print(f"Auth: No user found with username '{username}' in restaurant {restaurant_id}")
+        # Debug: show all users in this restaurant
+        all_users = db.query(User).filter(User.restaurant_id == restaurant_id).all()
+        print(f"Auth: Available users in restaurant {restaurant_id}: {[(u.username, u.active) for u in all_users]}")
         return False
+    
+    if not verify_password(password, user.password_hash):
+        print(f"Auth: Password verification failed for user '{username}'")
+        return False
+    
+    print(f"Auth: Successfully authenticated user '{username}' in restaurant {restaurant_id}")
     return user

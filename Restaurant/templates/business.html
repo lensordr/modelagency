@@ -18,6 +18,7 @@
             <button onclick="showSection('waiters-new')" class="nav-btn" id="waiters-new-btn">👨🍳 Waiters</button>
             <button onclick="showSection('analytics')" class="nav-btn" id="analytics-btn">📊 Analytics</button>
             <button onclick="showSection('menu-management')" class="nav-btn" id="menu-management-btn">🍽️ Menu</button>
+            <button onclick="showSection('qr-codes')" class="nav-btn" id="qr-codes-btn">📱 QR Codes</button>
             <button onclick="logout()" class="nav-btn logout-btn" style="margin-left: auto; background: #e53e3e;">🚪 Logout</button>
         </nav>
 
@@ -101,9 +102,25 @@
             </div>
         </div>
 
+        <div id="qr-codes" class="section-content" style="display: none;">
+            <div class="dashboard-section">
+                <h2>📱 QR Codes for Tables</h2>
+                <p style="color: #718096; margin-bottom: 1.5rem;">Generate QR codes for each table. Customers can scan these to access the menu and place orders.</p>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <button onclick="loadQRCodes()" style="background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer;">🔄 Refresh QR Codes</button>
+                    <button onclick="openQRCodesWindow()" style="background: #6f42c1; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer;">🪟 Open in New Window</button>
+                    <button onclick="printAllQRCodes()" style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer;">🖨️ Print All</button>
+                </div>
+                
+                <div id="qr-codes-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;"></div>
+            </div>
+        </div>
+
         <div id="message"></div>
     </div>
 
-    <script src="/static/business_no_auth.js?v=2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="/static/business_no_auth.js?v=9"></script>
 </body>
 </html>

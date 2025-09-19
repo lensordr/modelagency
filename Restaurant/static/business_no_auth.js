@@ -41,11 +41,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-refresh dashboard every 3 seconds
     setInterval(loadDashboard, 3000);
     
+    // Check trial status every 30 seconds
+    setInterval(checkTrialStatus, 30000);
+    
     // Initialize app
     loadDashboard();
     loadMenuItems();
     loadSales('day');
     loadWaiters();
+    checkTrialStatus();
 });
 
 let currentTableNumber = null;
@@ -79,7 +83,24 @@ function getAuthHeaders() {
 }
 
 function logout() {
-    window.location.href = '/business/login';
+    // Preserve restaurant context in logout redirect
+    const currentPath = window.location.pathname;
+    console.log('Logout: current path =', currentPath);
+    alert('Logout clicked! Current path: ' + currentPath);
+    
+    if (currentPath.includes('/r/')) {
+        // Extract subdomain from current path
+        const pathParts = currentPath.split('/');
+        const subdomain = pathParts[2];
+        const redirectUrl = `/r/${subdomain}/business/login`;
+        console.log('Logout: redirecting to', redirectUrl);
+        alert('Redirecting to: ' + redirectUrl);
+        window.location.href = redirectUrl;
+    } else {
+        console.log('Logout: no /r/ in path, using default redirect');
+        alert('No /r/ in path, using default redirect');
+        window.location.href = '/business/login';
+    }
 }
 
 async function loadDashboard() {
@@ -511,6 +532,16 @@ function showSection(sectionName) {
     console.log('Showing section:', sectionName);
     currentSection = sectionName;
     
+    // Debug: Check if QR codes section exists
+    if (sectionName === 'qr-codes') {
+        const qrSection = document.getElementById('qr-codes');
+        console.log('QR codes section found:', !!qrSection);
+        if (!qrSection) {
+            console.error('QR codes section not found in DOM!');
+            return;
+        }
+    }
+    
     document.querySelectorAll('.section-content').forEach(section => {
         section.style.display = 'none';
     });
@@ -533,6 +564,8 @@ function showSection(sectionName) {
         loadMenuItems();
     } else if (sectionName === 'waiters-new') {
         loadWaiters();
+    } else if (sectionName === 'qr-codes') {
+        openQRCodesWindow();
     }
 }
 
@@ -663,4 +696,241 @@ function clearNotifications() {
     notificationCount = 0;
     const liveOrdersBtn = document.getElementById('live-orders-btn');
     liveOrdersBtn.classList.remove('has-notifications');
+}
+
+async function checkTrialStatus() {
+    try {
+        const response = await fetch('/business/trial-status');
+        const data = await response.json();
+        
+        if (data.show_warning) {
+            showTrialWarning(data.days_left);
+        } else {
+            hideTrialWarning();
+        }
+    } catch (error) {
+        console.error('Error checking trial status:', error);
+    }
+}
+
+function showTrialWarning(daysLeft) {
+    let warningDiv = document.getElementById('trial-warning');
+    if (!warningDiv) {
+        warningDiv = document.createElement('div');
+        warningDiv.id = 'trial-warning';
+        warningDiv.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #fff3cd;
+            border-bottom: 2px solid #ffc107;
+            padding: 15px;
+            text-align: center;
+            z-index: 1000;
+            font-weight: bold;
+            color: #856404;
+        `;
+        document.body.insertBefore(warningDiv, document.body.firstChild);
+    }
+    
+    warningDiv.innerHTML = `
+        ⚠️ Trial expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}! 
+        <a href="mailto:lens.ordr@gmail.com" style="color: #007bff; margin-left: 10px;">Upgrade Now</a>
+        <button onclick="hideTrialWarning()" style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">×</button>
+    `;
+}
+
+function hideTrialWarning() {
+    const warningDiv = document.getElementById('trial-warning');
+    if (warningDiv) {
+        warningDiv.remove();
+    }
+}
+
+async function loadQRCodes() {
+    try {
+        console.log('Loading QR codes...');
+        const response = await fetch('/business/qr-codes');
+        const data = await response.json();
+        
+        console.log('QR codes response:', data);
+        
+        if (response.ok && data.qr_codes) {
+            console.log('Displaying', data.qr_codes.length, 'QR codes');
+            displayQRCodes(data.qr_codes);
+        } else {
+            console.error('No QR codes data received');
+        }
+    } catch (error) {
+        console.error('Error loading QR codes:', error);
+    }
+}
+
+function displayQRCodes(qrCodes) {
+    const grid = document.getElementById('qr-codes-grid');
+    grid.innerHTML = '';
+    
+    qrCodes.forEach(qrData => {
+        const qrCard = document.createElement('div');
+        qrCard.style.cssText = `
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        `;
+        
+        qrCard.innerHTML = `
+            <h3 style="margin: 0 0 15px 0; color: #333;">Table ${qrData.table_number}</h3>
+            <div id="qr-${qrData.table_number}" style="margin: 15px 0;"></div>
+            <p style="font-size: 12px; color: #666; margin: 10px 0;">Code: ${qrData.code}</p>
+            <p style="font-size: 11px; color: #888; word-break: break-all; margin: 10px 0;">${qrData.url}</p>
+            <button onclick="printQRCode(${qrData.table_number})" style="background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-top: 10px;">🖨️ Print</button>
+        `;
+        
+        grid.appendChild(qrCard);
+        
+        // Generate QR code - with fallback if library not loaded
+        const qrContainer = document.getElementById(`qr-${qrData.table_number}`);
+        
+        if (typeof QRCode !== 'undefined') {
+            QRCode.toCanvas(qrContainer, qrData.url, {
+                width: 200,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            }, function (error) {
+                if (error) console.error('QR Code generation error:', error);
+            });
+        } else {
+            // Fallback: Use Google Charts QR API
+            const qrImg = document.createElement('img');
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData.url)}`;
+            qrImg.src = qrUrl;
+            qrImg.style.cssText = 'width: 200px; height: 200px; border: 2px solid #ddd;';
+            qrContainer.appendChild(qrImg);
+        }
+    });
+}
+
+function printQRCode(tableNumber) {
+    const qrCanvas = document.querySelector(`#qr-${tableNumber} canvas`);
+    if (!qrCanvas) return;
+    
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Table ${tableNumber} QR Code</title>
+                <style>
+                    body { text-align: center; font-family: Arial, sans-serif; margin: 50px; }
+                    h1 { margin-bottom: 30px; }
+                    canvas { border: 2px solid #ddd; }
+                    p { margin-top: 20px; font-size: 14px; color: #666; }
+                </style>
+            </head>
+            <body>
+                <h1>Table ${tableNumber}</h1>
+                ${qrCanvas.outerHTML}
+                <p>Scan to view menu and place orders</p>
+            </body>
+        </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+}
+
+function openQRCodesWindow() {
+    const qrWindow = window.open('', '_blank', 'width=1200,height=800,scrollbars=yes');
+    
+    fetch('/business/qr-codes')
+        .then(response => response.json())
+        .then(data => {
+            let windowContent = `
+                <html>
+                    <head>
+                        <title>QR Codes - Restaurant Tables</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+                            h1 { text-align: center; color: #333; margin-bottom: 30px; }
+                            .qr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+                            .qr-card { background: white; border: 2px solid #e2e8f0; border-radius: 10px; padding: 20px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                            .qr-card h3 { margin: 0 0 15px 0; color: #333; }
+                            .qr-code { margin: 15px 0; }
+                            .table-info { font-size: 12px; color: #666; margin: 10px 0; }
+                            .table-url { font-size: 11px; color: #888; word-break: break-all; }
+                            .print-btn { background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+                            .print-all { text-align: center; margin: 20px 0; }
+                            .print-all button { background: #28a745; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>📱 QR Codes for Restaurant Tables</h1>
+                        <div class="print-all">
+                            <button onclick="window.print()">🖨️ Print All QR Codes</button>
+                        </div>
+                        <div class="qr-grid">
+            `;
+            
+            data.qr_codes.forEach(qrData => {
+                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData.url)}`;
+                windowContent += `
+                    <div class="qr-card">
+                        <h3>Table ${qrData.table_number}</h3>
+                        <div class="qr-code">
+                            <img src="${qrUrl}" alt="QR Code for Table ${qrData.table_number}" style="width: 200px; height: 200px; border: 2px solid #ddd;">
+                        </div>
+                        <div class="table-info">Code: ${qrData.code}</div>
+                        <div class="table-url">${qrData.url}</div>
+                        <button class="print-btn" onclick="printSingle(${qrData.table_number}, '${qrUrl}')">🖨️ Print</button>
+                    </div>
+                `;
+            });
+            
+            windowContent += `
+                        </div>
+                        <script>
+                            function printSingle(tableNumber, qrUrl) {
+                                const printWindow = window.open('', '_blank');
+                                printWindow.document.write(\`
+                                    <html>
+                                        <head>
+                                            <title>Table \${tableNumber} QR Code</title>
+                                            <style>
+                                                body { text-align: center; font-family: Arial, sans-serif; margin: 50px; }
+                                                h1 { margin-bottom: 30px; }
+                                                img { border: 2px solid #ddd; }
+                                                p { margin-top: 20px; font-size: 14px; color: #666; }
+                                            </style>
+                                        </head>
+                                        <body>
+                                            <h1>Table \${tableNumber}</h1>
+                                            <img src="\${qrUrl}" alt="QR Code" style="width: 300px; height: 300px;">
+                                            <p>Scan to view menu and place orders</p>
+                                        </body>
+                                    </html>
+                                \`);
+                                printWindow.document.close();
+                                printWindow.print();
+                            }
+                        </script>
+                    </body>
+                </html>
+            `;
+            
+            qrWindow.document.write(windowContent);
+            qrWindow.document.close();
+        })
+        .catch(error => {
+            qrWindow.document.write('<h1>Error loading QR codes</h1>');
+            qrWindow.document.close();
+        });
+}
+
+function printAllQRCodes() {
+    openQRCodesWindow();
 }

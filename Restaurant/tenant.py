@@ -19,8 +19,11 @@ def get_restaurant_from_subdomain(subdomain: str, db: Session) -> Optional[Resta
         Restaurant.active == True
     ).first()
 
-def get_restaurant_from_request(request: Request, db: Session) -> Restaurant:
+def get_restaurant_from_request(request: Request, db: Session, original_path: str = None) -> Restaurant:
     """Extract restaurant from request (subdomain or path parameter)"""
+    
+    # Use original path if provided, otherwise use current path
+    path = original_path or str(request.url.path)
     
     # Method 1: Extract from subdomain (for production)
     host = request.headers.get("host", "")
@@ -31,22 +34,44 @@ def get_restaurant_from_request(request: Request, db: Session) -> Restaurant:
             return restaurant
     
     # Method 2: Extract from path parameter (for development)
-    path = str(request.url.path)
+    print(f"Tenant resolution: path={path}")
     if path.startswith("/r/"):
         parts = path.split("/")
         if len(parts) >= 3:
             subdomain = parts[2]
+            print(f"Tenant resolution: extracted subdomain='{subdomain}'")
             restaurant = get_restaurant_from_subdomain(subdomain, db)
             if restaurant:
+                print(f"Tenant resolution: found restaurant {restaurant.id} ({restaurant.name})")
                 return restaurant
+            else:
+                print(f"Tenant resolution: no restaurant found for subdomain '{subdomain}'")
     
-    # Method 3: Default restaurant for development (localhost)
-    if "localhost" in host or "127.0.0.1" in host:
-        restaurant = db.query(Restaurant).filter(Restaurant.active == True).first()
+    # Method 2b: Check referer header for AJAX requests
+    referer = request.headers.get('referer', '')
+    print(f"Tenant resolution: checking referer={referer}")
+    if '/r/' in referer:
+        try:
+            subdomain = referer.split('/r/')[1].split('/')[0]
+            print(f"Tenant resolution: extracted subdomain from referer='{subdomain}'")
+            restaurant = get_restaurant_from_subdomain(subdomain, db)
+            if restaurant:
+                print(f"Tenant resolution: found restaurant from referer {restaurant.id} ({restaurant.name})")
+                return restaurant
+        except Exception as e:
+            print(f"Tenant resolution: error parsing referer: {e}")
+    
+    # Method 3: Default to demo restaurant for localhost only if no subdomain specified
+    if ("localhost" in host or "127.0.0.1" in host) and not ('/r/' in path or '/r/' in referer):
+        print(f"Tenant resolution: defaulting to demo restaurant")
+        restaurant = db.query(Restaurant).filter(
+            Restaurant.subdomain == 'demo',
+            Restaurant.active == True
+        ).first()
         if restaurant:
             return restaurant
     
-    raise HTTPException(status_code=404, detail="Restaurant not found")
+    raise HTTPException(status_code=404, detail="Restaurant not found or inactive")
 
 def set_tenant_context(restaurant: Restaurant):
     """Set the current tenant context"""

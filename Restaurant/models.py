@@ -133,8 +133,17 @@ class AnalyticsRecord(Base):
     waiter = relationship("Waiter")
 
 # Database setup
-DATABASE_URL = "sqlite:///./database.db"
-engine = create_engine(DATABASE_URL)
+import os
+
+# Use PostgreSQL in production, SQLite in development
+if os.getenv("DATABASE_URL"):
+    # Production (Railway)
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    engine = create_engine(DATABASE_URL)
+else:
+    # Development (local)
+    DATABASE_URL = "sqlite:///./database.db"
+    engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def create_tables():
