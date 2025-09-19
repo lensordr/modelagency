@@ -978,6 +978,29 @@ async def debug_live_restaurants(db: Session = Depends(get_db)):
         ]
     }
 
+@app.post("/debug/reset-database")
+async def reset_database(db: Session = Depends(get_db)):
+    try:
+        from models import AnalyticsRecord, OrderItem, Order, MenuItem, Waiter, Table, User, Restaurant
+        
+        # Delete all data in correct order to avoid FK constraints
+        db.query(AnalyticsRecord).delete()
+        db.query(OrderItem).delete()
+        db.query(Order).delete()
+        db.query(MenuItem).delete()
+        db.query(Waiter).delete()
+        db.query(Table).delete()
+        db.query(User).delete()
+        db.query(Restaurant).delete()
+        
+        db.commit()
+        
+        return {"message": "Database cleared successfully"}
+    except Exception as e:
+        db.rollback()
+        return {"error": f"Failed to clear database: {str(e)}"}
+
+
 @app.post("/business/menu/upload")
 async def upload_menu_file(request: Request, menu_file: UploadFile = File(...), db: Session = Depends(get_db)):
     # Use middleware-detected restaurant_id
