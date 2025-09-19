@@ -386,8 +386,7 @@ def finish_order_with_waiter(db: Session, table_number: int, waiter_id: int, res
         db.commit()
         db.refresh(order)
         
-        # Update analytics records for real-time dashboard
-        update_analytics_from_order(db, order, restaurant_id)
+        # Analytics handled by checkout_table endpoint
     return order
 
 def update_analytics_from_order(db: Session, order, restaurant_id: int = None):
