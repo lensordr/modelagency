@@ -925,26 +925,36 @@ async def upload_menu_file(
         if not restaurant_id:
             restaurant_id = 1  # fallback
         
-        print(f"Upload request for restaurant {restaurant_id}, file: {menu_file.filename}")
+        print(f"MENU UPLOAD: restaurant_id={restaurant_id}, file={menu_file.filename}, referer={referer}")
         
         if not menu_file.filename:
             raise HTTPException(status_code=400, detail="No file selected")
         
         file_content = await menu_file.read()
-        print(f"File size: {len(file_content)} bytes")
+        print(f"MENU UPLOAD: File size: {len(file_content)} bytes")
+        
+        # Count current menu items before upload
+        current_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).count()
+        print(f"MENU UPLOAD: Current menu items for restaurant {restaurant_id}: {current_count}")
         
         if menu_file.filename.endswith(('.xlsx', '.xls')):
             from setup import process_excel_content
+            print(f"MENU UPLOAD: Processing Excel file for restaurant {restaurant_id}")
             process_excel_content(db, file_content, restaurant_id)
         elif menu_file.filename.endswith('.pdf'):
             from setup import process_pdf_content
+            print(f"MENU UPLOAD: Processing PDF file for restaurant {restaurant_id}")
             process_pdf_content(db, file_content, restaurant_id)
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format. Use Excel (.xlsx, .xls) or PDF files.")
         
-        return JSONResponse({"message": "Menu uploaded successfully"})
+        # Count menu items after upload
+        new_count = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).count()
+        print(f"MENU UPLOAD: New menu items for restaurant {restaurant_id}: {new_count}")
+        
+        return JSONResponse({"message": "Menu uploaded successfully", "items_count": new_count})
     except Exception as e:
-        print(f"Upload error: {e}")
+        print(f"MENU UPLOAD ERROR: {e}")
         import traceback
         traceback.print_exc()
         return JSONResponse({"error": f"Upload failed: {str(e)}"}, status_code=500)
