@@ -797,9 +797,26 @@ async def finish_table_order(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/business/menu")
-async def get_business_menu(db: Session = Depends(get_db)):
+async def get_business_menu(request: Request, db: Session = Depends(get_db)):
     try:
-        restaurant_id = get_current_restaurant_id()
+        # Get restaurant_id from middleware
+        restaurant_id = getattr(request.state, 'restaurant_id', None)
+        
+        # Fallback: detect from referer for AJAX requests
+        referer = request.headers.get('referer', '')
+        if '/r/' in referer and not restaurant_id:
+            try:
+                subdomain = referer.split('/r/')[1].split('/')[0]
+                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+                if restaurant:
+                    restaurant_id = restaurant.id
+            except:
+                pass
+        
+        if not restaurant_id:
+            restaurant_id = 1  # fallback
+        
+        print(f"Business menu API: Using restaurant_id={restaurant_id}")
         categories = get_menu_items_by_category(db, include_inactive=True, restaurant_id=restaurant_id)
         menu_by_category = {}
         for category, items in categories.items():
@@ -891,13 +908,22 @@ async def upload_menu_file(
     db: Session = Depends(get_db)
 ):
     try:
-        # Get restaurant_id
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
+        # Get restaurant_id from middleware
+        restaurant_id = getattr(request.state, 'restaurant_id', None)
+        
+        # Fallback: detect from referer for AJAX requests
         referer = request.headers.get('referer', '')
-        if '/r/marios' in referer:
-            restaurant_id = 2
-        elif '/r/sushi' in referer:
-            restaurant_id = 3
+        if '/r/' in referer and not restaurant_id:
+            try:
+                subdomain = referer.split('/r/')[1].split('/')[0]
+                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+                if restaurant:
+                    restaurant_id = restaurant.id
+            except:
+                pass
+        
+        if not restaurant_id:
+            restaurant_id = 1  # fallback
         
         print(f"Upload request for restaurant {restaurant_id}, file: {menu_file.filename}")
         
