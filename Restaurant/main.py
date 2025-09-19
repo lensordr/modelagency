@@ -1451,6 +1451,42 @@ async def get_category_analytics(
     except Exception as e:
         return JSONResponse(content={"error": str(e)[:100], "categories": []})
 
+@app.get("/api/analytics")
+async def get_analytics_api(
+    request: Request,
+    period: str = "day",
+    target_date: str = None,
+    waiter_id: int = None,
+    db: Session = Depends(get_db)
+):
+    try:
+        # Get restaurant_id from request state (set by middleware)
+        restaurant_id = getattr(request.state, 'restaurant_id', 1)
+        
+        from analytics_service import get_analytics_for_period
+        
+        if target_date is None:
+            from datetime import date
+            target_date = date.today().isoformat()
+        
+        print(f"Analytics API: Using restaurant_id={restaurant_id}, period={period}, target_date={target_date}")
+        result = get_analytics_for_period(db, target_date, period, waiter_id, restaurant_id)
+        print(f"Analytics API result: {result['summary']}")
+        
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        print(f"Analytics API error: {e}")
+        error_response = {
+            "summary": {"total_orders": 0, "total_sales": 0, "total_tips": 0},
+            "top_items": [],
+            "categories": [],
+            "trends": [],
+            "waiters": [],
+            "error": str(e)
+        }
+        return JSONResponse(content=error_response)
+
 @app.get("/business/analytics")
 async def analytics_page(request: Request, db: Session = Depends(get_db)):
     try:
