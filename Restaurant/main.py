@@ -919,77 +919,99 @@ async def test_csv():
         headers={"Content-Disposition": "attachment; filename=test.csv"}
     )
 
-@app.post("/business/menu/upload")
-async def upload_menu_file(
-    request: Request,
+@app.post("/upload-menu")
+async def upload_menu_basic(
     menu_file: UploadFile = File(...),
+    restaurant_id: int = 1,
     db: Session = Depends(get_db)
 ):
     try:
-        # Simple restaurant detection
-        restaurant_id = 1  # Default
-        referer = request.headers.get('referer', '')
+        if not menu_file.filename or not menu_file.filename.endswith(('.xlsx', '.xls')):
+            return {"error": "Please upload an Excel file (.xlsx or .xls)"}
         
-        if '/r/' in referer:
-            try:
-                subdomain = referer.split('/r/')[1].split('/')[0]
-                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-                if restaurant:
-                    restaurant_id = restaurant.id
-            except:
-                pass
+        content = await menu_file.read()
         
-        if not menu_file.filename:
-            return JSONResponse({"error": "No file selected"}, status_code=400)
-        
-        if not menu_file.filename.endswith(('.xlsx', '.xls')):
-            return JSONResponse({"error": "Only Excel files (.xlsx, .xls) are supported"}, status_code=400)
-        
-        # Read and process file
-        file_content = await menu_file.read()
-        
-        # Clear existing menu items
-        db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
-        db.commit()
-        
-        # Process Excel file
         import openpyxl
         import io
-        wb = openpyxl.load_workbook(io.BytesIO(file_content))
+        wb = openpyxl.load_workbook(io.BytesIO(content))
         ws = wb.active
         
-        items_added = 0
+        # Clear existing items
+        db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
+        
+        count = 0
         for row in ws.iter_rows(min_row=2, values_only=True):
-            if row and len(row) >= 3 and row[0] and row[1] and row[2]:
-                name = str(row[0]).strip()
-                ingredients = str(row[1]).strip()
-                price = float(row[2])
-                category = str(row[3]).strip() if len(row) > 3 and row[3] else 'Food'
-                
-                menu_item = MenuItem(
-                    name=name,
-                    ingredients=ingredients,
-                    price=price,
-                    category=category,
+            if row and len(row) >= 3 and row[0] and row[2]:
+                item = MenuItem(
+                    name=str(row[0]).strip(),
+                    ingredients=str(row[1] or '').strip(),
+                    price=float(row[2]),
+                    category=str(row[3] if len(row) > 3 and row[3] else 'Food').strip(),
                     restaurant_id=restaurant_id,
                     active=True
                 )
-                db.add(menu_item)
-                items_added += 1
+                db.add(item)
+                count += 1
         
         db.commit()
-        
-        return JSONResponse({
-            "message": "Menu uploaded successfully",
-            "items_added": items_added,
-            "restaurant_id": restaurant_id
-        })
+        return {"success": True, "items": count, "restaurant_id": restaurant_id}
         
     except Exception as e:
         db.rollback()
-        return JSONResponse({"error": f"Upload failed: {str(e)}"}, status_code=500)
+        return {"error": str(e)}
 
 
+
+
+@app.get("/debug/live-restaurants")
+async def debug_live_restaurants(db: Session = Depends(get_db)):
+    restaurants = db.query(Restaurant).all()
+    return {
+        "restaurants": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "subdomain": r.subdomain,
+                "active": r.active
+            }
+            for r in restaurants
+        ]
+    }
+
+@app.post("/business/menu/upload")
+async def upload_menu_file(request: Request, menu_file: UploadFile = File(...), db: Session = Depends(get_db)):
+    restaurant_id = 1
+    referer = request.headers.get('referer', '')
+    
+    # Map based on live restaurants: demo=1, mos=2, test=3
+    if '/r/demo' in referer: restaurant_id = 1
+    elif '/r/mos' in referer: restaurant_id = 2  
+    elif '/r/test' in referer: restaurant_id = 3
+    
+    try:
+        content = await menu_file.read()
+        import openpyxl, io
+        wb = openpyxl.load_workbook(io.BytesIO(content))
+        ws = wb.active
+        
+        db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
+        count = 0
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row and len(row) >= 3 and row[0] and row[2]:
+                db.add(MenuItem(
+                    name=str(row[0]).strip(),
+                    ingredients=str(row[1] or '').strip(), 
+                    price=float(row[2]),
+                    category=str(row[3] if len(row) > 3 and row[3] else 'Food').strip(),
+                    restaurant_id=restaurant_id,
+                    active=True
+                ))
+                count += 1
+        db.commit()
+        return {"message": "Success", "items": count, "restaurant_id": restaurant_id}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
 
 
 @app.get("/business/waiters")
