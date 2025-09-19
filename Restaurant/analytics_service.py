@@ -23,6 +23,8 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             start_date = target_date_obj.replace(month=1, day=1)
             end_date = target_date_obj  # Up to the selected date, not end of year
         
+        print(f"Analytics service: restaurant_id={restaurant_id}, period={period}, start_date={start_date}, end_date={end_date}")
+        
         # Count total analytics records as orders (each record = 1 order)
         orders_query = db.query(
             func.count(AnalyticsRecord.id)
@@ -50,6 +52,8 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             totals_query = totals_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         totals = totals_query.first()
         
+        print(f"Analytics service: Found {total_orders} orders, sales={totals.total_sales if totals else 0}, tips={totals.total_tips if totals else 0}")
+        
         # Top items from actual orders
         from models import Order, OrderItem, MenuItem
         top_items_query = db.query(
@@ -68,6 +72,8 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
         top_items = top_items_query.group_by(MenuItem.id, MenuItem.name).order_by(
             func.sum(OrderItem.qty).desc()
         ).limit(10).all()
+        
+        print(f"Analytics service: Found {len(top_items)} top items for restaurant {restaurant_id}")
         
         # Categories
         categories_query = db.query(
@@ -100,6 +106,8 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
         if waiter_id:
             waiter_performance_query = waiter_performance_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         waiter_performance = waiter_performance_query.group_by(AnalyticsRecord.waiter_id).all()
+        
+        print(f"Analytics service: Found {len(waiter_performance)} waiters with performance data for restaurant {restaurant_id}")
         
         # Get waiter names (only from current restaurant)
         waiters_data = []
@@ -141,16 +149,12 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
                 'revenue': float(day_data.revenue or 0)
             })
         
-        # Recalculate summary based on filtered waiters data
-        filtered_total_orders = sum(w['total_orders'] for w in waiters_data)
-        filtered_total_sales = sum(w['total_sales'] for w in waiters_data)
-        filtered_total_tips = sum(w['total_tips'] for w in waiters_data)
-        
+        # Use actual database totals, not waiter-filtered totals
         return {
             'summary': {
-                'total_orders': filtered_total_orders,
-                'total_sales': filtered_total_sales,
-                'total_tips': filtered_total_tips
+                'total_orders': total_orders,
+                'total_sales': float(totals.total_sales or 0),
+                'total_tips': float(totals.total_tips or 0)
             },
             'top_items': [
                 {

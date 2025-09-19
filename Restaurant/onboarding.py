@@ -121,7 +121,7 @@ def create_new_restaurant(
             "success": True,
             "restaurant_id": restaurant_id,
             "subdomain": subdomain,
-            "login_url": f"http://localhost:8000/r/{subdomain}/business/login",
+            "login_url": f"https://tablelink.space/r/{subdomain}/business/login",
             "admin_username": admin_username,
             "admin_password": admin_password
         }

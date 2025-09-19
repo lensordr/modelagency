@@ -103,6 +103,10 @@ async def admin_dashboard(request: Request):
 async def onboarding_page(request: Request):
     return templates.TemplateResponse("onboarding.html", {"request": request})
 
+@app.get("/onboarding", response_class=HTMLResponse)
+async def onboarding_page_alt(request: Request):
+    return templates.TemplateResponse("onboarding.html", {"request": request})
+
 @app.post("/onboard")
 async def create_restaurant(
     restaurant_name: str = Form(...),
@@ -213,7 +217,7 @@ async def list_restaurants(db: Session = Depends(get_db)):
             "created_at": r.created_at.strftime("%Y-%m-%d") if r.created_at else "",
             "total_orders": total_orders,
             "total_revenue": float(total_revenue),
-            "login_url": f"http://localhost:8000/r/{r.subdomain}/business/login",
+            "login_url": f"https://tablelink.space/r/{r.subdomain}/business/login",
             "admin_username": admin_user.username if admin_user else "N/A"
         })
     
@@ -493,10 +497,13 @@ async def request_checkout(
     if table.status != 'occupied':
         raise HTTPException(status_code=400, detail="No active order for this table")
     
+    # Store checkout details in table
     table.checkout_requested = True
     table.checkout_method = checkout_method
-    table.tip_amount = tip_amount
+    table.tip_amount = float(tip_amount)
     db.commit()
+    
+    print(f"Checkout requested for table {table_number}: {checkout_method}, tip: €{tip_amount}")
     
     return {"message": f"Checkout requested with {checkout_method} and €{tip_amount:.2f} tip"}
 
@@ -1008,16 +1015,44 @@ async def checkout_table(
     elif '/r/sushi' in referer:
         restaurant_id = 3
     
-    finish_order_with_waiter(db, table_number, waiter_id, restaurant_id)
+    # Get order details before finishing
+    order = get_active_order_by_table(db, table_number, restaurant_id)
     table = get_table_by_number(db, table_number, restaurant_id)
-    # Clear table status after checkout
-    if table:
+    
+    if order and table:
+        # Calculate order total and create analytics record
+        total_price = 0
+        for item in order.order_items:
+            total_price += item.menu_item.price * item.qty
+        
+        # Create analytics record
+        analytics_record = AnalyticsRecord(
+            restaurant_id=restaurant_id,
+            table_number=table_number,
+            waiter_id=waiter_id,
+            item_name=f"Order #{order.id}",
+            item_category="Mixed",
+            quantity=1,
+            unit_price=total_price,
+            total_price=total_price,
+            tip_amount=table.tip_amount or 0.0,
+            checkout_date=datetime.utcnow()
+        )
+        db.add(analytics_record)
+        
+        # Finish the order
+        finish_order_with_waiter(db, table_number, waiter_id, restaurant_id)
+        
+        # Clear table status after checkout
         table.status = 'free'
         table.checkout_requested = False
         table.has_extra_order = False
         table.checkout_method = None
         table.tip_amount = 0.0
         db.commit()
+        
+        print(f"Created analytics record for order {order.id}: €{total_price} + €{table.tip_amount or 0} tip")
+    
     return {"message": "Table checkout completed successfully"}
 
 @app.get("/business/menu_items")
@@ -1077,12 +1112,19 @@ async def get_top_menu_items(
     from analytics_service import get_analytics_for_period
     
     # Get restaurant_id
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
+    restaurant_id = getattr(request.state, 'restaurant_id', None)
     referer = request.headers.get('referer', '')
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
+    if '/r/' in referer:
+        try:
+            subdomain = referer.split('/r/')[1].split('/')[0]
+            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+            if restaurant:
+                restaurant_id = restaurant.id
+        except:
+            pass
+    
+    if not restaurant_id:
+        restaurant_id = 1  # fallback
     
     # Get the most recent date with data if no target_date provided
     if target_date is None:
@@ -1127,21 +1169,24 @@ async def get_sales_route(
 ):
     from models import AnalyticsRecord
     
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
+    restaurant_id = getattr(request.state, 'restaurant_id', None)
     
-    # Fallback: detect from referer for AJAX requests
+    # Always detect from referer for AJAX requests
     referer = request.headers.get('referer', '')
-    if '/r/' in referer and restaurant_id == 1:
+    if '/r/' in referer:
         try:
             subdomain = referer.split('/r/')[1].split('/')[0]
             restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
             if restaurant:
                 restaurant_id = restaurant.id
-                print(f"Sales API: Detected restaurant_id={restaurant_id} from referer")
-        except:
-            pass
+                print(f"Sales API: Detected restaurant_id={restaurant_id} from referer subdomain {subdomain}")
+        except Exception as e:
+            print(f"Sales API: Error parsing referer: {e}")
     
-    print(f"Sales API: Using restaurant_id={restaurant_id} from middleware")
+    if not restaurant_id:
+        restaurant_id = 1  # fallback
+    
+    print(f"Sales API: Using restaurant_id={restaurant_id}")
     
     # Get the most recent date with data if no target_date provided
     if target_date is None:
@@ -1276,12 +1321,20 @@ async def get_analytics_dashboard(
 ):
     try:
         # Get restaurant_id from request
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
+        restaurant_id = getattr(request.state, 'restaurant_id', None)
         referer = request.headers.get('referer', '')
-        if '/r/marios' in referer:
-            restaurant_id = 2
-        elif '/r/sushi' in referer:
-            restaurant_id = 3
+        if '/r/' in referer:
+            try:
+                subdomain = referer.split('/r/')[1].split('/')[0]
+                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+                if restaurant:
+                    restaurant_id = restaurant.id
+                    print(f"Analytics dashboard: Detected restaurant_id={restaurant_id} from subdomain {subdomain}")
+            except Exception as e:
+                print(f"Analytics dashboard: Error parsing referer: {e}")
+        
+        if not restaurant_id:
+            restaurant_id = 1  # fallback
         
         # Check plan access
         restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
@@ -1332,12 +1385,19 @@ async def get_top_items(
 ):
     try:
         # Get restaurant_id
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
+        restaurant_id = getattr(request.state, 'restaurant_id', None)
         referer = request.headers.get('referer', '')
-        if '/r/marios' in referer:
-            restaurant_id = 2
-        elif '/r/sushi' in referer:
-            restaurant_id = 3
+        if '/r/' in referer:
+            try:
+                subdomain = referer.split('/r/')[1].split('/')[0]
+                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+                if restaurant:
+                    restaurant_id = restaurant.id
+            except:
+                pass
+        
+        if not restaurant_id:
+            restaurant_id = 1  # fallback
         
         from analytics_service import get_top_items_by_period
         # Ensure limit doesn't exceed 50 to prevent large responses
@@ -1464,9 +1524,23 @@ async def export_analytics_csv(
     )
 
 @app.get("/debug/database")
-async def debug_database(period: str = "day", db: Session = Depends(get_db)):
+async def debug_database(request: Request, period: str = "day", db: Session = Depends(get_db)):
     from models import AnalyticsRecord, Waiter
     from datetime import date
+    
+    # Get restaurant_id like other endpoints
+    restaurant_id = getattr(request.state, 'restaurant_id', None)
+    referer = request.headers.get('referer', '')
+    if '/r/' in referer:
+        try:
+            subdomain = referer.split('/r/')[1].split('/')[0]
+            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+            if restaurant:
+                restaurant_id = restaurant.id
+        except:
+            pass
+    
+    print(f"Debug database: Using restaurant_id={restaurant_id}")
     
     today = date.today()
     
@@ -1485,11 +1559,16 @@ async def debug_database(period: str = "day", db: Session = Depends(get_db)):
         start_date = today
         end_date = today
     
-    # Get analytics records for the period
-    records = db.query(AnalyticsRecord).filter(
+    # Get analytics records for the period and restaurant
+    records_query = db.query(AnalyticsRecord).filter(
         func.date(AnalyticsRecord.checkout_date) >= start_date,
         func.date(AnalyticsRecord.checkout_date) <= end_date
-    ).all()
+    )
+    if restaurant_id:
+        records_query = records_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
+    records = records_query.all()
+    
+    print(f"Debug database: Found {len(records)} records for restaurant {restaurant_id}")
     
     # Get waiter names
     waiters = {w.id: w.name for w in db.query(Waiter).all()}
@@ -1622,4 +1701,6 @@ async def export_sales_csv_simple(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
