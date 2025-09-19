@@ -926,38 +926,68 @@ async def upload_menu_file(
     db: Session = Depends(get_db)
 ):
     try:
-        # Get restaurant_id
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
+        # Simple restaurant detection
+        restaurant_id = 1  # Default
         referer = request.headers.get('referer', '')
-        if '/r/marios' in referer:
-            restaurant_id = 2
-        elif '/r/mos' in referer:
-            restaurant_id = 3
         
-        print(f"Upload request for restaurant {restaurant_id}, file: {menu_file.filename}")
+        if '/r/' in referer:
+            try:
+                subdomain = referer.split('/r/')[1].split('/')[0]
+                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+                if restaurant:
+                    restaurant_id = restaurant.id
+            except:
+                pass
         
         if not menu_file.filename:
-            raise HTTPException(status_code=400, detail="No file selected")
+            return JSONResponse({"error": "No file selected"}, status_code=400)
         
+        if not menu_file.filename.endswith(('.xlsx', '.xls')):
+            return JSONResponse({"error": "Only Excel files (.xlsx, .xls) are supported"}, status_code=400)
+        
+        # Read and process file
         file_content = await menu_file.read()
-        print(f"File size: {len(file_content)} bytes")
         
-        if menu_file.filename.endswith(('.xlsx', '.xls')):
-            from setup import process_excel_content
-            process_excel_content(db, file_content, restaurant_id)
-        elif menu_file.filename.endswith('.pdf'):
-            from setup import process_pdf_content
-            process_pdf_content(db, file_content, restaurant_id)
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported file format. Use Excel (.xlsx, .xls) or PDF files.")
+        # Clear existing menu items
+        db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
+        db.commit()
         
-        return JSONResponse({"message": "Menu uploaded successfully"})
+        # Process Excel file
+        import openpyxl
+        import io
+        wb = openpyxl.load_workbook(io.BytesIO(file_content))
+        ws = wb.active
+        
+        items_added = 0
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row and len(row) >= 3 and row[0] and row[1] and row[2]:
+                name = str(row[0]).strip()
+                ingredients = str(row[1]).strip()
+                price = float(row[2])
+                category = str(row[3]).strip() if len(row) > 3 and row[3] else 'Food'
+                
+                menu_item = MenuItem(
+                    name=name,
+                    ingredients=ingredients,
+                    price=price,
+                    category=category,
+                    restaurant_id=restaurant_id,
+                    active=True
+                )
+                db.add(menu_item)
+                items_added += 1
+        
+        db.commit()
+        
+        return JSONResponse({
+            "message": "Menu uploaded successfully",
+            "items_added": items_added,
+            "restaurant_id": restaurant_id
+        })
+        
     except Exception as e:
-        print(f"Upload error: {e}")
-        import traceback
-        traceback.print_exc()
+        db.rollback()
         return JSONResponse({"error": f"Upload failed: {str(e)}"}, status_code=500)
-
 
 
 
