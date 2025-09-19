@@ -983,10 +983,10 @@ async def upload_menu_file(request: Request, menu_file: UploadFile = File(...), 
     restaurant_id = 1
     referer = request.headers.get('referer', '')
     
-    # Map based on live restaurants: demo=1, mos=2, test=3
-    if '/r/demo' in referer: restaurant_id = 1
-    elif '/r/mos' in referer: restaurant_id = 2  
-    elif '/r/test' in referer: restaurant_id = 3
+    # Map based on actual live restaurants
+    if '/r/test-restaurant' in referer: restaurant_id = 1
+    elif '/r/mos' in referer: restaurant_id = 3  
+    elif '/r/demo' in referer: restaurant_id = 4
     
     try:
         content = await menu_file.read()
