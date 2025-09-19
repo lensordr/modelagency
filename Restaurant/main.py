@@ -941,9 +941,15 @@ async def upload_menu_file(
                 pass
         
         if not restaurant_id:
-            restaurant_id = 1  # fallback
+            print(f"MENU UPLOAD: No restaurant_id found, request.state: {request.state.__dict__}")
+            raise HTTPException(status_code=400, detail="Could not determine restaurant context")
         
-        print(f"MENU UPLOAD: restaurant_id={restaurant_id}, file={menu_file.filename}, referer={referer}")
+        # Verify restaurant exists
+        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+        if not restaurant:
+            raise HTTPException(status_code=404, detail=f"Restaurant {restaurant_id} not found")
+        
+        print(f"MENU UPLOAD: restaurant_id={restaurant_id} ({restaurant.name}), file={menu_file.filename}")
         
         if not menu_file.filename:
             raise HTTPException(status_code=400, detail="No file selected")
@@ -991,7 +997,12 @@ async def upload_menu_file(
             print(f"MENU UPLOAD: Error counting new items: {e}")
             new_count = 0
         
-        return JSONResponse({"message": "Menu uploaded successfully", "items_count": new_count})
+        return JSONResponse({
+            "message": "Menu uploaded successfully", 
+            "items_count": new_count,
+            "restaurant_id": restaurant_id,
+            "restaurant_name": restaurant.name
+        })
     except Exception as e:
         print(f"MENU UPLOAD ERROR: {e}")
         import traceback
