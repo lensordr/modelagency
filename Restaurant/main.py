@@ -980,13 +980,9 @@ async def debug_live_restaurants(db: Session = Depends(get_db)):
 
 @app.post("/business/menu/upload")
 async def upload_menu_file(request: Request, menu_file: UploadFile = File(...), db: Session = Depends(get_db)):
-    restaurant_id = 1
-    referer = request.headers.get('referer', '')
-    
-    # Map based on actual live restaurants
-    if '/r/test-restaurant' in referer: restaurant_id = 1
-    elif '/r/mos' in referer: restaurant_id = 3  
-    elif '/r/demo' in referer: restaurant_id = 4
+    # Use middleware-detected restaurant_id
+    restaurant_id = getattr(request.state, 'restaurant_id', 1)
+    print(f"UPLOAD: Using restaurant_id={restaurant_id} from middleware")
     
     try:
         content = await menu_file.read()
