@@ -1145,22 +1145,24 @@ async def checkout_table(
     table = get_table_by_number(db, table_number, restaurant_id)
     
     if order and table:
-        # Create individual analytics records for each menu item
-        for item in order.order_items:
-            item_total = item.menu_item.price * item.qty
-            analytics_record = AnalyticsRecord(
-                restaurant_id=restaurant_id,
-                table_number=table_number,
-                waiter_id=waiter_id,
-                item_name=item.menu_item.name,
-                item_category=item.menu_item.category,
-                quantity=item.qty,
-                unit_price=item.menu_item.price,
-                total_price=item_total,
-                tip_amount=table.tip_amount or 0.0,
-                checkout_date=datetime.utcnow()
-            )
-            db.add(analytics_record)
+        # Calculate total order values
+        total_quantity = sum(item.qty for item in order.order_items)
+        total_price = sum(item.menu_item.price * item.qty for item in order.order_items)
+        
+        # Create ONE analytics record per order
+        analytics_record = AnalyticsRecord(
+            restaurant_id=restaurant_id,
+            table_number=table_number,
+            waiter_id=waiter_id,
+            item_name=f"Order #{order.id}",
+            item_category="Mixed",
+            quantity=total_quantity,
+            unit_price=total_price / total_quantity if total_quantity > 0 else 0,
+            total_price=total_price,
+            tip_amount=table.tip_amount or 0.0,
+            checkout_date=datetime.utcnow()
+        )
+        db.add(analytics_record)
         
         # Finish the order
         finish_order_with_waiter(db, table_number, waiter_id, restaurant_id)
@@ -1173,7 +1175,7 @@ async def checkout_table(
         table.tip_amount = 0.0
         db.commit()
         
-        print(f"Created analytics record for order {order.id}: €{total_price} + €{table.tip_amount or 0} tip")
+        print(f"Created 1 analytics record for order {order.id}: €{total_price} + €{table.tip_amount or 0} tip")
     
     return {"message": "Table checkout completed successfully"}
 
