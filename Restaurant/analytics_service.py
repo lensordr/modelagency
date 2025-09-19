@@ -25,9 +25,9 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
         
         print(f"Analytics service: restaurant_id={restaurant_id}, period={period}, start_date={start_date}, end_date={end_date}")
         
-        # Count total analytics records as orders (each record = 1 order)
+        # Count unique orders by using distinct item_name (which contains "Order #123" format)
         orders_query = db.query(
-            func.count(AnalyticsRecord.id)
+            func.count(func.distinct(AnalyticsRecord.item_name))
         ).filter(
             func.date(AnalyticsRecord.checkout_date) >= start_date,
             func.date(AnalyticsRecord.checkout_date) <= end_date
@@ -90,10 +90,10 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
             categories_query = categories_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         categories = categories_query.group_by(AnalyticsRecord.item_category).all()
         
-        # Waiter performance - count distinct orders (simplified for PostgreSQL compatibility)
+        # Waiter performance - count distinct orders using item_name
         waiter_performance_query = db.query(
             AnalyticsRecord.waiter_id,
-            func.count(AnalyticsRecord.id).label('total_orders'),
+            func.count(func.distinct(AnalyticsRecord.item_name)).label('total_orders'),
             func.sum(AnalyticsRecord.total_price).label('total_sales'),
             func.sum(AnalyticsRecord.tip_amount).label('total_tips'),
             func.sum(AnalyticsRecord.quantity).label('total_items')
@@ -127,12 +127,12 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
                     'avg_order_value': float(wp.total_sales or 0) / max(wp.total_orders, 1)
                 })
         
-        # Trends (last 7 days) - simplified for PostgreSQL compatibility
+        # Trends (last 7 days) - count distinct orders using item_name
         trends = []
         for i in range(7):
             trend_date = target_date_obj - timedelta(days=6-i)
             day_data_query = db.query(
-                func.count(AnalyticsRecord.id).label('orders'),
+                func.count(func.distinct(AnalyticsRecord.item_name)).label('orders'),
                 func.sum(AnalyticsRecord.total_price).label('revenue')
             ).filter(
                 func.date(AnalyticsRecord.checkout_date) == trend_date
@@ -253,11 +253,11 @@ def get_top_items_by_period(db: Session, period: str = "day", target_date: str =
                 'avg_revenue_per_order': float(item.total_revenue) / max(item.orders_count, 1)
             })
         
-        # Get period summary
+        # Get period summary - count distinct orders using item_name
         period_summary_query = db.query(
-            func.count(func.distinct(AnalyticsRecord.checkout_date)).label('total_orders'),
+            func.count(func.distinct(AnalyticsRecord.item_name)).label('total_orders'),
             func.sum(AnalyticsRecord.total_price).label('total_revenue'),
-            func.count(func.distinct(AnalyticsRecord.item_name)).label('unique_items')
+            func.count(func.distinct(AnalyticsRecord.item_category)).label('unique_categories')
         ).filter(
             and_(
                 func.date(AnalyticsRecord.checkout_date) >= start_date,
@@ -275,7 +275,7 @@ def get_top_items_by_period(db: Session, period: str = "day", target_date: str =
             'summary': {
                 'total_orders': period_summary.total_orders or 0,
                 'total_revenue': float(period_summary.total_revenue or 0),
-                'unique_items_sold': period_summary.unique_items or 0,
+                'unique_categories': period_summary.unique_categories or 0,
                 'top_items_count': len(items_data)
             },
             'top_items': items_data
@@ -285,7 +285,7 @@ def get_top_items_by_period(db: Session, period: str = "day", target_date: str =
         return {
             'period': period,
             'error': str(e),
-            'summary': {'total_orders': 0, 'total_revenue': 0, 'unique_items_sold': 0},
+            'summary': {'total_orders': 0, 'total_revenue': 0, 'unique_categories': 0},
             'top_items': []
         }
 
@@ -300,7 +300,7 @@ def get_item_performance_trends(db: Session, item_name: str, days: int = 30, res
             func.date(AnalyticsRecord.checkout_date).label('date'),
             func.sum(AnalyticsRecord.quantity).label('quantity'),
             func.sum(AnalyticsRecord.total_price).label('revenue'),
-            func.count(func.distinct(AnalyticsRecord.checkout_date)).label('orders')
+            func.count(func.distinct(AnalyticsRecord.item_name)).label('orders')
         ).filter(
             and_(
                 AnalyticsRecord.item_name == item_name,
@@ -394,8 +394,8 @@ def get_category_comparison(db: Session, period: str = "month", target_date: str
             AnalyticsRecord.item_category,
             func.sum(AnalyticsRecord.quantity).label('total_quantity'),
             func.sum(AnalyticsRecord.total_price).label('total_revenue'),
-            func.count(func.distinct(AnalyticsRecord.item_name)).label('unique_items'),
-            func.count(func.distinct(AnalyticsRecord.checkout_date)).label('orders_count'),
+            func.count(func.distinct(AnalyticsRecord.item_name)).label('unique_orders'),
+            func.count(func.distinct(AnalyticsRecord.item_name)).label('orders_count'),
             func.avg(AnalyticsRecord.unit_price).label('avg_item_price')
         ).filter(
             and_(
@@ -422,7 +422,7 @@ def get_category_comparison(db: Session, period: str = "month", target_date: str
                 'category': cat.item_category,
                 'quantity_sold': cat.total_quantity,
                 'revenue': revenue,
-                'unique_items': cat.unique_items,
+                'unique_orders': cat.unique_orders,
                 'orders_count': cat.orders_count,
                 'avg_item_price': float(cat.avg_item_price),
                 'revenue_percentage': (revenue / total_revenue * 100) if total_revenue > 0 else 0,
