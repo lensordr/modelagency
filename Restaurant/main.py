@@ -978,6 +978,32 @@ async def debug_live_restaurants(db: Session = Depends(get_db)):
         ]
     }
 
+@app.post("/debug/fix-tables/{restaurant_id}")
+async def fix_duplicate_tables(restaurant_id: int, db: Session = Depends(get_db)):
+    from models import Table
+    
+    # Get all tables for restaurant
+    tables = db.query(Table).filter(Table.restaurant_id == restaurant_id).all()
+    
+    # Group by table_number
+    table_groups = {}
+    for table in tables:
+        if table.table_number not in table_groups:
+            table_groups[table.table_number] = []
+        table_groups[table.table_number].append(table)
+    
+    # Remove duplicates (keep first, delete rest)
+    deleted_count = 0
+    for table_number, table_list in table_groups.items():
+        if len(table_list) > 1:
+            for table in table_list[1:]:  # Keep first, delete rest
+                db.delete(table)
+                deleted_count += 1
+    
+    db.commit()
+    return {"message": f"Removed {deleted_count} duplicate tables"}
+
+
 @app.post("/debug/reset-database")
 async def reset_database(db: Session = Depends(get_db)):
     try:
