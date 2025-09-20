@@ -63,7 +63,7 @@ app.add_middleware(TenantMiddleware)
 # Mount static files and templates
 static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
-web_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
+web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 app.mount("/web", StaticFiles(directory=web_dir, html=True), name="web")
 templates = Jinja2Templates(directory=templates_dir)
