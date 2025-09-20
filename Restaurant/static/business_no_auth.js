@@ -217,10 +217,20 @@ function displayTables() {
         }
         
         tableCard.className = cardClass;
-        tableCard.innerHTML = `
+        let tableContent = `
             <div>Table ${table.table_number}</div>
             <div style="font-size: 12px; margin-top: 5px;">Code: ${table.code}</div>
         `;
+        
+        if (table.status === 'occupied') {
+            tableContent += `
+                <button onclick="event.stopPropagation(); cancelTableOrder(${table.table_number})" 
+                        style="background: #e53e3e; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; margin-top: 5px; cursor: pointer;"
+                        title="Cancel Order">❌</button>
+            `;
+        }
+        
+        tableCard.innerHTML = tableContent;
         
         if (table.status === 'occupied') {
             tableCard.onclick = () => showOrderDetails(table.table_number);
@@ -979,6 +989,29 @@ async function cancelOrder() {
         if (response.ok) {
             showMessage(data.message, 'success');
             closeModal();
+            loadDashboard();
+        } else {
+            showMessage(data.detail || 'Error cancelling order', 'error');
+        }
+    } catch (error) {
+        showMessage('Error connecting to server', 'error');
+    }
+}
+
+async function cancelTableOrder(tableNumber) {
+    if (!confirm(`Are you sure you want to cancel the entire order for Table ${tableNumber}? This cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/business/cancel_order/${tableNumber}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showMessage(data.message, 'success');
             loadDashboard();
         } else {
             showMessage(data.detail || 'Error cancelling order', 'error');

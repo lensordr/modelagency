@@ -223,6 +223,22 @@ h2, h3 {
     transform: translateY(-1px);
 }
 
+.cancel-btn {
+    background: #e53e3e !important;
+    color: white !important;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.cancel-btn:hover {
+    background: #c53030 !important;
+    transform: translateY(-1px);
+}
+
 .modal-buttons {
     display: flex;
     gap: 10px;
