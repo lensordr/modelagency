@@ -57,6 +57,28 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Website route (before middleware to avoid restaurant context)
+@app.get("/", response_class=HTMLResponse)
+async def website_home():
+    try:
+        web_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "web"))
+        with open(os.path.join(web_dir, "index.html"), "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except FileNotFoundError:
+        return HTMLResponse("<h1>TableLink - Website Loading...</h1>")
+
+# Website route (before middleware to avoid restaurant context)
+@app.get("/", response_class=HTMLResponse)
+async def website_root():
+    try:
+        web_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "web"))
+        with open(os.path.join(web_dir, "index.html"), "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except FileNotFoundError:
+        return HTMLResponse("<h1>TableLink - Website Loading...</h1>")
+
 # Add tenant middleware
 app.add_middleware(TenantMiddleware)
 
@@ -435,16 +457,7 @@ async def complete_setup(
         traceback.print_exc()
         return JSONResponse({"error": str(e)}, status_code=500)
 
-@app.get("/", response_class=HTMLResponse)
-async def root(request: Request):
-    # Serve presentation website directly
-    try:
-        with open(os.path.join(web_dir, "index.html"), "r") as f:
-            content = f.read()
-        return HTMLResponse(content=content)
-    except FileNotFoundError:
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url="/web/")
+
 
 # Client routes
 @app.get("/client", response_class=HTMLResponse)
