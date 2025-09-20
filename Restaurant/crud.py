@@ -9,7 +9,7 @@ from tenant import get_current_restaurant_id
 def get_all_tables(db: Session, restaurant_id: int = None):
     if restaurant_id is None:
         restaurant_id = get_current_restaurant_id()
-    return db.query(Table).filter(Table.restaurant_id == restaurant_id).all()
+    return db.query(Table).filter(Table.restaurant_id == restaurant_id).order_by(Table.table_number).all()
 
 def get_table_by_number(db: Session, table_number: int, restaurant_id: int = None):
     if restaurant_id is None:

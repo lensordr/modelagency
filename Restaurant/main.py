@@ -228,7 +228,7 @@ async def list_restaurants(request: Request, db: Session = Depends(get_db)):
     restaurant_data = []
     
     for r in restaurants:
-        total_orders = db.query(func.count(AnalyticsRecord.id)).filter(
+        total_orders = db.query(func.count(func.distinct(AnalyticsRecord.item_name))).filter(
             AnalyticsRecord.restaurant_id == r.id
         ).scalar() or 0
         
@@ -1014,16 +1014,82 @@ async def upload_menu_basic(
 
 @app.get("/debug/live-restaurants")
 async def debug_live_restaurants(db: Session = Depends(get_db)):
+    from models import AnalyticsRecord
     restaurants = db.query(Restaurant).all()
+    result = []
+    
+    for r in restaurants:
+        orders_count = db.query(func.count(Order.id)).filter(
+            Order.restaurant_id == r.id,
+            Order.status == 'finished'
+        ).scalar() or 0
+        
+        analytics_count = db.query(func.count(func.distinct(AnalyticsRecord.item_name))).filter(
+            AnalyticsRecord.restaurant_id == r.id
+        ).scalar() or 0
+        
+        result.append({
+            "id": r.id,
+            "name": r.name,
+            "subdomain": r.subdomain,
+            "active": r.active,
+            "orders_count": orders_count,
+            "analytics_count": analytics_count
+        })
+    
+    return {"restaurants": result}
+
+@app.get("/debug/orders-comparison/{restaurant_id}")
+async def debug_orders_comparison(restaurant_id: int, db: Session = Depends(get_db)):
+    from models import AnalyticsRecord
+    
+    # Count from Orders table (what admin dashboard shows)
+    orders_count = db.query(func.count(Order.id)).filter(
+        Order.restaurant_id == restaurant_id,
+        Order.status == 'finished'
+    ).scalar() or 0
+    
+    # Count from AnalyticsRecord table (what analytics shows)
+    analytics_count = db.query(func.count(func.distinct(AnalyticsRecord.item_name))).filter(
+        AnalyticsRecord.restaurant_id == restaurant_id
+    ).scalar() or 0
+    
+    # Get actual analytics records
+    analytics_records = db.query(AnalyticsRecord).filter(
+        AnalyticsRecord.restaurant_id == restaurant_id
+    ).all()
+    
+    # Get actual orders
+    orders = db.query(Order).filter(
+        Order.restaurant_id == restaurant_id,
+        Order.status == 'finished'
+    ).all()
+    
     return {
-        "restaurants": [
+        "restaurant_id": restaurant_id,
+        "orders_table_count": orders_count,
+        "analytics_table_count": analytics_count,
+        "analytics_records_total": len(analytics_records),
+        "orders_details": [
             {
-                "id": r.id,
-                "name": r.name,
-                "subdomain": r.subdomain,
-                "active": r.active
+                "id": o.id,
+                "table_number": o.table.table_number if o.table else "N/A",
+                "created_at": o.created_at.isoformat(),
+                "waiter_id": o.waiter_id,
+                "status": o.status
             }
-            for r in restaurants
+            for o in orders
+        ],
+        "analytics_records": [
+            {
+                "id": a.id,
+                "item_name": a.item_name,
+                "table_number": a.table_number,
+                "checkout_date": a.checkout_date.isoformat(),
+                "waiter_id": a.waiter_id,
+                "total_price": float(a.total_price)
+            }
+            for a in analytics_records
         ]
     }
 

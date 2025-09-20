@@ -130,7 +130,8 @@ async function loadDashboard() {
         // Check for sound alerts before updating tables
         checkForSoundAlerts(data);
         
-        tables = data;
+        // Sort tables by table number to maintain consistent order
+        tables = data.sort((a, b) => a.table_number - b.table_number);
         displayTables();
         console.log('Tables set:', tables.length, 'tables');
         
@@ -222,13 +223,7 @@ function displayTables() {
             <div style="font-size: 12px; margin-top: 5px;">Code: ${table.code}</div>
         `;
         
-        if (table.status === 'occupied') {
-            tableContent += `
-                <button onclick="event.stopPropagation(); cancelTableOrder(${table.table_number})" 
-                        style="background: #e53e3e; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; margin-top: 5px; cursor: pointer;"
-                        title="Cancel Order">❌</button>
-            `;
-        }
+        // Cancel button removed from table cards - only available in modal
         
         tableCard.innerHTML = tableContent;
         
@@ -328,7 +323,10 @@ async function showOrderDetails(tableNumber) {
             `;
             
             document.getElementById('checkout-table-btn').setAttribute('data-table', tableNumber);
-            document.getElementById('cancel-order-btn').setAttribute('data-table', tableNumber);
+            const cancelBtn = document.getElementById('cancel-order-btn');
+            if (cancelBtn) {
+                cancelBtn.setAttribute('data-table', tableNumber);
+            }
             document.getElementById('order-modal').style.display = 'block';
         }
     } catch (error) {
@@ -976,8 +974,24 @@ async function deleteOrderItem(orderItemId) {
 }
 
 async function cancelOrder() {
-    const tableNumber = document.getElementById('cancel-order-btn').getAttribute('data-table');
+    const cancelBtn = document.getElementById('cancel-order-btn');
+    console.log('Cancel button element:', cancelBtn);
+    
+    if (!cancelBtn) {
+        console.error('Cancel button not found!');
+        showMessage('Cancel button not found', 'error');
+        return;
+    }
+    
+    const tableNumber = cancelBtn.getAttribute('data-table');
     console.log('Cancel order clicked for table:', tableNumber);
+    
+    if (!tableNumber) {
+        console.error('No table number found on cancel button');
+        showMessage('No table number found', 'error');
+        return;
+    }
+    
     if (!confirm(`Are you sure you want to cancel the entire order for Table ${tableNumber}? This cannot be undone.`)) {
         return;
     }
