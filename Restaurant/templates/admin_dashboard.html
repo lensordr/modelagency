@@ -105,6 +105,11 @@
                 const response = await fetch('/admin/stats', {
                     credentials: 'include'
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
                 const stats = await response.json();
                 
                 document.getElementById('total-restaurants').textContent = stats.total_restaurants;
@@ -121,13 +126,18 @@
                 const response = await fetch('/admin/restaurants', {
                     credentials: 'include'
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
                 restaurants = data.restaurants;
                 displayRestaurants();
             } catch (error) {
                 console.error('Error loading restaurants:', error);
                 document.getElementById('restaurants-tbody').innerHTML = 
-                    '<tr><td colspan="9" style="text-align: center; color: red;">Error loading restaurants</td></tr>';
+                    `<tr><td colspan="10" style="text-align: center; color: red;">Error: ${error.message}</td></tr>`;
             }
         }
 
