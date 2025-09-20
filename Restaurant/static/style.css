@@ -172,8 +172,93 @@ h2, h3 {
 .existing-order-item {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     padding: 8px 0;
     border-bottom: 1px solid #d4edda;
+}
+
+.item-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.delete-item-btn {
+    background: transparent;
+    color: #718096;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    min-width: 30px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.delete-item-btn:hover {
+    background: #fed7d7;
+    color: #e53e3e;
+    border-color: #e53e3e;
+    transform: scale(1.05);
+}
+
+.cancel-order-btn {
+    background: #e53e3e;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 10px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.cancel-order-btn:hover {
+    background: #c53030;
+    transform: translateY(-1px);
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.checkout-btn {
+    background: #38a169;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.checkout-btn:hover {
+    background: #2f855a;
+    transform: translateY(-1px);
+}
+
+.cancel-btn {
+    background: #e53e3e;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.cancel-btn:hover {
+    background: #c53030;
+    transform: translateY(-1px);
 }
 
 .existing-order-total {
@@ -573,10 +658,17 @@ button:disabled {
 .order-detail-item {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     padding: 10px 0;
     border-bottom: 1px solid #ecf0f1;
     color: #333;
     font-weight: normal;
+}
+
+.order-detail-item .item-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .order-detail-item span[style*="color: red"] {

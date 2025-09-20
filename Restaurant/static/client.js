@@ -384,7 +384,10 @@ function displayExistingOrder(orderData) {
             ${orderData.items.map(item => `
                 <div class="existing-order-item">
                     <span>${item.name} x${item.qty}${item.customizations ? ' (Customized)' : ''}</span>
-                    <span>€${item.total.toFixed(2)}</span>
+                    <div class="item-actions">
+                        <span>€${item.total.toFixed(2)}</span>
+                        <button onclick="deleteOrderItem(${item.id})" class="delete-item-btn" title="Remove item">🗑️</button>
+                    </div>
                 </div>
             `).join('')}
         </div>
@@ -523,6 +526,32 @@ async function checkTableStatus() {
         }
     } catch (error) {
         // Ignore errors in background check
+    }
+}
+
+async function deleteOrderItem(orderItemId) {
+    if (!confirm('Are you sure you want to remove this item from your order?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/client/order_item/${orderItemId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showMessage(data.message, 'success');
+            // Reload the page to refresh the order
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            showMessage(data.detail || 'Error removing item', 'error');
+        }
+    } catch (error) {
+        showMessage('Error connecting to server', 'error');
     }
 }
 

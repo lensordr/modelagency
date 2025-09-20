@@ -298,7 +298,10 @@ async function showOrderDetails(tableNumber) {
                                     ${item.is_new_extra ? '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: red; font-weight: bold;">NEW</span>' : ''}
                                     ${customizationText}
                                 </span>
-                                <span>€${item.total.toFixed(2)}</span>
+                                <div class="item-actions">
+                                    <span>€${item.total.toFixed(2)}</span>
+                                    <button onclick="deleteOrderItem(${item.id})" class="delete-item-btn" title="Remove item">🗑️</button>
+                                </div>
                             </div>
                         `;
                     }).join('')}
@@ -313,6 +316,7 @@ async function showOrderDetails(tableNumber) {
             `;
             
             document.getElementById('checkout-table-btn').setAttribute('data-table', tableNumber);
+            document.getElementById('cancel-order-btn').setAttribute('data-table', tableNumber);
             document.getElementById('order-modal').style.display = 'block';
         }
     } catch (error) {
@@ -929,6 +933,59 @@ function openQRCodesWindow() {
             qrWindow.document.write('<h1>Error loading QR codes</h1>');
             qrWindow.document.close();
         });
+}
+
+async function deleteOrderItem(orderItemId) {
+    if (!confirm('Are you sure you want to remove this item from the order?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/business/order_item/${orderItemId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showMessage(data.message, 'success');
+            // Refresh the order details
+            if (currentTableNumber) {
+                showOrderDetails(currentTableNumber);
+            }
+            // Refresh the dashboard
+            loadDashboard();
+        } else {
+            showMessage(data.detail || 'Error removing item', 'error');
+        }
+    } catch (error) {
+        showMessage('Error connecting to server', 'error');
+    }
+}
+
+async function cancelOrder() {
+    const tableNumber = document.getElementById('cancel-order-btn').getAttribute('data-table');
+    if (!confirm(`Are you sure you want to cancel the entire order for Table ${tableNumber}? This cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/business/cancel_order/${tableNumber}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showMessage(data.message, 'success');
+            closeModal();
+            loadDashboard();
+        } else {
+            showMessage(data.detail || 'Error cancelling order', 'error');
+        }
+    } catch (error) {
+        showMessage('Error connecting to server', 'error');
+    }
 }
 
 function printAllQRCodes() {

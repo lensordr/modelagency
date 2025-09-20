@@ -177,6 +177,7 @@ def get_order_details(db: Session, table_number: int, restaurant_id: int = None)
         print(f"Item {order_item.menu_item.name}: is_extra_item={is_extra}, is_new_extra={is_new_extra}")
         
         details['items'].append({
+            'id': order_item.id,
             'name': order_item.menu_item.name,
             'price': order_item.menu_item.price,
             'qty': order_item.qty,
@@ -724,3 +725,43 @@ def get_waiter_performance(db: Session, period: str = 'month', target_date: str 
     query = query.order_by(func.sum(OrderItem.qty * MenuItem.price).desc())
     
     return query.all()
+
+# Order item deletion and order cancellation
+def delete_order_item(db: Session, order_item_id: int, restaurant_id: int = None):
+    """Delete a specific order item"""
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    
+    order_item = db.query(OrderItem).join(Order).filter(
+        OrderItem.id == order_item_id,
+        Order.restaurant_id == restaurant_id
+    ).first()
+    
+    if order_item:
+        db.delete(order_item)
+        db.commit()
+        return True
+    return False
+
+def cancel_order(db: Session, table_number: int, restaurant_id: int = None):
+    """Cancel an entire order and free the table"""
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    
+    order = get_active_order_by_table(db, table_number, restaurant_id)
+    table = get_table_by_number(db, table_number, restaurant_id)
+    
+    if order and table:
+        # Delete all order items
+        db.query(OrderItem).filter(OrderItem.order_id == order.id).delete()
+        # Delete the order
+        db.delete(order)
+        # Reset table status
+        table.status = 'free'
+        table.checkout_requested = False
+        table.has_extra_order = False
+        table.checkout_method = None
+        table.tip_amount = 0.0
+        db.commit()
+        return True
+    return False

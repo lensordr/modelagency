@@ -33,7 +33,10 @@
 </head>
 <body>
     <div class="admin-container">
-        <h1>🏢 TableLink Admin Dashboard</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>🏢 TableLink Admin Dashboard</h1>
+            <button onclick="logout()" style="background: #dc3545; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">🚪 Logout</button>
+        </div>
         
         <div class="stats-grid" id="stats-grid">
             <div class="stat-card">
@@ -273,6 +276,10 @@
             setTimeout(() => {
                 messageDiv.style.display = 'none';
             }, 5000);
+        }
+
+        function logout() {
+            window.location.href = '/admin/logout';
         }
     </script>
 </body>

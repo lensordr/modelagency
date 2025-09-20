@@ -95,8 +95,55 @@ async def setup_page(request: Request):
     return templates.TemplateResponse("setup.html", {"request": request})
 
 # Admin/Onboarding routes
+# Simple session storage
+admin_sessions = set()
+
+def check_admin_session(request: Request):
+    session_id = request.cookies.get('admin_session')
+    return session_id in admin_sessions
+
+def create_admin_session():
+    import secrets
+    session_id = secrets.token_hex(16)
+    admin_sessions.add(session_id)
+    return session_id
+
+def clear_admin_session(session_id: str):
+    admin_sessions.discard(session_id)
+
+@app.get("/admin/login", response_class=HTMLResponse)
+async def admin_login_page(request: Request):
+    return templates.TemplateResponse("admin_login.html", {"request": request})
+
+@app.post("/admin/login")
+async def admin_login(
+    username: str = Form(...),
+    password: str = Form(...)
+):
+    if username == 'tablelink' and password == 'tablelink2025!':
+        session_id = create_admin_session()
+        from fastapi.responses import RedirectResponse
+        response = RedirectResponse(url="/admin", status_code=302)
+        response.set_cookie("admin_session", session_id, httponly=True)
+        return response
+    else:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+@app.get("/admin/logout")
+async def admin_logout(request: Request):
+    session_id = request.cookies.get('admin_session')
+    if session_id:
+        clear_admin_session(session_id)
+    from fastapi.responses import RedirectResponse
+    response = RedirectResponse(url="/admin/login", status_code=302)
+    response.delete_cookie("admin_session")
+    return response
+
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request):
+    if not check_admin_session(request):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/admin/login", status_code=302)
     return templates.TemplateResponse("admin_dashboard.html", {"request": request})
 
 @app.get("/onboard", response_class=HTMLResponse)
@@ -165,7 +212,9 @@ async def create_restaurant(
         }, status_code=500)
 
 @app.get("/admin/stats")
-async def admin_stats(db: Session = Depends(get_db)):
+async def admin_stats(request: Request, db: Session = Depends(get_db)):
+    if not check_admin_session(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
     from models import AnalyticsRecord
     
     total_restaurants = db.query(func.count(Restaurant.id)).scalar() or 0
@@ -182,7 +231,9 @@ async def admin_stats(db: Session = Depends(get_db)):
     }
 
 @app.get("/admin/restaurants")
-async def list_restaurants(db: Session = Depends(get_db)):
+async def list_restaurants(request: Request, db: Session = Depends(get_db)):
+    if not check_admin_session(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
     from models import AnalyticsRecord, Table
     
     restaurants = db.query(Restaurant).all()
@@ -224,7 +275,9 @@ async def list_restaurants(db: Session = Depends(get_db)):
     return {"restaurants": restaurant_data}
 
 @app.post("/admin/restaurants/{restaurant_id}/toggle")
-async def toggle_restaurant_status(restaurant_id: int, db: Session = Depends(get_db)):
+async def toggle_restaurant_status(request: Request, restaurant_id: int, db: Session = Depends(get_db)):
+    if not check_admin_session(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
     if not restaurant:
         raise HTTPException(status_code=404, detail="Restaurant not found")
@@ -240,10 +293,13 @@ async def toggle_restaurant_status(restaurant_id: int, db: Session = Depends(get
 
 @app.post("/admin/restaurants/{restaurant_id}/plan")
 async def update_restaurant_plan(
+    request: Request,
     restaurant_id: int,
     plan_type: str = Form(...),
     db: Session = Depends(get_db)
 ):
+    if not check_admin_session(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
     if plan_type not in ['trial', 'basic', 'professional']:
         raise HTTPException(status_code=400, detail="Invalid plan type")
     
@@ -275,10 +331,13 @@ async def update_restaurant_plan(
 
 @app.post("/admin/restaurants/{restaurant_id}/reset-password")
 async def reset_restaurant_password(
+    request: Request,
     restaurant_id: int,
     new_password: str = Form(...),
     db: Session = Depends(get_db)
 ):
+    if not check_admin_session(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
     from auth import get_password_hash
     
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
@@ -306,7 +365,9 @@ async def reset_restaurant_password(
     }
 
 @app.delete("/admin/restaurants/{restaurant_id}")
-async def delete_restaurant(restaurant_id: int, db: Session = Depends(get_db)):
+async def delete_restaurant(request: Request, restaurant_id: int, db: Session = Depends(get_db)):
+    if not check_admin_session(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
     from models import AnalyticsRecord, OrderItem, Order, MenuItem, Waiter, Table, User
     
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
@@ -1148,6 +1209,66 @@ async def get_order_details_route(request: Request, table_number: int, db: Sessi
     elif '/r/sushi' in referer:
         restaurant_id = 3
     return get_order_details(db, table_number, restaurant_id)
+
+@app.delete("/client/order_item/{order_item_id}")
+async def delete_client_order_item(
+    request: Request,
+    order_item_id: int,
+    db: Session = Depends(get_db)
+):
+    restaurant_id = getattr(request.state, 'restaurant_id', 1)
+    referer = request.headers.get('referer', '')
+    if '/r/marios' in referer:
+        restaurant_id = 2
+    elif '/r/sushi' in referer:
+        restaurant_id = 3
+    
+    from crud import delete_order_item
+    success = delete_order_item(db, order_item_id, restaurant_id)
+    if success:
+        return {"message": "Item removed from order"}
+    else:
+        raise HTTPException(status_code=404, detail="Order item not found")
+
+@app.delete("/business/order_item/{order_item_id}")
+async def delete_business_order_item(
+    request: Request,
+    order_item_id: int,
+    db: Session = Depends(get_db)
+):
+    restaurant_id = getattr(request.state, 'restaurant_id', 1)
+    referer = request.headers.get('referer', '')
+    if '/r/marios' in referer:
+        restaurant_id = 2
+    elif '/r/sushi' in referer:
+        restaurant_id = 3
+    
+    from crud import delete_order_item
+    success = delete_order_item(db, order_item_id, restaurant_id)
+    if success:
+        return {"message": "Item removed from order"}
+    else:
+        raise HTTPException(status_code=404, detail="Order item not found")
+
+@app.delete("/business/cancel_order/{table_number}")
+async def cancel_table_order(
+    request: Request,
+    table_number: int,
+    db: Session = Depends(get_db)
+):
+    restaurant_id = getattr(request.state, 'restaurant_id', 1)
+    referer = request.headers.get('referer', '')
+    if '/r/marios' in referer:
+        restaurant_id = 2
+    elif '/r/sushi' in referer:
+        restaurant_id = 3
+    
+    from crud import cancel_order
+    success = cancel_order(db, table_number, restaurant_id)
+    if success:
+        return {"message": "Order cancelled successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="No active order found")
 
 @app.post("/business/checkout_table/{table_number}")
 async def checkout_table(
