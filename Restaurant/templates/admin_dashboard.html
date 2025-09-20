@@ -102,7 +102,9 @@
 
         async function loadStats() {
             try {
-                const response = await fetch('/admin/stats');
+                const response = await fetch('/admin/stats', {
+                    credentials: 'include'
+                });
                 const stats = await response.json();
                 
                 document.getElementById('total-restaurants').textContent = stats.total_restaurants;
@@ -116,7 +118,9 @@
 
         async function loadRestaurants() {
             try {
-                const response = await fetch('/admin/restaurants');
+                const response = await fetch('/admin/restaurants', {
+                    credentials: 'include'
+                });
                 const data = await response.json();
                 restaurants = data.restaurants;
                 displayRestaurants();
@@ -168,7 +172,8 @@
         async function toggleRestaurant(id) {
             try {
                 const response = await fetch(`/admin/restaurants/${id}/toggle`, {
-                    method: 'POST'
+                    method: 'POST',
+                    credentials: 'include'
                 });
                 const result = await response.json();
                 
@@ -191,7 +196,8 @@
                 
                 const response = await fetch(`/admin/restaurants/${id}/plan`, {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    credentials: 'include'
                 });
                 const result = await response.json();
                 
@@ -224,7 +230,8 @@
                 
                 const response = await fetch(`/admin/restaurants/${id}/reset-password`, {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    credentials: 'include'
                 });
                 const result = await response.json();
                 
@@ -245,7 +252,8 @@
             
             try {
                 const response = await fetch(`/admin/restaurants/${id}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    credentials: 'include'
                 });
                 const result = await response.json();
                 
