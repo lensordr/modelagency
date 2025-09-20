@@ -11,7 +11,13 @@
 </head>
 <body>
     <div class="container">
-        <h1>🍽️ {{ restaurant_name }}</h1>
+        <div class="header-with-lang">
+            <h1>🍽️ {{ restaurant_name }}</h1>
+            <div class="language-toggle">
+                <button onclick="setLanguage('en')" class="lang-btn" id="lang-en">EN</button>
+                <button onclick="setLanguage('es')" class="lang-btn" id="lang-es">ES</button>
+            </div>
+        </div>
         <div id="table-info">
             <h2>📍 Table <span id="table-number">{{ table_number or 'Not specified' }}</span></h2>
             <p style="color: #718096; margin-top: 0.5rem;">Welcome! Browse our menu and place your order</p>
@@ -60,6 +66,7 @@
         <div id="message"></div>
     </div>
 
+    <script src="/static/language.js"></script>
     <script src="/static/client.js"></script>
 </body>
 </html>
