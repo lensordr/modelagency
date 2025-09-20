@@ -23,6 +23,29 @@
         .item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
         .item:hover { background: #f8f9fa; }
         .rank { font-weight: bold; color: #007bff; margin-right: 10px; }
+        
+        @media (max-width: 768px) {
+            .controls { 
+                overflow-x: auto;
+                overflow-y: hidden;
+                white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+                padding: 10px 0;
+            }
+            .controls::-webkit-scrollbar { display: none; }
+            .controls > div { 
+                display: inline-flex;
+                gap: 10px;
+                align-items: center;
+                flex-shrink: 0;
+                white-space: nowrap;
+            }
+            .btn { flex-shrink: 0; white-space: nowrap; }
+            .grid { grid-template-columns: 1fr; }
+            .summary { grid-template-columns: repeat(2, 1fr); }
+        }
     </style>
 </head>
 <body>
