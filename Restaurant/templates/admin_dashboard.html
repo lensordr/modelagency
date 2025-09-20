@@ -29,6 +29,17 @@
         #message { position: fixed; top: 20px; right: 20px; padding: 15px 20px; border-radius: 5px; color: white; font-weight: bold; z-index: 1001; display: none; }
         #message.success { background-color: #28a745; }
         #message.error { background-color: #dc3545; }
+        
+        @media (max-width: 768px) {
+            .admin-container { padding: 10px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .restaurants-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            table { min-width: 1000px; }
+            .table-header { flex-direction: column; gap: 10px; align-items: stretch; }
+            .table-header > div { display: flex; gap: 10px; }
+            .action-buttons { flex-direction: column; gap: 2px; }
+            .btn-sm { font-size: 10px; padding: 2px 4px; }
+        }
     </style>
 </head>
 <body>
