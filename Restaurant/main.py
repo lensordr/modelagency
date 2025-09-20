@@ -124,7 +124,7 @@ async def admin_login(
         session_id = create_admin_session()
         from fastapi.responses import RedirectResponse
         response = RedirectResponse(url="/admin", status_code=302)
-        response.set_cookie("admin_session", session_id, httponly=True)
+        response.set_cookie("admin_session", session_id, httponly=True, secure=True, samesite="none")
         return response
     else:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -136,7 +136,7 @@ async def admin_logout(request: Request):
         clear_admin_session(session_id)
     from fastapi.responses import RedirectResponse
     response = RedirectResponse(url="/admin/login", status_code=302)
-    response.delete_cookie("admin_session")
+    response.delete_cookie("admin_session", secure=True, samesite="none")
     return response
 
 @app.get("/admin", response_class=HTMLResponse)
