@@ -63,7 +63,9 @@ app.add_middleware(TenantMiddleware)
 # Mount static files and templates
 static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
+web_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+app.mount("/web", StaticFiles(directory=web_dir, html=True), name="web")
 templates = Jinja2Templates(directory=templates_dir)
 
 # Add routes to prevent HTTP warnings
@@ -429,9 +431,9 @@ async def complete_setup(
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    if not is_setup_complete():
-        return templates.TemplateResponse("setup.html", {"request": request})
-    return templates.TemplateResponse("welcome.html", {"request": request, "restaurant_name": get_restaurant_name()})
+    # Redirect to presentation website
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/web/")
 
 # Client routes
 @app.get("/client", response_class=HTMLResponse)
@@ -1281,16 +1283,16 @@ async def fix_duplicate_waiters(restaurant_id: int, db: Session = Depends(get_db
                 waiter_groups[waiter.name] = []
             waiter_groups[waiter.name].append(waiter)
         
-        # Remove duplicates (keep first, delete rest)
-        deleted_count = 0
+        # Remove duplicates (keep first, mark rest as inactive)
+        deactivated_count = 0
         for waiter_name, waiter_list in waiter_groups.items():
             if len(waiter_list) > 1:
-                for waiter in waiter_list[1:]:  # Keep first, delete rest
-                    db.delete(waiter)
-                    deleted_count += 1
+                for waiter in waiter_list[1:]:  # Keep first, deactivate rest
+                    waiter.active = False
+                    deactivated_count += 1
         
         db.commit()
-        return {"message": f"Removed {deleted_count} duplicate waiters from restaurant {restaurant_id}"}
+        return {"message": f"Deactivated {deactivated_count} duplicate waiters from restaurant {restaurant_id}"}
     except Exception as e:
         db.rollback()
         return {"error": str(e)}

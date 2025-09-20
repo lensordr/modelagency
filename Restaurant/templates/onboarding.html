@@ -97,6 +97,14 @@
     </div>
 
     <script>
+        // Pre-select plan from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const planParam = urlParams.get('plan');
+        if (planParam) {
+            const planSelect = document.getElementById('plan_type');
+            planSelect.value = planParam;
+        }
+        
         document.getElementById('onboard-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
