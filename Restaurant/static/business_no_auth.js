@@ -260,6 +260,8 @@ async function showOrderDetails(tableNumber) {
             document.getElementById('modal-table-number').textContent = tableNumber;
             
             const orderDetailsDiv = document.getElementById('order-details');
+            console.log('Order data received:', data);
+            console.log('Items with IDs:', data.items.map(item => ({name: item.name, id: item.id})));
             orderDetailsDiv.innerHTML = `
                 <p><strong>Order ID:</strong> ${data.order_id}</p>
                 <p><strong>Order Time:</strong> ${new Date(data.created_at).toLocaleString()}</p>
@@ -975,6 +977,7 @@ async function deleteOrderItem(orderItemId) {
 
 async function cancelOrder() {
     const tableNumber = document.getElementById('cancel-order-btn').getAttribute('data-table');
+    console.log('Cancel order clicked for table:', tableNumber);
     if (!confirm(`Are you sure you want to cancel the entire order for Table ${tableNumber}? This cannot be undone.`)) {
         return;
     }
