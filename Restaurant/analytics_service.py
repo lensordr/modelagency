@@ -403,6 +403,8 @@ def get_category_comparison(db: Session, period: str = "month", target_date: str
                 func.date(AnalyticsRecord.checkout_date) <= end_date
             )
         )
+        if restaurant_id:
+            categories_query = categories_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
         if waiter_id:
             categories_query = categories_query.filter(AnalyticsRecord.waiter_id == waiter_id)
         categories = categories_query.group_by(
