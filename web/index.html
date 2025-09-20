@@ -132,7 +132,7 @@
                         <li>✅ Staff Management</li>
                         <li>✅ PDF Receipts</li>
                     </ul>
-                    <a href="#contact" class="btn-pricing">Start Free Trial</a>
+                    <a href="#" class="btn-pricing" onclick="openContactModal('Free Trial')">Start Free Trial</a>
                 </div>
                 <div class="pricing-card featured">
                     <div class="popular-badge">Most Popular</div>
@@ -146,7 +146,7 @@
                         <li>✅ Email Support</li>
                         <li>✅ PDF Receipts</li>
                     </ul>
-                    <a href="#contact" class="btn-pricing">Get Started</a>
+                    <a href="#" class="btn-pricing" onclick="openContactModal('Basic Plan')">Get Started</a>
                 </div>
                 <div class="pricing-card">
                     <h3>Professional</h3>
@@ -160,7 +160,7 @@
                         <li>✅ Priority Support</li>
                         <li>✅ Custom Features</li>
                     </ul>
-                    <a href="#contact" class="btn-pricing">Get Started</a>
+                    <a href="#" class="btn-pricing" onclick="openContactModal('Professional Plan')">Get Started</a>
                 </div>
             </div>
         </div>
@@ -209,6 +209,23 @@
             </div>
         </div>
     </footer>
+
+    <!-- Contact Modal -->
+    <div id="contactModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeContactModal()">&times;</span>
+            <h2>Get Started with <span id="planName"></span></h2>
+            <p>Contact us to set up your restaurant on TableLink:</p>
+            <div class="contact-options">
+                <a href="mailto:lens.ordr@gmail.com?subject=TableLink Setup Request" class="contact-btn email-btn">
+                    📧 Email: lens.ordr@gmail.com
+                </a>
+                <a href="https://wa.me/1234567890?text=Hi, I'm interested in TableLink for my restaurant" class="contact-btn whatsapp-btn" target="_blank">
+                    📱 WhatsApp
+                </a>
+            </div>
+        </div>
+    </div>
 
     <script src="/web/assets/script.js?v=2"></script>
 </body>
