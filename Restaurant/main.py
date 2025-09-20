@@ -1269,27 +1269,31 @@ async def debug_orders_comparison(restaurant_id: int, db: Session = Depends(get_
 
 @app.post("/debug/fix-waiters/{restaurant_id}")
 async def fix_duplicate_waiters(restaurant_id: int, db: Session = Depends(get_db)):
-    from models import Waiter
-    # Get all waiters for restaurant
-    waiters = db.query(Waiter).filter(Waiter.restaurant_id == restaurant_id).all()
-    
-    # Group by name
-    waiter_groups = {}
-    for waiter in waiters:
-        if waiter.name not in waiter_groups:
-            waiter_groups[waiter.name] = []
-        waiter_groups[waiter.name].append(waiter)
-    
-    # Remove duplicates (keep first, delete rest)
-    deleted_count = 0
-    for waiter_name, waiter_list in waiter_groups.items():
-        if len(waiter_list) > 1:
-            for waiter in waiter_list[1:]:  # Keep first, delete rest
-                db.delete(waiter)
-                deleted_count += 1
-    
-    db.commit()
-    return {"message": f"Removed {deleted_count} duplicate waiters"}
+    try:
+        from models import Waiter
+        # Get all waiters for restaurant
+        waiters = db.query(Waiter).filter(Waiter.restaurant_id == restaurant_id).all()
+        
+        # Group by name
+        waiter_groups = {}
+        for waiter in waiters:
+            if waiter.name not in waiter_groups:
+                waiter_groups[waiter.name] = []
+            waiter_groups[waiter.name].append(waiter)
+        
+        # Remove duplicates (keep first, delete rest)
+        deleted_count = 0
+        for waiter_name, waiter_list in waiter_groups.items():
+            if len(waiter_list) > 1:
+                for waiter in waiter_list[1:]:  # Keep first, delete rest
+                    db.delete(waiter)
+                    deleted_count += 1
+        
+        db.commit()
+        return {"message": f"Removed {deleted_count} duplicate waiters from restaurant {restaurant_id}"}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
 
 @app.post("/debug/fix-tables/{restaurant_id}")
 async def fix_duplicate_tables(restaurant_id: int, db: Session = Depends(get_db)):
