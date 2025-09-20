@@ -12,10 +12,11 @@ templates = Jinja2Templates(directory=templates_dir)
 
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # Skip tenant resolution for static files and health checks
+        # Skip tenant resolution for static files, website, and health checks
         if (request.url.path.startswith("/static/") or 
             request.url.path.startswith("/debug/") or
-            request.url.path in ["/favicon.ico", "/robots.txt", "/apple-touch-icon.png", "/test"]):
+            request.url.path.startswith("/web/") or
+            request.url.path in ["/", "/favicon.ico", "/robots.txt", "/apple-touch-icon.png", "/test"]):
             return await call_next(request)
         
         # Skip for setup routes and global pages
