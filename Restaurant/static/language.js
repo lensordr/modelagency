@@ -25,6 +25,9 @@ function setLanguage(lang) {
     
     // Update total display
     updateTotalDisplay();
+    
+    // Update menu items
+    updateMenuLanguage();
 }
 
 function updateTotalDisplay() {
@@ -73,4 +76,53 @@ const translations = {
 
 function t(key) {
     return translations[currentLanguage][key] || translations['en'][key] || key;
+}
+
+// Menu item translations
+const menuTranslations = {
+    en: {
+        'Margherita Pizza': 'Margherita Pizza',
+        'Pepperoni Pizza': 'Pepperoni Pizza',
+        'Caesar Salad': 'Caesar Salad',
+        'Greek Salad': 'Greek Salad',
+        'Coca Cola': 'Coca Cola',
+        'Orange Juice': 'Orange Juice',
+        'Coffee': 'Coffee',
+        'Tea': 'Tea',
+        'Tiramisu': 'Tiramisu',
+        'Cheesecake': 'Cheesecake'
+    },
+    es: {
+        'Margherita Pizza': 'Pizza Margherita',
+        'Pepperoni Pizza': 'Pizza Pepperoni',
+        'Caesar Salad': 'Ensalada César',
+        'Greek Salad': 'Ensalada Griega',
+        'Coca Cola': 'Coca Cola',
+        'Orange Juice': 'Jugo de Naranja',
+        'Coffee': 'Café',
+        'Tea': 'Té',
+        'Tiramisu': 'Tiramisú',
+        'Cheesecake': 'Tarta de Queso'
+    }
+};
+
+function translateMenuItem(itemName) {
+    return menuTranslations[currentLanguage][itemName] || itemName;
+}
+
+// Function to update menu items when language changes
+function updateMenuLanguage() {
+    document.querySelectorAll('.menu-item-name').forEach(element => {
+        const originalName = element.getAttribute('data-original-name');
+        if (originalName) {
+            element.textContent = translateMenuItem(originalName);
+        }
+    });
+    
+    document.querySelectorAll('.order-item-name').forEach(element => {
+        const originalName = element.getAttribute('data-original-name');
+        if (originalName) {
+            element.textContent = translateMenuItem(originalName);
+        }
+    });
 }
