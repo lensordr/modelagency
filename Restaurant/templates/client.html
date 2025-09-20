@@ -19,16 +19,16 @@
             </div>
         </div>
         <div id="table-info">
-            <h2>📍 Table <span id="table-number">{{ table_number or 'Not specified' }}</span></h2>
-            <p style="color: #718096; margin-top: 0.5rem;">Welcome! Browse our menu and place your order</p>
+            <h2>📍 <span data-en="Table" data-es="Mesa">Table</span> <span id="table-number">{{ table_number or 'Not specified' }}</span></h2>
+            <p style="color: #718096; margin-top: 0.5rem;" data-en="Welcome! Browse our menu and place your order" data-es="¡Bienvenido! Navega por nuestro menú y haz tu pedido">Welcome! Browse our menu and place your order</p>
         </div>
 
         <div id="menu-section" style="display: none;">
-            <h3>🍴 Our Menu</h3>
+            <h3 data-en="🍴 Our Menu" data-es="🍴 Nuestro Menú">🍴 Our Menu</h3>
             <div id="menu-items"></div>
             
             <div id="order-section">
-                <h3>🛒 Your Order</h3>
+                <h3 data-en="🛒 Your Order" data-es="🛒 Tu Pedido">🛒 Your Order</h3>
                 <div id="order-items"></div>
                 <div id="total">Total: $0.00</div>
                 
