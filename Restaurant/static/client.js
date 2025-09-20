@@ -57,7 +57,7 @@ function displayMenu() {
             const menuItemDiv = document.createElement('div');
             menuItemDiv.className = 'menu-item';
             menuItemDiv.innerHTML = `
-                <h4>${item.name}</h4>
+                <h4 class="menu-item-name" data-original-name="${item.name}">${item.name}</h4>
                 <p class="ingredients">${item.ingredients || 'No ingredients listed'}</p>
                 <p class="price">€${item.price.toFixed(2)}</p>
                 <div class="quantity-controls">
