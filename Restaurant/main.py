@@ -95,21 +95,13 @@ async def setup_page(request: Request):
     return templates.TemplateResponse("setup.html", {"request": request})
 
 # Admin/Onboarding routes
-# Simple session storage
-admin_sessions = set()
+# Simple token storage
+ADMIN_TOKEN = "tablelink_admin_2025"
 
-def check_admin_session(request: Request):
-    session_id = request.cookies.get('admin_session')
-    return session_id in admin_sessions
-
-def create_admin_session():
-    import secrets
-    session_id = secrets.token_hex(16)
-    admin_sessions.add(session_id)
-    return session_id
-
-def clear_admin_session(session_id: str):
-    admin_sessions.discard(session_id)
+def check_admin_auth(request: Request):
+    # Check for token in cookie or header
+    token = request.cookies.get('admin_token') or request.headers.get('X-Admin-Token')
+    return token == ADMIN_TOKEN
 
 @app.get("/admin/login", response_class=HTMLResponse)
 async def admin_login_page(request: Request):
@@ -121,27 +113,23 @@ async def admin_login(
     password: str = Form(...)
 ):
     if username == 'tablelink' and password == 'tablelink2025!':
-        session_id = create_admin_session()
         from fastapi.responses import RedirectResponse
         response = RedirectResponse(url="/admin", status_code=302)
-        response.set_cookie("admin_session", session_id, httponly=True, secure=True, samesite="none")
+        response.set_cookie("admin_token", ADMIN_TOKEN, max_age=86400)
         return response
     else:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @app.get("/admin/logout")
 async def admin_logout(request: Request):
-    session_id = request.cookies.get('admin_session')
-    if session_id:
-        clear_admin_session(session_id)
     from fastapi.responses import RedirectResponse
     response = RedirectResponse(url="/admin/login", status_code=302)
-    response.delete_cookie("admin_session", secure=True, samesite="none")
+    response.delete_cookie("admin_token")
     return response
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request):
-    if not check_admin_session(request):
+    if not check_admin_auth(request):
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/admin/login", status_code=302)
     return templates.TemplateResponse("admin_dashboard.html", {"request": request})
@@ -213,7 +201,7 @@ async def create_restaurant(
 
 @app.get("/admin/stats")
 async def admin_stats(request: Request, db: Session = Depends(get_db)):
-    if not check_admin_session(request):
+    if not check_admin_auth(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     from models import AnalyticsRecord
     
@@ -232,7 +220,7 @@ async def admin_stats(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/admin/restaurants")
 async def list_restaurants(request: Request, db: Session = Depends(get_db)):
-    if not check_admin_session(request):
+    if not check_admin_auth(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     from models import AnalyticsRecord, Table
     
@@ -276,7 +264,7 @@ async def list_restaurants(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/admin/restaurants/{restaurant_id}/toggle")
 async def toggle_restaurant_status(request: Request, restaurant_id: int, db: Session = Depends(get_db)):
-    if not check_admin_session(request):
+    if not check_admin_auth(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
     if not restaurant:
@@ -298,7 +286,7 @@ async def update_restaurant_plan(
     plan_type: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    if not check_admin_session(request):
+    if not check_admin_auth(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     if plan_type not in ['trial', 'basic', 'professional']:
         raise HTTPException(status_code=400, detail="Invalid plan type")
@@ -336,7 +324,7 @@ async def reset_restaurant_password(
     new_password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    if not check_admin_session(request):
+    if not check_admin_auth(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     from auth import get_password_hash
     
@@ -366,7 +354,7 @@ async def reset_restaurant_password(
 
 @app.delete("/admin/restaurants/{restaurant_id}")
 async def delete_restaurant(request: Request, restaurant_id: int, db: Session = Depends(get_db)):
-    if not check_admin_session(request):
+    if not check_admin_auth(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     from models import AnalyticsRecord, OrderItem, Order, MenuItem, Waiter, Table, User
     
