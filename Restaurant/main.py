@@ -523,6 +523,180 @@ async def get_client_order_details(request: Request, table_number: int, db: Sess
         **details
     }
 
+@app.get("/client/ticket/{table_number}")
+async def download_ticket(
+    request: Request,
+    table_number: int,
+    db: Session = Depends(get_db)
+):
+    # Get restaurant_id from request state
+    restaurant_id = getattr(request.state, 'restaurant_id', 1)
+    referer = request.headers.get('referer', '')
+    if '/r/marios' in referer:
+        restaurant_id = 2
+    elif '/r/sushi' in referer:
+        restaurant_id = 3
+    
+    # Get order details
+    order_details = get_order_details(db, table_number, restaurant_id)
+    table = get_table_by_number(db, table_number, restaurant_id)
+    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+    
+    if not order_details or not table:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    try:
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+        import io
+        from datetime import datetime
+        
+        # Create PDF in memory
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=(4*inch, 8*inch), topMargin=0.2*inch, bottomMargin=0.2*inch, leftMargin=0.2*inch, rightMargin=0.2*inch)
+        
+        # Styles
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=14, spaceAfter=12, alignment=TA_CENTER)
+        normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=9, spaceAfter=6)
+        small_style = ParagraphStyle('CustomSmall', parent=styles['Normal'], fontSize=8, spaceAfter=4)
+        
+        # Build content
+        story = []
+        
+        # Header
+        story.append(Paragraph(f"<b>{restaurant.name if restaurant else 'Restaurant'}</b>", title_style))
+        story.append(Paragraph("RECEIPT", ParagraphStyle('Receipt', parent=styles['Normal'], fontSize=12, alignment=TA_CENTER, spaceAfter=12)))
+        story.append(Spacer(1, 0.1*inch))
+        
+        # Order info
+        story.append(Paragraph(f"<b>Table:</b> {table_number}", normal_style))
+        story.append(Paragraph(f"<b>Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", normal_style))
+        story.append(Paragraph(f"<b>Order #:</b> {order_details['order_id']}", normal_style))
+        story.append(Spacer(1, 0.1*inch))
+        
+        # Separator line
+        story.append(Paragraph("─" * 30, small_style))
+        story.append(Spacer(1, 0.05*inch))
+        
+        # Items
+        for item in order_details['items']:
+            item_line = f"{item['name']} x{item['qty']}"
+            price_line = f"€{item['total']:.2f}"
+            
+            # Create table for item and price alignment
+            item_table = Table([[item_line, price_line]], colWidths=[2.5*inch, 1*inch])
+            item_table.setStyle(TableStyle([
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            story.append(item_table)
+            
+            # Add customizations if any
+            if item.get('customizations'):
+                try:
+                    import json
+                    custom = json.loads(item['customizations'])
+                    custom_parts = []
+                    if custom.get('ingredients'):
+                        for ing, qty in custom['ingredients'].items():
+                            if qty == 0:
+                                custom_parts.append(f"No {ing}")
+                            elif qty > 1:
+                                custom_parts.append(f"Extra {ing}")
+                    if custom.get('extra'):
+                        custom_parts.append(f"Add: {', '.join(custom['extra'])}")
+                    
+                    if custom_parts:
+                        story.append(Paragraph(f"  <i>{' | '.join(custom_parts)}</i>", small_style))
+                except:
+                    pass
+        
+        story.append(Spacer(1, 0.1*inch))
+        story.append(Paragraph("─" * 30, small_style))
+        
+        # Totals
+        subtotal_table = Table([["Subtotal:", f"€{order_details['total']:.2f}"]], colWidths=[2.5*inch, 1*inch])
+        subtotal_table.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ]))
+        story.append(subtotal_table)
+        
+        if table.tip_amount and table.tip_amount > 0:
+            tip_table = Table([["Tip:", f"€{table.tip_amount:.2f}"]], colWidths=[2.5*inch, 1*inch])
+            tip_table.setStyle(TableStyle([
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ]))
+            story.append(tip_table)
+        
+        story.append(Paragraph("─" * 30, small_style))
+        
+        # Calculate IVA (21%) - IVA is already included in prices, just show breakdown
+        order_total = order_details['total']  # Order without tip
+        tip_amount = table.tip_amount or 0
+        products_plus_tip = order_total + tip_amount  # Products + tip
+        iva_amount = products_plus_tip * 0.21  # 21% of (products + tip)
+        subtotal_without_iva = products_plus_tip - iva_amount  # Should be €11.00 - €2.31 = €8.69
+        final_total = products_plus_tip  # Just products + tip (IVA already included in prices)
+        
+        # Show subtotal as (products+tip)-IVA
+        subtotal_iva_table = Table([["Subtotal (excl. IVA):", f"€{subtotal_without_iva:.2f}"]], colWidths=[2.5*inch, 1*inch])
+        subtotal_iva_table.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ]))
+        story.append(subtotal_iva_table)
+        
+        # IVA 21%
+        iva_table = Table([["IVA (21%):", f"€{iva_amount:.2f}"]], colWidths=[2.5*inch, 1*inch])
+        iva_table.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ]))
+        story.append(iva_table)
+        
+        story.append(Paragraph("─" * 30, small_style))
+        
+        # Total with proper formatting (no HTML tags)
+        total_table = Table([["TOTAL:", f"€{final_total:.2f}"]], colWidths=[2.5*inch, 1*inch])
+        total_table.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 12),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ]))
+        story.append(total_table)
+        
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph("Thank you for dining with us!", ParagraphStyle('Thanks', parent=styles['Normal'], fontSize=10, alignment=TA_CENTER)))
+        
+        # Build PDF
+        doc.build(story)
+        buffer.seek(0)
+        
+        return StreamingResponse(
+            io.BytesIO(buffer.getvalue()),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.pdf"}
+        )
+        
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PDF generation not available - reportlab not installed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
+
 @app.post("/client/checkout")
 async def request_checkout(
     request: Request,
@@ -1974,8 +2148,10 @@ async def debug_database(request: Request, period: str = "day", db: Session = De
 
 @app.get("/export/sales-csv")
 async def export_sales_csv_simple(
+    request: Request,
     period: str = "day",
     target_date: str = None,
+    waiter_id: int = None,
     db: Session = Depends(get_db)
 ):
     import csv
@@ -1985,16 +2161,90 @@ async def export_sales_csv_simple(
     from datetime import datetime
     
     if target_date is None:
-        from datetime import date
-        target_date = date.today().isoformat()
+        # Get the most recent date with data (same logic as analytics dashboard)
+        from models import AnalyticsRecord
+        latest_date = db.query(func.max(func.date(AnalyticsRecord.checkout_date))).filter(
+            AnalyticsRecord.restaurant_id == restaurant_id
+        ).scalar()
+        if latest_date:
+            target_date = str(latest_date)
+        else:
+            from datetime import date
+            target_date = date.today().isoformat()
     
     target_date_obj = datetime.strptime(target_date, "%Y-%m-%d").date()
     
+    # Get restaurant_id from request
+    restaurant_id = getattr(request.state, 'restaurant_id', None)
+    referer = request.headers.get('referer', '')
+    if '/r/' in referer:
+        try:
+            subdomain = referer.split('/r/')[1].split('/')[0]
+            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+            if restaurant:
+                restaurant_id = restaurant.id
+                print(f"CSV Export: Detected restaurant_id={restaurant_id} from subdomain {subdomain}")
+        except Exception as e:
+            print(f"CSV Export: Error parsing referer: {e}")
+    
+    if not restaurant_id:
+        restaurant_id = 1  # fallback
+    
     try:
-        print(f"CSV Export: period={period}, target_date={target_date}")
-        # Get order data
-        data = get_detailed_sales_data(db, period, target_date, None)
-        print(f"CSV Export: Found {len(data.get('table_sales', []))} orders")
+        # Use analytics service (same as dashboard)
+        from analytics_service import get_analytics_for_period
+        analytics_data = get_analytics_for_period(db, target_date, period, waiter_id, restaurant_id)
+        
+        # Get individual order details from analytics records
+        from models import AnalyticsRecord, Waiter
+        from datetime import timedelta
+        
+        if period == "day":
+            start_date = target_date_obj
+            end_date = target_date_obj
+        elif period == "week":
+            start_date = target_date_obj - timedelta(days=target_date_obj.weekday())
+            end_date = start_date + timedelta(days=6)
+        elif period == "month":
+            start_date = target_date_obj.replace(day=1)
+            next_month = start_date.replace(month=start_date.month + 1) if start_date.month < 12 else start_date.replace(year=start_date.year + 1, month=1)
+            end_date = next_month - timedelta(days=1)
+        else:  # year
+            start_date = target_date_obj.replace(month=1, day=1)
+            end_date = target_date_obj.replace(month=12, day=31)
+        
+        # Get analytics records and group by order
+        records = db.query(AnalyticsRecord, Waiter.name.label('waiter_name')).outerjoin(Waiter, AnalyticsRecord.waiter_id == Waiter.id).filter(
+            func.date(AnalyticsRecord.checkout_date) >= start_date,
+            func.date(AnalyticsRecord.checkout_date) <= end_date,
+            AnalyticsRecord.restaurant_id == restaurant_id
+        )
+        
+        if waiter_id:
+            records = records.filter(AnalyticsRecord.waiter_id == waiter_id)
+        
+        records = records.all()
+        
+        # Group by order
+        order_groups = {}
+        for record, waiter_name in records:
+            order_key = record.item_name.split(' - ')[0] if ' - ' in record.item_name else record.item_name
+            if order_key not in order_groups:
+                order_groups[order_key] = {
+                    'order_id': order_key.replace('Order #', ''),
+                    'table_number': record.table_number,
+                    'waiter_name': waiter_name or 'Unknown',
+                    'total_sales': 0,
+                    'total_tips': 0,
+                    'created_at': record.checkout_date.strftime('%Y-%m-%d %H:%M')
+                }
+            order_groups[order_key]['total_sales'] += record.total_price
+            order_groups[order_key]['total_tips'] += record.tip_amount
+        
+        data = {
+            'summary': analytics_data.get('summary', {'total_orders': 0, 'total_sales': 0, 'total_tips': 0}),
+            'table_sales': list(order_groups.values())
+        }
         
         # Get analytics order count using same period logic as dashboard
         from datetime import timedelta
@@ -2031,36 +2281,40 @@ async def export_sales_csv_simple(
     except Exception as e:
         data = {'summary': {'total_orders': 0, 'total_sales': 0, 'total_tips': 0}, 'table_sales': []}
     
-    output = io.StringIO()
-    writer = csv.writer(output)
+    try:
+        import pandas as pd
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Excel export not available")
     
-    writer.writerow(['Order ID', 'Table Number', 'Waiter', 'Sales', 'Tips', 'Date'])
-    
+    # Create DataFrame for orders
     if data.get('table_sales'):
-        for order in data['table_sales']:
-            writer.writerow([
-                order['order_id'],
-                order['table_number'],
-                order['waiter_name'],
-                f"€{order['total_sales']:.2f}",
-                f"€{order['total_tips']:.2f}",
-                order['created_at']
-            ])
+        df = pd.DataFrame(data['table_sales'])
+        df = df[['order_id', 'table_number', 'waiter_name', 'total_sales', 'total_tips', 'created_at']]
+        df.columns = ['Order ID', 'Table Number', 'Waiter', 'Sales (€)', 'Tips (€)', 'Date']
     else:
-        writer.writerow(['No sales data available', '', '', '', '', ''])
+        df = pd.DataFrame([['No sales data available', '', '', '', '', '']], 
+                         columns=['Order ID', 'Table Number', 'Waiter', 'Sales (€)', 'Tips (€)', 'Date'])
     
-    writer.writerow([])
-    writer.writerow(['SUMMARY'])
-    writer.writerow(['Total Orders', data['summary']['total_orders']])
-    writer.writerow(['Total Sales', f"€{data['summary']['total_sales']:.2f}"])
-    writer.writerow(['Total Tips', f"€{data['summary']['total_tips']:.2f}"])
+    # Create Excel file in memory
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Sales Data', index=False)
+        
+        # Add summary sheet
+        summary_df = pd.DataFrame([
+            ['Total Orders', data['summary']['total_orders']],
+            ['Total Sales (€)', data['summary']['total_sales']],
+            ['Total Tips (€)', data['summary']['total_tips']]
+        ], columns=['Metric', 'Value'])
+        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+        
     
     output.seek(0)
     
     return StreamingResponse(
-        io.BytesIO(output.getvalue().encode('utf-8')),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=sales_{period}_{target_date}.csv"}
+        io.BytesIO(output.getvalue()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=sales_{period}_{target_date}.xlsx"}
     )
 
 if __name__ == "__main__":

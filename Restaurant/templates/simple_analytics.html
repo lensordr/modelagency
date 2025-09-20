@@ -68,6 +68,7 @@
             </div>
         </div>
 
+        <h3 style="margin: 20px 0 10px 0; color: #333;">Sales Summary</h3>
         <div class="summary" id="summary">
             <div class="summary-card">
                 <div class="summary-value" id="total-orders">0</div>
@@ -84,6 +85,26 @@
             <div class="summary-card">
                 <div class="summary-value" id="avg-order">€0</div>
                 <div class="summary-label">Avg Order</div>
+            </div>
+        </div>
+
+        <h3 style="margin: 20px 0 10px 0; color: #333;">Tax Summary</h3>
+        <div class="summary" style="margin-bottom: 20px;">
+            <div class="summary-card">
+                <div class="summary-value" id="iva-percentage">21%</div>
+                <div class="summary-label">IVA Rate</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="total-sales-incl-iva">€0</div>
+                <div class="summary-label">Sales (incl. IVA)</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="total-iva-amount">€0</div>
+                <div class="summary-label">IVA Amount (21%)</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" id="total-sales-excl-iva">€0</div>
+                <div class="summary-label">Sales (excl. IVA)</div>
             </div>
         </div>
 
@@ -112,7 +133,6 @@
             <h3>📁 Export Data</h3>
             <div style="display: flex; gap: 15px; justify-content: center; margin-top: 15px;">
                 <button onclick="downloadSalesCSV()" class="btn" style="background: #28a745; color: white; padding: 12px 24px;">📊 Download Sales CSV</button>
-                <button onclick="downloadTopItemsCSV()" class="btn" style="background: #007bff; color: white; padding: 12px 24px;">🏆 Download Top Items CSV</button>
             </div>
         </div>
     </div>
@@ -145,7 +165,7 @@
             
             try {
                 let dashboardUrl = `/business/analytics/dashboard?period=${currentPeriod}&target_date=${currentDate}`;
-                let topItemsUrl = `/business/top-menu-items?period=${currentPeriod}&target_date=${currentDate}&limit=10`;
+                let topItemsUrl = `/business/top-menu-items?period=${currentPeriod}&target_date=${currentDate}&limit=5`;
                 let categoriesUrl = `/business/analytics/categories?period=${currentPeriod}&target_date=${currentDate}`;
                 
                 if (currentWaiterId) {
@@ -179,6 +199,15 @@
             document.getElementById('total-tips').textContent = `€${(summary.total_tips || 0).toFixed(2)}`;
             const avgOrder = summary.total_orders > 0 ? summary.total_sales / summary.total_orders : 0;
             document.getElementById('avg-order').textContent = `€${avgOrder.toFixed(2)}`;
+            
+            // Calculate IVA (21%) - 21% of total sales amount
+            const totalSales = summary.total_sales || 0;
+            const ivaAmount = totalSales * 0.21; // 21% of total
+            const salesExclIva = totalSales - ivaAmount; // Total minus IVA
+            
+            document.getElementById('total-sales-excl-iva').textContent = `€${salesExclIva.toFixed(2)}`;
+            document.getElementById('total-iva-amount').textContent = `€${ivaAmount.toFixed(2)}`;
+            document.getElementById('total-sales-incl-iva').textContent = `€${totalSales.toFixed(2)}`;
         }
 
         function updateTopItems(items) {
@@ -307,12 +336,6 @@
 
         function downloadSalesCSV() {
             let url = `/export/sales-csv?period=${currentPeriod}&target_date=${currentDate}`;
-            if (currentWaiterId) url += `&waiter_id=${currentWaiterId}`;
-            window.open(url, '_blank');
-        }
-
-        function downloadTopItemsCSV() {
-            let url = `/business/analytics/export/csv?period=${currentPeriod}&target_date=${currentDate}`;
             if (currentWaiterId) url += `&waiter_id=${currentWaiterId}`;
             window.open(url, '_blank');
         }

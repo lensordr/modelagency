@@ -400,23 +400,23 @@ function displayExistingOrder(orderData) {
     
     // Check if checkout was already requested
     if (orderData.checkout_requested) {
-        // Hide menu and checkout sections
-        const menuSection = document.getElementById('menu-section');
-        if (menuSection) {
-            menuSection.style.display = 'none';
+        // Hide menu items and checkout sections but keep menu section visible
+        const menuItems = document.getElementById('menu-items');
+        if (menuItems) {
+            menuItems.style.display = 'none';
         }
         document.getElementById('checkout-section').style.display = 'none';
         
-        // Disable order form
+        // Hide order form
         const orderForm = document.getElementById('order-form');
         if (orderForm) {
             orderForm.style.display = 'none';
         }
         
-        // Update status message
+        // Update status message and add download button
         const statusMsg = document.getElementById('order-status-message');
         if (statusMsg) {
-            statusMsg.innerHTML = '<em style="color: #e67e22; font-weight: bold;">Checkout requested. Please wait for staff assistance. No additional orders can be placed.</em>';
+            statusMsg.innerHTML = '<em style="color: #e67e22; font-weight: bold;">Checkout requested. Please wait for staff assistance.</em><br><br><button onclick="downloadTicket()" style="background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 10px;">📄 Download Receipt</button>';
         }
     } else {
         // Show checkout section normally
@@ -486,23 +486,25 @@ async function requestCheckout(method) {
         
         if (response.ok) {
             showMessage(data.message, 'success');
-            // Hide checkout buttons and menu after request
+            // Hide checkout buttons and disable ordering after request
             document.getElementById('checkout-section').style.display = 'none';
-            const menuSection = document.getElementById('menu-section');
-            if (menuSection) {
-                menuSection.style.display = 'none';
+            
+            // Hide menu items but keep the section visible for the download button
+            const menuItems = document.getElementById('menu-items');
+            if (menuItems) {
+                menuItems.style.display = 'none';
             }
             
-            // Disable order form
+            // Hide order form
             const orderForm = document.getElementById('order-form');
             if (orderForm) {
                 orderForm.style.display = 'none';
             }
             
-            // Update status message
+            // Update status message and add download button
             const statusMsg = document.getElementById('order-status-message');
             if (statusMsg) {
-                statusMsg.innerHTML = '<em style="color: #e67e22; font-weight: bold;">Checkout requested. Please wait for staff assistance. No additional orders can be placed.</em>';
+                statusMsg.innerHTML = '<em style="color: #e67e22; font-weight: bold;">Checkout requested. Please wait for staff assistance.</em><br><br><button onclick="downloadTicket()" style="background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 10px;">📄 Download Receipt</button>';
             }
         } else {
             showMessage(data.detail || 'Error requesting checkout', 'error');
@@ -553,6 +555,10 @@ async function deleteOrderItem(orderItemId) {
     } catch (error) {
         showMessage('Error connecting to server', 'error');
     }
+}
+
+function downloadTicket() {
+    window.open(`/client/ticket/${tableNumber}`, '_blank');
 }
 
 function showMessage(message, type) {

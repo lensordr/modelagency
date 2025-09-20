@@ -503,7 +503,7 @@ def get_sales_by_waiter_and_period(db: Session, waiter_id: int, period: str = 'd
         'total_tips': float(result.total_tips or 0)
     }
 
-def get_detailed_sales_data(db: Session, period: str = 'day', target_date: str = None, waiter_id: int = None):
+def get_detailed_sales_data(db: Session, period: str = 'day', target_date: str = None, waiter_id: int = None, restaurant_id: int = None):
     if not target_date:
         target_date = date.today()
     else:
@@ -534,6 +534,9 @@ def get_detailed_sales_data(db: Session, period: str = 'day', target_date: str =
         query = query.filter(extract('year', Order.created_at) == target_date.year)
     
     query = query.filter(Order.status == 'finished')
+    
+    if restaurant_id:
+        query = query.filter(Order.restaurant_id == restaurant_id)
     
     if waiter_id:
         query = query.filter(Order.waiter_id == waiter_id)
