@@ -80,3 +80,5 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 except:
                     pass
         
+        response = await call_next(request)
+        return response

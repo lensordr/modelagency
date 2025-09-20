@@ -2351,4 +2351,28 @@ async def export_sales_csv_simple(
     
     # Create Excel file in memory
     output = io.BytesIO()
-    wit
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Sales Data', index=False)
+        
+        # Add summary sheet
+        summary_df = pd.DataFrame([
+            ['Total Orders', data['summary']['total_orders']],
+            ['Total Sales (€)', data['summary']['total_sales']],
+            ['Total Tips (€)', data['summary']['total_tips']]
+        ], columns=['Metric', 'Value'])
+        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+        
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        io.BytesIO(output.getvalue()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=sales_{period}_{target_date}.xlsx"}
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
