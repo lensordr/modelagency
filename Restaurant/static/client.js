@@ -75,6 +75,11 @@ function displayMenu() {
         categoryDiv.appendChild(categoryItems);
         menuContainer.appendChild(categoryDiv);
     });
+    
+    // Update menu language after items are displayed
+    if (typeof updateMenuLanguage === 'function') {
+        updateMenuLanguage();
+    }
 }
 
 function openCustomizeModal(itemId) {

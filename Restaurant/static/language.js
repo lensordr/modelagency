@@ -102,7 +102,9 @@ const menuTranslations = {
         'Coffee': 'Café',
         'Tea': 'Té',
         'Tiramisu': 'Tiramisú',
-        'Cheesecake': 'Tarta de Queso'
+        'Cheesecake': 'Tarta de Queso',
+        'Salmon Fillet': 'Filete de Salmón',
+        'Vegetarian Pasta': 'Pasta Vegetariana'
     }
 };
 
