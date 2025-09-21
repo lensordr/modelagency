@@ -794,6 +794,8 @@ async def place_order(
     if existing_order:
         add_items_to_order(db, existing_order.id, order_items)
         table.has_extra_order = True
+        # Reset kitchen_completed so new items appear in kitchen
+        existing_order.kitchen_completed = False
         db.commit()
         return {"message": "Items added to existing order", "order_id": existing_order.id}
     else:
