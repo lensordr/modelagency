@@ -134,6 +134,11 @@ class AnalyticsRecord(Base):
 
 # Database setup
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env.local if it exists
+if os.path.exists('.env.local'):
+    load_dotenv('.env.local')
 
 # Use PostgreSQL in production, SQLite in development
 if os.getenv("DATABASE_URL"):

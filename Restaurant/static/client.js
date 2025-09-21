@@ -405,18 +405,18 @@ function displayExistingOrder(orderData) {
     
     // Check if checkout was already requested
     if (orderData.checkout_requested) {
-        // Hide menu items and checkout sections but keep menu section visible
+        // Hide entire menu section and order section when checkout is requested
         const menuItems = document.getElementById('menu-items');
         if (menuItems) {
             menuItems.style.display = 'none';
         }
-        document.getElementById('checkout-section').style.display = 'none';
         
-        // Hide order form
-        const orderForm = document.getElementById('order-form');
-        if (orderForm) {
-            orderForm.style.display = 'none';
+        const orderSection = document.getElementById('order-section');
+        if (orderSection) {
+            orderSection.style.display = 'none';
         }
+        
+        document.getElementById('checkout-section').style.display = 'none';
         
         // Update status message and add download button
         const statusMsg = document.getElementById('order-status-message');
@@ -494,16 +494,15 @@ async function requestCheckout(method) {
             // Hide checkout buttons and disable ordering after request
             document.getElementById('checkout-section').style.display = 'none';
             
-            // Hide menu items but keep the section visible for the download button
+            // Hide entire menu section and order section when checkout is requested
             const menuItems = document.getElementById('menu-items');
             if (menuItems) {
                 menuItems.style.display = 'none';
             }
             
-            // Hide order form
-            const orderForm = document.getElementById('order-form');
-            if (orderForm) {
-                orderForm.style.display = 'none';
+            const orderSection = document.getElementById('order-section');
+            if (orderSection) {
+                orderSection.style.display = 'none';
             }
             
             // Update status message and add download button
