@@ -55,6 +55,7 @@ class Table(Base):
     checkout_requested = Column(Boolean, default=False)
     checkout_method = Column(String(10))  # 'cash' or 'card'
     tip_amount = Column(Float, default=0.0)
+    food_ready = Column(Boolean, default=False)
     
     restaurant = relationship("Restaurant", back_populates="tables")
     orders = relationship("Order", back_populates="table")
@@ -94,6 +95,7 @@ class Order(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(10), default='active')  # 'active' or 'finished'
     tip_amount = Column(Float, default=0.0)
+    kitchen_completed = Column(Boolean, default=False)
     
     restaurant = relationship("Restaurant", back_populates="orders")
     table = relationship("Table", back_populates="orders")

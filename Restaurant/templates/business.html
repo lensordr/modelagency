@@ -8,6 +8,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .table-card.food-ready {
+            border-color: #3498db !important;
+            background: linear-gradient(135deg, #2980b9 0%, #3498db 100%) !important;
+            color: white !important;
+            animation: pulse-blue 1.5s infinite;
+        }
+        
+        @keyframes pulse-blue {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.7); }
+            50% { box-shadow: 0 0 0 20px rgba(52, 152, 219, 0); }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -124,6 +137,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-    <script src="/static/business_no_auth.js?v=9"></script>
+    <script src="/static/business_no_auth.js?v=17"></script>
 </body>
 </html>

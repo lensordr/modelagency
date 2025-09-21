@@ -998,7 +998,8 @@ async def get_tables_status(request: Request, db: Session = Depends(get_db)):
             "checkout_requested": t.checkout_requested, 
             "has_extra_order": t.has_extra_order,
             "checkout_method": getattr(t, 'checkout_method', None),
-            "tip_amount": getattr(t, 'tip_amount', 0.0)
+            "tip_amount": getattr(t, 'tip_amount', 0.0),
+            "food_ready": getattr(t, 'food_ready', False)
         } for t in tables]
         print(f"Tables API: Returning {len(result)} tables")
         return JSONResponse(content=result)
@@ -1470,6 +1471,7 @@ async def mark_order_viewed(
     table = get_table_by_number(db, table_number, restaurant_id)
     if table:
         table.has_extra_order = False
+        table.food_ready = False  # Clear food ready alert when viewed
         
         # Clear is_new_extra flag from all order items for this table
         active_order = get_active_order_by_table(db, table_number, restaurant_id)
@@ -1610,6 +1612,7 @@ async def checkout_table(
         table.has_extra_order = False
         table.checkout_method = None
         table.tip_amount = 0.0
+        table.food_ready = False
         db.commit()
         
         print(f"Created {len(category_totals)} analytics records for order {order.id}: €{total_order_price} + €{table.tip_amount or 0} tip")
@@ -2042,6 +2045,103 @@ async def get_analytics_api(
             "error": str(e)
         }
         return JSONResponse(content=error_response)
+
+@app.get("/business/kitchen", response_class=HTMLResponse)
+async def kitchen_display(request: Request):
+    return templates.TemplateResponse("kitchen.html", {"request": request})
+
+@app.get("/business/kitchen/orders")
+async def get_kitchen_orders(request: Request, db: Session = Depends(get_db)):
+    restaurant_id = getattr(request.state, 'restaurant_id', 1)
+    
+    orders = db.query(Order).filter(
+        Order.restaurant_id == restaurant_id,
+        Order.status == 'active',
+        Order.kitchen_completed == False
+    ).all()
+    
+    kitchen_orders = []
+    for order in orders:
+        order_items = []
+        for item in order.order_items:
+            if item.menu_item.category == 'Food':
+                customizations = ''
+                if item.customizations:
+                    try:
+                        import json
+                        custom = json.loads(item.customizations)
+                        parts = []
+                        if custom.get('ingredients'):
+                            for ing, qty in custom['ingredients'].items():
+                                if qty == 0:
+                                    parts.append(f'No {ing}')
+                                elif qty > 1:
+                                    parts.append(f'Extra {ing}')
+                        if custom.get('extra'):
+                            extra_items = ', '.join(custom['extra'])
+                            parts.append(f'Add: {extra_items}')
+                        customizations = ' | '.join(parts)
+                    except:
+                        pass
+                
+                order_items.append({
+                    'name': item.menu_item.name,
+                    'qty': item.qty,
+                    'category': item.menu_item.category,
+                    'customizations': customizations
+                })
+        
+        if order_items:
+            kitchen_orders.append({
+                'id': order.id,
+                'table_number': order.table.table_number,
+                'created_at': order.created_at.isoformat(),
+                'items': order_items
+            })
+    
+    return kitchen_orders
+
+@app.post("/business/kitchen/ready/{order_id}")
+async def mark_kitchen_ready(request: Request, order_id: int, db: Session = Depends(get_db)):
+    try:
+        restaurant_id = getattr(request.state, 'restaurant_id', 1)
+        
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.restaurant_id == restaurant_id
+        ).first()
+        
+        if order and order.table:
+            # Use setattr in case column doesn't exist yet
+            setattr(order.table, 'food_ready', True)
+            db.commit()
+            return {"message": "Food marked as ready"}
+        
+        return {"error": "Order not found"}
+    except Exception as e:
+        print(f"Kitchen ready error: {e}")
+        return {"error": str(e)}
+
+@app.delete("/business/kitchen/delete/{order_id}")
+async def delete_kitchen_order(request: Request, order_id: int, db: Session = Depends(get_db)):
+    try:
+        restaurant_id = getattr(request.state, 'restaurant_id', 1)
+        
+        order = db.query(Order).filter(
+            Order.id == order_id,
+            Order.restaurant_id == restaurant_id
+        ).first()
+        
+        if order and order.table:
+            # Mark order as kitchen_completed to hide from kitchen display
+            setattr(order, 'kitchen_completed', True)
+            db.commit()
+            return {"message": "Order removed from kitchen"}
+        
+        return {"error": "Order not found"}
+    except Exception as e:
+        print(f"Kitchen delete error: {e}")
+        return {"error": str(e)}
 
 @app.get("/business/analytics")
 async def analytics_page(request: Request, db: Session = Depends(get_db)):

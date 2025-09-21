@@ -74,6 +74,11 @@ async function closeModal() {
     
     modal.style.display = 'none';
     currentTableNumber = null;
+    
+    // Immediately refresh dashboard to clear alerts
+    setTimeout(() => {
+        loadDashboard();
+    }, 100);
 }
 
 function getAuthHeaders() {
@@ -126,6 +131,7 @@ async function loadDashboard() {
         
         const data = JSON.parse(text);
         console.log('Tables data received:', data);
+        console.log('First table data:', data[0]);
         
         // Check for sound alerts before updating tables
         checkForSoundAlerts(data);
@@ -209,9 +215,14 @@ function displayTables() {
         const tableCard = document.createElement('div');
         let cardClass = `table-card ${table.status}`;
         
+        console.log(`Table ${table.table_number}: checkout_requested=${table.checkout_requested}, food_ready=${table.food_ready}, has_extra_order=${table.has_extra_order}`);
+        
         if (table.checkout_requested) {
             cardClass += ' checkout-requested';
             tableCard.setAttribute('data-checkout-method', table.checkout_method);
+        } else if (table.food_ready) {
+            cardClass += ' food-ready';
+            console.log(`Table ${table.table_number} has food ready - adding green styling`);
         } else if (table.has_extra_order) {
             cardClass += ' extra-order';
             console.log(`Table ${table.table_number} has extra order - adding red styling`);

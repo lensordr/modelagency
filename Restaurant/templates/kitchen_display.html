@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Display - Food Orders</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .header { background: #2c3e50; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .orders-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .order-card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .table-number { font-size: 24px; font-weight: bold; color: #e74c3c; }
+        .order-time { color: #7f8c8d; font-size: 14px; }
+        .food-item { padding: 10px 0; border-bottom: 1px solid #ecf0f1; }
+        .food-item:last-child { border-bottom: none; }
+        .item-name { font-weight: bold; color: #2c3e50; }
+        .item-qty { color: #e67e22; font-weight: bold; }
+        .customizations { font-size: 12px; color: #7f8c8d; font-style: italic; margin-top: 5px; }
+        .new-order { border-left: 5px solid #e74c3c; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); } 100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); } }
+        .no-orders { text-align: center; color: #7f8c8d; font-size: 18px; margin-top: 50px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🍳 Kitchen Display - Food Orders</h1>
+        <p>Real-time food orders from all tables</p>
+    </div>
+    
+    <div id="orders-container" class="orders-grid"></div>
+    <div id="no-orders" class="no-orders" style="display: none;">
+        <p>No active food orders</p>
+    </div>
+
+    <script>
+        let previousOrders = [];
+        
+        async function loadFoodOrders() {
+            try {
+                const response = await fetch('/business/kitchen-orders');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayFoodOrders(data.orders || []);
+                }
+            } catch (error) {
+                console.error('Error loading kitchen orders:', error);
+            }
+        }
+        
+        function displayFoodOrders(orders) {
+            const container = document.getElementById('orders-container');
+            const noOrders = document.getElementById('no-orders');
+            
+            if (orders.length === 0) {
+                container.innerHTML = '';
+                noOrders.style.display = 'block';
+                return;
+            }
+            
+            noOrders.style.display = 'none';
+            
+            container.innerHTML = orders.map(order => {
+                const isNew = !previousOrders.find(prev => prev.id === order.id);
+                const orderTime = new Date(order.created_at).toLocaleTimeString();
+                
+                return `
+                    <div class="order-card ${isNew ? 'new-order' : ''}">
+                        <div class="order-header">
+                            <div class="table-number">Table ${order.table_number}</div>
+                            <div class="order-time">${orderTime}</div>
+                        </div>
+                        <div class="food-items">
+                            ${order.food_items.map(item => `
+                                <div class="food-item">
+                                    <div class="item-name">
+                                        ${item.name} 
+                                        <span class="item-qty">x${item.qty}</span>
+                                    </div>
+                                    ${item.customizations ? `<div class="customizations">${item.customizations}</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            previousOrders = [...orders];
+        }
+        
+        // Auto-refresh every 3 seconds
+        setInterval(loadFoodOrders, 3000);
+        loadFoodOrders();
+    </script>
+</body>
+</html>
