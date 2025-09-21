@@ -2054,6 +2054,17 @@ async def kitchen_display(request: Request):
 async def get_kitchen_orders(request: Request, db: Session = Depends(get_db)):
     restaurant_id = getattr(request.state, 'restaurant_id', 1)
     
+    # Fallback: detect from referer for AJAX requests
+    referer = request.headers.get('referer', '')
+    if '/r/' in referer and restaurant_id == 1:
+        try:
+            subdomain = referer.split('/r/')[1].split('/')[0]
+            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+            if restaurant:
+                restaurant_id = restaurant.id
+        except:
+            pass
+    
     orders = db.query(Order).filter(
         Order.restaurant_id == restaurant_id,
         Order.status == 'active',
