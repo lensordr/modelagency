@@ -1188,6 +1188,33 @@ async def get_trial_status(request: Request, db: Session = Depends(get_db)):
         "expired": days_left < 0
     }
 
+@app.get("/business/restaurant-info")
+async def get_restaurant_info(request: Request, db: Session = Depends(get_db)):
+    restaurant_id = getattr(request.state, 'restaurant_id', None)
+    
+    # Fallback: detect from referer
+    referer = request.headers.get('referer', '')
+    if '/r/' in referer and not restaurant_id:
+        try:
+            subdomain = referer.split('/r/')[1].split('/')[0]
+            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+            if restaurant:
+                restaurant_id = restaurant.id
+        except:
+            pass
+    
+    if not restaurant_id:
+        return {"name": "", "admin_email": ""}
+    
+    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+    if not restaurant:
+        return {"name": "", "admin_email": ""}
+    
+    return {
+        "name": restaurant.name,
+        "admin_email": restaurant.admin_email or ""
+    }
+
 @app.get("/business/qr-codes")
 async def generate_qr_codes(request: Request, db: Session = Depends(get_db)):
     restaurant_id = getattr(request.state, 'restaurant_id', 1)
@@ -2516,4 +2543,257 @@ async def debug_database(request: Request, period: str = "day", db: Session = De
     
     # Get restaurant_id like other endpoints
     restaurant_id = getattr(request.state, 'restaurant_id', None)
-    referer = request.headers.get('referer', 
+    referer = request.headers.get('referer', '')
+    if '/r/' in referer:
+        try:
+            subdomain = referer.split('/r/')[1].split('/')[0]
+            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+            if restaurant:
+                restaurant_id = restaurant.id
+        except:
+            pass
+    
+    print(f"Debug database: Using restaurant_id={restaurant_id}")
+    
+    today = date.today()
+    
+    # Calculate date range based on period
+    if period == "day":
+        start_date = today
+        end_date = today
+    elif period == "month":
+        start_date = today.replace(day=1)
+        if today.month == 12:
+            next_month = today.replace(year=today.year + 1, month=1)
+        else:
+            next_month = today.replace(month=today.month + 1)
+        end_date = next_month - timedelta(days=1)
+    else:
+        start_date = today
+        end_date = today
+    
+    # Get analytics records for the period and restaurant
+    records_query = db.query(AnalyticsRecord).filter(
+        func.date(AnalyticsRecord.checkout_date) >= start_date,
+        func.date(AnalyticsRecord.checkout_date) <= end_date
+    )
+    if restaurant_id:
+        records_query = records_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
+    records = records_query.all()
+    
+    print(f"Debug database: Found {len(records)} records for restaurant {restaurant_id}")
+    
+    # Get waiter names
+    waiters = {w.id: w.name for w in db.query(Waiter).all()}
+    
+    # Group by waiter
+    waiter_stats = {}
+    total_sales = 0
+    total_tips = 0
+    total_orders = len(records)
+    
+    for record in records:
+        waiter_name = waiters.get(record.waiter_id, f'Waiter {record.waiter_id}')
+        if waiter_name not in waiter_stats:
+            waiter_stats[waiter_name] = {'orders': 0, 'sales': 0, 'tips': 0}
+        
+        waiter_stats[waiter_name]['orders'] += 1
+        waiter_stats[waiter_name]['sales'] += record.total_price
+        waiter_stats[waiter_name]['tips'] += record.tip_amount
+        
+        total_sales += record.total_price
+        total_tips += record.tip_amount
+    
+    return {
+        'date': today.isoformat(),
+        'total_records': total_orders,
+        'total_sales': total_sales,
+        'total_tips': total_tips,
+        'waiter_breakdown': waiter_stats,
+        'raw_records': [
+            {
+                'waiter': waiters.get(r.waiter_id, f'Waiter {r.waiter_id}'),
+                'table': r.table_number,
+                'sales': r.total_price,
+                'tips': r.tip_amount,
+                'date': r.checkout_date.isoformat()
+            } for r in records[:10]  # Show first 10 records
+        ]
+    }
+
+@app.get("/export/sales-csv")
+async def export_sales_csv_simple(
+    request: Request,
+    period: str = "day",
+    target_date: str = None,
+    waiter_id: int = None,
+    db: Session = Depends(get_db)
+):
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    from models import AnalyticsRecord
+    from datetime import datetime
+    
+    if target_date is None:
+        # Get the most recent date with data (same logic as analytics dashboard)
+        from models import AnalyticsRecord
+        latest_date = db.query(func.max(func.date(AnalyticsRecord.checkout_date))).filter(
+            AnalyticsRecord.restaurant_id == restaurant_id
+        ).scalar()
+        if latest_date:
+            target_date = str(latest_date)
+        else:
+            from datetime import date
+            target_date = date.today().isoformat()
+    
+    target_date_obj = datetime.strptime(target_date, "%Y-%m-%d").date()
+    
+    # Get restaurant_id from request
+    restaurant_id = getattr(request.state, 'restaurant_id', None)
+    referer = request.headers.get('referer', '')
+    if '/r/' in referer:
+        try:
+            subdomain = referer.split('/r/')[1].split('/')[0]
+            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+            if restaurant:
+                restaurant_id = restaurant.id
+                print(f"CSV Export: Detected restaurant_id={restaurant_id} from subdomain {subdomain}")
+        except Exception as e:
+            print(f"CSV Export: Error parsing referer: {e}")
+    
+    if not restaurant_id:
+        restaurant_id = 1  # fallback
+    
+    try:
+        # Use analytics service (same as dashboard)
+        from analytics_service import get_analytics_for_period
+        analytics_data = get_analytics_for_period(db, target_date, period, waiter_id, restaurant_id)
+        
+        # Get individual order details from analytics records
+        from models import AnalyticsRecord, Waiter
+        from datetime import timedelta
+        
+        if period == "day":
+            start_date = target_date_obj
+            end_date = target_date_obj
+        elif period == "week":
+            start_date = target_date_obj - timedelta(days=target_date_obj.weekday())
+            end_date = start_date + timedelta(days=6)
+        elif period == "month":
+            start_date = target_date_obj.replace(day=1)
+            next_month = start_date.replace(month=start_date.month + 1) if start_date.month < 12 else start_date.replace(year=start_date.year + 1, month=1)
+            end_date = next_month - timedelta(days=1)
+        else:  # year
+            start_date = target_date_obj.replace(month=1, day=1)
+            end_date = target_date_obj.replace(month=12, day=31)
+        
+        # Get analytics records and group by order
+        records = db.query(AnalyticsRecord, Waiter.name.label('waiter_name')).outerjoin(Waiter, AnalyticsRecord.waiter_id == Waiter.id).filter(
+            func.date(AnalyticsRecord.checkout_date) >= start_date,
+            func.date(AnalyticsRecord.checkout_date) <= end_date,
+            AnalyticsRecord.restaurant_id == restaurant_id
+        )
+        
+        if waiter_id:
+            records = records.filter(AnalyticsRecord.waiter_id == waiter_id)
+        
+        records = records.all()
+        
+        # Group by order
+        order_groups = {}
+        for record, waiter_name in records:
+            order_key = record.item_name.split(' - ')[0] if ' - ' in record.item_name else record.item_name
+            if order_key not in order_groups:
+                order_groups[order_key] = {
+                    'order_id': order_key.replace('Order #', ''),
+                    'table_number': record.table_number,
+                    'waiter_name': waiter_name or 'Unknown',
+                    'total_sales': 0,
+                    'total_tips': 0,
+                    'created_at': record.checkout_date.strftime('%Y-%m-%d %H:%M')
+                }
+            order_groups[order_key]['total_sales'] += record.total_price
+            order_groups[order_key]['total_tips'] += record.tip_amount
+        
+        data = {
+            'summary': analytics_data.get('summary', {'total_orders': 0, 'total_sales': 0, 'total_tips': 0}),
+            'table_sales': list(order_groups.values())
+        }
+        
+        # Get analytics order count using same period logic as dashboard
+        from datetime import timedelta
+        
+        if period == "day":
+            start_date = target_date_obj
+            end_date = target_date_obj
+        elif period == "week":
+            start_date = target_date_obj - timedelta(days=target_date_obj.weekday())
+            end_date = start_date + timedelta(days=6)
+        elif period == "month":
+            start_date = target_date_obj.replace(day=1)
+            next_month = start_date.replace(month=start_date.month + 1) if start_date.month < 12 else start_date.replace(year=start_date.year + 1, month=1)
+            end_date = next_month - timedelta(days=1)
+        else:  # year
+            start_date = target_date_obj.replace(month=1, day=1)
+            end_date = target_date_obj.replace(month=12, day=31)
+        
+        analytics_orders = db.query(
+            func.count(func.distinct(AnalyticsRecord.checkout_date))
+        ).filter(
+            func.date(AnalyticsRecord.checkout_date) >= start_date,
+            func.date(AnalyticsRecord.checkout_date) <= end_date
+        ).scalar() or 0
+        
+        # Override order count with analytics count
+        data['summary']['total_orders'] = analytics_orders
+        
+        # If analytics shows fewer orders, limit the CSV data to match
+        if analytics_orders < len(data.get('table_sales', [])):
+            # Keep only the most recent orders to match analytics count
+            data['table_sales'] = data['table_sales'][:analytics_orders]
+        
+    except Exception as e:
+        data = {'summary': {'total_orders': 0, 'total_sales': 0, 'total_tips': 0}, 'table_sales': []}
+    
+    try:
+        import pandas as pd
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Excel export not available")
+    
+    # Create DataFrame for orders
+    if data.get('table_sales'):
+        df = pd.DataFrame(data['table_sales'])
+        df = df[['order_id', 'table_number', 'waiter_name', 'total_sales', 'total_tips', 'created_at']]
+        df.columns = ['Order ID', 'Table Number', 'Waiter', 'Sales (€)', 'Tips (€)', 'Date']
+    else:
+        df = pd.DataFrame([['No sales data available', '', '', '', '', '']], 
+                         columns=['Order ID', 'Table Number', 'Waiter', 'Sales (€)', 'Tips (€)', 'Date'])
+    
+    # Create Excel file in memory
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Sales Data', index=False)
+        
+        # Add summary sheet
+        summary_df = pd.DataFrame([
+            ['Total Orders', data['summary']['total_orders']],
+            ['Total Sales (€)', data['summary']['total_sales']],
+            ['Total Tips (€)', data['summary']['total_tips']]
+        ], columns=['Metric', 'Value'])
+        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+        
+    
+    output.seek(0)
+    
+    return StreamingResponse(
+        io.BytesIO(output.getvalue()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=sales_{period}_{target_date}.xlsx"}
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
