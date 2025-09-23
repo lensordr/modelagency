@@ -71,17 +71,6 @@ async def website_home():
     except FileNotFoundError:
         return HTMLResponse("<h1>TableLink - Website Loading...</h1>")
 
-# Website route (before middleware to avoid restaurant context)
-@app.get("/", response_class=HTMLResponse)
-async def website_root():
-    try:
-        web_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "web"))
-        with open(os.path.join(web_dir, "index.html"), "r") as f:
-            content = f.read()
-        return HTMLResponse(content=content)
-    except FileNotFoundError:
-        return HTMLResponse("<h1>TableLink - Website Loading...</h1>")
-
 # Square Webhooks (before middleware to avoid restaurant validation)
 @app.post("/webhooks/square")
 async def square_webhook(request: Request, db: Session = Depends(get_db)):

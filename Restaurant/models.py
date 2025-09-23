@@ -166,4 +166,8 @@ def create_tables():
         AnalyticsRecord.__table__.create(engine)
 
 def get_db():
-   
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

@@ -79,4 +79,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
                         print(f"Middleware: Using fallback restaurant {restaurant.id} ({restaurant.name})")
                     db.close()
                 except:
-                    pas
+                    pass
+        
+        response = await call_next(request)
+        return response
