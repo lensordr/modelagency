@@ -1795,8 +1795,11 @@ async def fix_duplicate_tables(restaurant_id: int, db: Session = Depends(get_db)
     return {"message": f"Removed {deleted_count} duplicate tables"}
 
 
-@app.post("/debug/reset-database")
-async def reset_database(db: Session = Depends(get_db)):
+@app.post("/admin/clear-database")
+async def clear_database(request: Request, db: Session = Depends(get_db)):
+    if not check_admin_auth(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
     try:
         from models import AnalyticsRecord, OrderItem, Order, MenuItem, Waiter, Table, User, Restaurant
         
@@ -1812,7 +1815,10 @@ async def reset_database(db: Session = Depends(get_db)):
         
         db.commit()
         
-        return {"message": "Database cleared successfully"}
+        # Reinitialize with sample data
+        init_sample_data(db)
+        
+        return {"message": "Database cleared and reinitialized successfully"}
     except Exception as e:
         db.rollback()
         return {"error": f"Failed to clear database: {str(e)}"}
