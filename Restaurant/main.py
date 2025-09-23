@@ -13,7 +13,7 @@ import hmac
 from datetime import date, timedelta
 from middleware import TenantMiddleware
 from tenant import get_current_restaurant_id, get_current_restaurant, requires_plan
-from models import Restaurant
+from models import Restaurant, User, Table
 
 # Add current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -184,6 +184,12 @@ def auto_create_restaurant_from_payment(db, email, restaurant_name, username, pa
         )
         
         if result['success']:
+            # Store admin email in restaurant record
+            restaurant = db.query(Restaurant).filter(Restaurant.id == result['restaurant_id']).first()
+            if restaurant:
+                restaurant.admin_email = email
+                db.commit()
+            
             print(f"Restaurant created: https://tablelink.space/r/{result['subdomain']}/business/login")
             print(f"Username: {username}, Password: {password}")
         
@@ -236,6 +242,17 @@ def get_restaurant_name():
 async def signup_page(request: Request):
     return templates.TemplateResponse("signup.html", {"request": request})
 
+@app.post("/check-username")
+async def check_username(request: Request, db: Session = Depends(get_db)):
+    data = await request.json()
+    username = data.get('username', '').strip()
+    
+    if len(username) < 3:
+        return {"available": False, "message": "Username too short"}
+    
+    existing_user = db.query(User).filter(User.username == username).first()
+    return {"available": existing_user is None}
+
 @app.post("/signup")
 async def process_signup(
     restaurant_name: str = Form(...),
@@ -244,6 +261,7 @@ async def process_signup(
     table_count: int = Form(...),
     username: str = Form(...),
     password: str = Form(...),
+    upgrade: str = Form("false"),
     db: Session = Depends(get_db)
 ):
     try:
@@ -263,6 +281,44 @@ async def process_signup(
         import json
         with open(f"/tmp/signup_{email.replace('@', '_').replace('.', '_')}.json", "w") as f:
             json.dump(signup_data, f)
+        
+        # Check if this is an upgrade
+        is_upgrade = upgrade == 'true'
+        print(f"DEBUG: upgrade parameter = '{upgrade}', is_upgrade = {is_upgrade}")
+        print(f"DEBUG: username = '{username}', email = '{email}'")
+        print(f"DEBUG: All form parameters: upgrade={upgrade}, plan={plan}, username={username}")
+        
+        # Check for unique username only for new signups (not upgrades)
+        if not is_upgrade:
+            existing_user = db.query(User).filter(User.username == username).first()
+            if existing_user:
+                return {"success": False, "error": "Username already exists. Please choose a different username."}
+        
+        if is_upgrade:
+            # Verify current password for upgrades
+            from auth import verify_password
+            
+            # Find existing restaurant by email
+            existing_restaurant = db.query(Restaurant).filter(
+                Restaurant.admin_email == email,
+                Restaurant.active == True
+            ).first()
+            
+            if not existing_restaurant:
+                return {"success": False, "error": "Restaurant not found for upgrade"}
+            
+            # Find admin user
+            admin_user = db.query(User).filter(
+                User.restaurant_id == existing_restaurant.id,
+                User.role == 'admin'
+            ).first()
+            
+            if not admin_user or not verify_password(password, admin_user.password_hash):
+                return {"success": False, "error": "Invalid current password"}
+            
+            # Store upgrade data for Square webhook
+            signup_data["upgrade"] = True
+            signup_data["restaurant_id"] = existing_restaurant.id
         
         # Handle free trial vs paid plans
         print(f"Checking plan type: '{plan}' == 'trial' ? {plan == 'trial'}")
@@ -429,19 +485,13 @@ async def create_restaurant(
 async def admin_stats(request: Request, db: Session = Depends(get_db)):
     if not check_admin_auth(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
-    from models import AnalyticsRecord
     
     total_restaurants = db.query(func.count(Restaurant.id)).scalar() or 0
     active_restaurants = db.query(func.count(Restaurant.id)).filter(Restaurant.active == True).scalar() or 0
-    total_revenue = db.query(func.sum(AnalyticsRecord.total_price)).scalar() or 0
-    total_orders = db.query(func.count(AnalyticsRecord.id)).scalar() or 0
     
     return {
         "total_restaurants": total_restaurants,
-        "active_restaurants": active_restaurants,
-        "total_revenue": float(total_revenue),
-        "total_orders": total_orders,
-        "monthly_revenue": float(total_revenue) * 0.1
+        "active_restaurants": active_restaurants
     }
 
 @app.get("/admin/restaurants")
@@ -1041,6 +1091,48 @@ async def place_order(
         return {"message": "Order placed successfully", "order_id": order.id}
 
 # Authentication routes  
+@app.post("/auth/change-password")
+async def change_password(
+    request: Request,
+    username: str = Form(...),
+    new_password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        # Get restaurant from referer URL
+        referer = request.headers.get('referer', '')
+        restaurant = None
+        
+        if '/r/' in referer:
+            subdomain = referer.split('/r/')[1].split('/')[0]
+            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+        
+        if not restaurant:
+            raise HTTPException(status_code=400, detail="Restaurant not found")
+        
+        # Find user by username and restaurant
+        user = db.query(User).filter(
+            User.username == username,
+            User.restaurant_id == restaurant.id,
+            User.role == 'admin'
+        ).first()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Update password using existing hash function
+        from passlib.context import CryptContext
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        user.password_hash = pwd_context.hash(new_password)
+        db.commit()
+        
+        return {"success": True, "message": "Password changed successfully"}
+    except Exception as e:
+        print(f"Change password error: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
 @app.post("/auth/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     try:
@@ -1192,16 +1284,30 @@ async def get_trial_status(request: Request, db: Session = Depends(get_db)):
 async def get_restaurant_info(request: Request, db: Session = Depends(get_db)):
     restaurant_id = getattr(request.state, 'restaurant_id', None)
     
-    # Fallback: detect from referer
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer and not restaurant_id:
+    # Fallback: detect from URL path
+    url_path = str(request.url.path)
+    if '/r/' in url_path and not restaurant_id:
         try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
+            subdomain = url_path.split('/r/')[1].split('/')[0]
             restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
             if restaurant:
                 restaurant_id = restaurant.id
-        except:
-            pass
+                print(f"Found restaurant via URL: {subdomain} -> {restaurant_id}")
+        except Exception as e:
+            print(f"URL parsing error: {e}")
+    
+    # Also try referer as backup
+    if not restaurant_id:
+        referer = request.headers.get('referer', '')
+        if '/r/' in referer:
+            try:
+                subdomain = referer.split('/r/')[1].split('/')[0]
+                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+                if restaurant:
+                    restaurant_id = restaurant.id
+                    print(f"Found restaurant via referer: {subdomain} -> {restaurant_id}")
+            except Exception as e:
+                print(f"Referer parsing error: {e}")
     
     if not restaurant_id:
         return {"name": "", "admin_email": ""}
@@ -1210,10 +1316,41 @@ async def get_restaurant_info(request: Request, db: Session = Depends(get_db)):
     if not restaurant:
         return {"name": "", "admin_email": ""}
     
-    return {
-        "name": restaurant.name,
-        "admin_email": restaurant.admin_email or ""
-    }
+    try:
+        print(f"Getting info for restaurant_id: {restaurant_id}")
+        
+        # Get admin user info
+        admin_user = db.query(User).filter(
+            User.restaurant_id == restaurant_id,
+            User.role == 'admin'
+        ).first()
+        print(f"Admin user found: {admin_user.username if admin_user else 'None'}")
+        
+        # Get table count
+        table_count = db.query(func.count(Table.id)).filter(
+            Table.restaurant_id == restaurant_id
+        ).scalar() or 10
+        print(f"Table count: {table_count}")
+        
+        result = {
+            "name": restaurant.name,
+            "admin_email": restaurant.admin_email or "",
+            "admin_username": admin_user.username if admin_user else "admin",
+            "table_count": table_count
+        }
+        print(f"Returning: {result}")
+        return result
+        
+    except Exception as e:
+        print(f"Restaurant info error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "name": restaurant.name,
+            "admin_email": restaurant.admin_email or "",
+            "admin_username": "admin",
+            "table_count": 10
+        }
 
 @app.get("/business/qr-codes")
 async def generate_qr_codes(request: Request, db: Session = Depends(get_db)):
@@ -2377,423 +2514,3 @@ async def get_kitchen_orders(request: Request, db: Session = Depends(get_db)):
     
     orders = db.query(Order).filter(
         Order.restaurant_id == restaurant_id,
-        Order.status == 'active',
-        Order.kitchen_completed == False
-    ).all()
-    
-    kitchen_orders = []
-    for order in orders:
-        order_items = []
-        for item in order.order_items:
-            if item.menu_item.category == 'Food':
-                customizations = ''
-                if item.customizations:
-                    try:
-                        import json
-                        custom = json.loads(item.customizations)
-                        parts = []
-                        if custom.get('ingredients'):
-                            for ing, qty in custom['ingredients'].items():
-                                if qty == 0:
-                                    parts.append(f'No {ing}')
-                                elif qty > 1:
-                                    parts.append(f'Extra {ing}')
-                        if custom.get('extra'):
-                            extra_items = ', '.join(custom['extra'])
-                            parts.append(f'Add: {extra_items}')
-                        customizations = ' | '.join(parts)
-                    except:
-                        pass
-                
-                order_items.append({
-                    'name': item.menu_item.name,
-                    'qty': item.qty,
-                    'category': item.menu_item.category,
-                    'customizations': customizations
-                })
-        
-        if order_items:
-            kitchen_orders.append({
-                'id': order.id,
-                'table_number': order.table.table_number,
-                'created_at': order.created_at.isoformat(),
-                'items': order_items
-            })
-    
-    return kitchen_orders
-
-@app.post("/business/kitchen/ready/{order_id}")
-async def mark_kitchen_ready(request: Request, order_id: int, db: Session = Depends(get_db)):
-    try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        
-        order = db.query(Order).filter(
-            Order.id == order_id,
-            Order.restaurant_id == restaurant_id
-        ).first()
-        
-        if order and order.table:
-            # Use setattr in case column doesn't exist yet
-            setattr(order.table, 'food_ready', True)
-            db.commit()
-            return {"message": "Food marked as ready"}
-        
-        return {"error": "Order not found"}
-    except Exception as e:
-        print(f"Kitchen ready error: {e}")
-        return {"error": str(e)}
-
-@app.delete("/business/kitchen/delete/{order_id}")
-async def delete_kitchen_order(request: Request, order_id: int, db: Session = Depends(get_db)):
-    try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        
-        order = db.query(Order).filter(
-            Order.id == order_id,
-            Order.restaurant_id == restaurant_id
-        ).first()
-        
-        if order and order.table:
-            # Mark order as kitchen_completed to hide from kitchen display
-            setattr(order, 'kitchen_completed', True)
-            db.commit()
-            return {"message": "Order removed from kitchen"}
-        
-        return {"error": "Order not found"}
-    except Exception as e:
-        print(f"Kitchen delete error: {e}")
-        return {"error": str(e)}
-
-@app.get("/business/analytics")
-async def analytics_page(request: Request, db: Session = Depends(get_db)):
-    try:
-        # Get restaurant_id from request
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        referer = request.headers.get('referer', '')
-        if '/r/marios' in referer or '/r/marios' in str(request.url):
-            restaurant_id = 2
-        elif '/r/sushi' in referer or '/r/sushi' in str(request.url):
-            restaurant_id = 3
-        
-        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-        print(f"Analytics page: restaurant_id={restaurant_id}, plan={restaurant.plan_type if restaurant else 'unknown'}")
-        
-        # Check if restaurant has professional plan or is in trial
-        if not restaurant or restaurant.plan_type not in ["professional", "trial"]:
-            # Show upgrade page for basic plan
-            return templates.TemplateResponse("upgrade_required.html", {
-                "request": request,
-                "restaurant_name": restaurant.name if restaurant else "Restaurant",
-                "current_plan": restaurant.plan_type if restaurant else "basic"
-            })
-        
-        return templates.TemplateResponse("simple_analytics.html", {"request": request})
-    except Exception as e:
-        print(f"Analytics page error: {e}")
-        return templates.TemplateResponse("simple_analytics.html", {"request": request})
-
-@app.get("/business/analytics/export/csv")
-async def export_analytics_csv(
-    period: str = "month",
-    target_date: str = None,
-    db: Session = Depends(get_db)
-):
-    import csv
-    import io
-    from fastapi.responses import StreamingResponse
-    from analytics_service import get_top_items_by_period
-    
-    if target_date is None:
-        from datetime import date
-        target_date = date.today().isoformat()
-    
-    data = get_top_items_by_period(db, period, target_date, 50)
-    
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Write headers
-    writer.writerow(['Rank', 'Item Name', 'Category', 'Quantity Sold', 'Revenue', 'Orders', 'Avg Price', 'Avg Revenue/Order'])
-    
-    # Write data
-    for i, item in enumerate(data['top_items'], 1):
-        writer.writerow([
-            i,
-            item['name'],
-            item['category'],
-            item['quantity_sold'],
-            f"€{item['revenue']:.2f}",
-            item['orders_appeared_in'],
-            f"€{item['avg_price']:.2f}",
-            f"€{item['avg_revenue_per_order']:.2f}"
-        ])
-    
-    output.seek(0)
-    
-    return StreamingResponse(
-        io.BytesIO(output.getvalue().encode('utf-8')),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=top_items_{period}_{target_date}.csv"}
-    )
-
-@app.get("/debug/database")
-async def debug_database(request: Request, period: str = "day", db: Session = Depends(get_db)):
-    from models import AnalyticsRecord, Waiter
-    from datetime import date
-    
-    # Get restaurant_id like other endpoints
-    restaurant_id = getattr(request.state, 'restaurant_id', None)
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-        except:
-            pass
-    
-    print(f"Debug database: Using restaurant_id={restaurant_id}")
-    
-    today = date.today()
-    
-    # Calculate date range based on period
-    if period == "day":
-        start_date = today
-        end_date = today
-    elif period == "month":
-        start_date = today.replace(day=1)
-        if today.month == 12:
-            next_month = today.replace(year=today.year + 1, month=1)
-        else:
-            next_month = today.replace(month=today.month + 1)
-        end_date = next_month - timedelta(days=1)
-    else:
-        start_date = today
-        end_date = today
-    
-    # Get analytics records for the period and restaurant
-    records_query = db.query(AnalyticsRecord).filter(
-        func.date(AnalyticsRecord.checkout_date) >= start_date,
-        func.date(AnalyticsRecord.checkout_date) <= end_date
-    )
-    if restaurant_id:
-        records_query = records_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
-    records = records_query.all()
-    
-    print(f"Debug database: Found {len(records)} records for restaurant {restaurant_id}")
-    
-    # Get waiter names
-    waiters = {w.id: w.name for w in db.query(Waiter).all()}
-    
-    # Group by waiter
-    waiter_stats = {}
-    total_sales = 0
-    total_tips = 0
-    total_orders = len(records)
-    
-    for record in records:
-        waiter_name = waiters.get(record.waiter_id, f'Waiter {record.waiter_id}')
-        if waiter_name not in waiter_stats:
-            waiter_stats[waiter_name] = {'orders': 0, 'sales': 0, 'tips': 0}
-        
-        waiter_stats[waiter_name]['orders'] += 1
-        waiter_stats[waiter_name]['sales'] += record.total_price
-        waiter_stats[waiter_name]['tips'] += record.tip_amount
-        
-        total_sales += record.total_price
-        total_tips += record.tip_amount
-    
-    return {
-        'date': today.isoformat(),
-        'total_records': total_orders,
-        'total_sales': total_sales,
-        'total_tips': total_tips,
-        'waiter_breakdown': waiter_stats,
-        'raw_records': [
-            {
-                'waiter': waiters.get(r.waiter_id, f'Waiter {r.waiter_id}'),
-                'table': r.table_number,
-                'sales': r.total_price,
-                'tips': r.tip_amount,
-                'date': r.checkout_date.isoformat()
-            } for r in records[:10]  # Show first 10 records
-        ]
-    }
-
-@app.get("/export/sales-csv")
-async def export_sales_csv_simple(
-    request: Request,
-    period: str = "day",
-    target_date: str = None,
-    waiter_id: int = None,
-    db: Session = Depends(get_db)
-):
-    import csv
-    import io
-    from fastapi.responses import StreamingResponse
-    from models import AnalyticsRecord
-    from datetime import datetime
-    
-    if target_date is None:
-        # Get the most recent date with data (same logic as analytics dashboard)
-        from models import AnalyticsRecord
-        latest_date = db.query(func.max(func.date(AnalyticsRecord.checkout_date))).filter(
-            AnalyticsRecord.restaurant_id == restaurant_id
-        ).scalar()
-        if latest_date:
-            target_date = str(latest_date)
-        else:
-            from datetime import date
-            target_date = date.today().isoformat()
-    
-    target_date_obj = datetime.strptime(target_date, "%Y-%m-%d").date()
-    
-    # Get restaurant_id from request
-    restaurant_id = getattr(request.state, 'restaurant_id', None)
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-                print(f"CSV Export: Detected restaurant_id={restaurant_id} from subdomain {subdomain}")
-        except Exception as e:
-            print(f"CSV Export: Error parsing referer: {e}")
-    
-    if not restaurant_id:
-        restaurant_id = 1  # fallback
-    
-    try:
-        # Use analytics service (same as dashboard)
-        from analytics_service import get_analytics_for_period
-        analytics_data = get_analytics_for_period(db, target_date, period, waiter_id, restaurant_id)
-        
-        # Get individual order details from analytics records
-        from models import AnalyticsRecord, Waiter
-        from datetime import timedelta
-        
-        if period == "day":
-            start_date = target_date_obj
-            end_date = target_date_obj
-        elif period == "week":
-            start_date = target_date_obj - timedelta(days=target_date_obj.weekday())
-            end_date = start_date + timedelta(days=6)
-        elif period == "month":
-            start_date = target_date_obj.replace(day=1)
-            next_month = start_date.replace(month=start_date.month + 1) if start_date.month < 12 else start_date.replace(year=start_date.year + 1, month=1)
-            end_date = next_month - timedelta(days=1)
-        else:  # year
-            start_date = target_date_obj.replace(month=1, day=1)
-            end_date = target_date_obj.replace(month=12, day=31)
-        
-        # Get analytics records and group by order
-        records = db.query(AnalyticsRecord, Waiter.name.label('waiter_name')).outerjoin(Waiter, AnalyticsRecord.waiter_id == Waiter.id).filter(
-            func.date(AnalyticsRecord.checkout_date) >= start_date,
-            func.date(AnalyticsRecord.checkout_date) <= end_date,
-            AnalyticsRecord.restaurant_id == restaurant_id
-        )
-        
-        if waiter_id:
-            records = records.filter(AnalyticsRecord.waiter_id == waiter_id)
-        
-        records = records.all()
-        
-        # Group by order
-        order_groups = {}
-        for record, waiter_name in records:
-            order_key = record.item_name.split(' - ')[0] if ' - ' in record.item_name else record.item_name
-            if order_key not in order_groups:
-                order_groups[order_key] = {
-                    'order_id': order_key.replace('Order #', ''),
-                    'table_number': record.table_number,
-                    'waiter_name': waiter_name or 'Unknown',
-                    'total_sales': 0,
-                    'total_tips': 0,
-                    'created_at': record.checkout_date.strftime('%Y-%m-%d %H:%M')
-                }
-            order_groups[order_key]['total_sales'] += record.total_price
-            order_groups[order_key]['total_tips'] += record.tip_amount
-        
-        data = {
-            'summary': analytics_data.get('summary', {'total_orders': 0, 'total_sales': 0, 'total_tips': 0}),
-            'table_sales': list(order_groups.values())
-        }
-        
-        # Get analytics order count using same period logic as dashboard
-        from datetime import timedelta
-        
-        if period == "day":
-            start_date = target_date_obj
-            end_date = target_date_obj
-        elif period == "week":
-            start_date = target_date_obj - timedelta(days=target_date_obj.weekday())
-            end_date = start_date + timedelta(days=6)
-        elif period == "month":
-            start_date = target_date_obj.replace(day=1)
-            next_month = start_date.replace(month=start_date.month + 1) if start_date.month < 12 else start_date.replace(year=start_date.year + 1, month=1)
-            end_date = next_month - timedelta(days=1)
-        else:  # year
-            start_date = target_date_obj.replace(month=1, day=1)
-            end_date = target_date_obj.replace(month=12, day=31)
-        
-        analytics_orders = db.query(
-            func.count(func.distinct(AnalyticsRecord.checkout_date))
-        ).filter(
-            func.date(AnalyticsRecord.checkout_date) >= start_date,
-            func.date(AnalyticsRecord.checkout_date) <= end_date
-        ).scalar() or 0
-        
-        # Override order count with analytics count
-        data['summary']['total_orders'] = analytics_orders
-        
-        # If analytics shows fewer orders, limit the CSV data to match
-        if analytics_orders < len(data.get('table_sales', [])):
-            # Keep only the most recent orders to match analytics count
-            data['table_sales'] = data['table_sales'][:analytics_orders]
-        
-    except Exception as e:
-        data = {'summary': {'total_orders': 0, 'total_sales': 0, 'total_tips': 0}, 'table_sales': []}
-    
-    try:
-        import pandas as pd
-    except ImportError:
-        raise HTTPException(status_code=500, detail="Excel export not available")
-    
-    # Create DataFrame for orders
-    if data.get('table_sales'):
-        df = pd.DataFrame(data['table_sales'])
-        df = df[['order_id', 'table_number', 'waiter_name', 'total_sales', 'total_tips', 'created_at']]
-        df.columns = ['Order ID', 'Table Number', 'Waiter', 'Sales (€)', 'Tips (€)', 'Date']
-    else:
-        df = pd.DataFrame([['No sales data available', '', '', '', '', '']], 
-                         columns=['Order ID', 'Table Number', 'Waiter', 'Sales (€)', 'Tips (€)', 'Date'])
-    
-    # Create Excel file in memory
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Sales Data', index=False)
-        
-        # Add summary sheet
-        summary_df = pd.DataFrame([
-            ['Total Orders', data['summary']['total_orders']],
-            ['Total Sales (€)', data['summary']['total_sales']],
-            ['Total Tips (€)', data['summary']['total_tips']]
-        ], columns=['Metric', 'Value'])
-        summary_df.to_excel(writer, sheet_name='Summary', index=False)
-        
-    
-    output.seek(0)
-    
-    return StreamingResponse(
-        io.BytesIO(output.getvalue()),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename=sales_{period}_{target_date}.xlsx"}
-    )
-
-if __name__ == "__main__":
-    import uvicorn
-    import os
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)

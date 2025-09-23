@@ -100,45 +100,36 @@
             <button type="submit" class="login-btn">Login</button>
             <div id="error" class="error" style="display: none;"></div>
         </form>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="#" onclick="showChangePasswordForm()" style="color: #667eea; text-decoration: none; font-size: 14px;">🔒 Change Password</a>
+        </div>
+        
+        <!-- Change Password Form -->
+        <div id="changePasswordForm" style="display: none; margin-top: 20px; border-top: 1px solid #e1e5e9; padding-top: 20px;">
+            <h3 style="text-align: center; color: #333; margin-bottom: 20px;">Change Password</h3>
+            <form id="passwordChangeForm">
+                <div class="form-group">
+                    <label for="changeUsername">Username</label>
+                    <input type="text" id="changeUsername" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">New Password</label>
+                    <input type="password" id="newPassword" name="new_password" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <input type="password" id="confirmPassword" required minlength="6">
+                </div>
+                <button type="submit" class="login-btn">Update Password</button>
+                <div id="changeError" class="error" style="display: none;"></div>
+                <div style="text-align: center; margin-top: 10px;">
+                    <a href="#" onclick="hideChangePasswordForm()" style="color: #666; text-decoration: none; font-size: 14px;">Back to Login</a>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script>
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData();
-            formData.append('username', document.getElementById('username').value);
-            formData.append('password', document.getElementById('password').value);
-            
-            try {
-                const response = await fetch('/auth/login', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    // Store token and redirect to correct restaurant dashboard
-                    localStorage.setItem('access_token', data.access_token);
-                    
-                    // Check if we're in a /r/subdomain context
-                    const currentUrl = window.location.href;
-                    if (currentUrl.includes('/r/')) {
-                        const subdomain = currentUrl.split('/r/')[1].split('/')[0];
-                        window.location.href = `/r/${subdomain}/business/dashboard`;
-                    } else {
-                        window.location.href = '/business/dashboard';
-                    }
-                } else {
-                    document.getElementById('error').textContent = data.detail || 'Login failed';
-                    document.getElementById('error').style.display = 'block';
-                }
-            } catch (error) {
-                document.getElementById('error').textContent = 'Login failed';
-                document.getElementById('error').style.display = 'block';
-            }
-        });
-    </script>
-</body>
-</html>
+        

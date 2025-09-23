@@ -42,14 +42,14 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(loadDashboard, 3000);
     
     // Check trial status every 30 seconds
-    setInterval(checkTrialStatus, 30000);
+    // setInterval(checkTrialStatus, 30000); // Disabled - handled in main template
     
     // Initialize app
     loadDashboard();
     loadMenuItems();
     loadSales('day');
     loadWaiters();
-    checkTrialStatus();
+    // checkTrialStatus(); // Disabled - handled in main template
 });
 
 let currentTableNumber = null;
