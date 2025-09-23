@@ -31,7 +31,7 @@
             <div class="trial-content" style="display: flex; justify-content: space-between; align-items: center;">
                 <span id="trialMessage"></span>
                 <div class="trial-actions">
-                    <a href="/signup" class="upgrade-btn" style="background: white; color: #d97706; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-weight: 600;">Upgrade Now</a>
+                    <a href="#" onclick="upgradeNow()" class="upgrade-btn" style="background: white; color: #d97706; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-weight: 600;">Upgrade Now</a>
                     <button onclick="dismissTrial()" class="dismiss-btn" style="background: transparent; color: white; border: 1px solid white; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Dismiss</button>
                 </div>
             </div>
@@ -180,6 +180,17 @@
         
         function dismissTrial() {
             document.getElementById('trialBanner').style.display = 'none';
+        }
+        
+        function upgradeNow() {
+            // Get current restaurant info and redirect to signup with pre-filled data
+            const currentPath = window.location.pathname;
+            if (currentPath.includes('/r/')) {
+                const subdomain = currentPath.split('/r/')[1].split('/')[0];
+                window.location.href = `/signup?upgrade=true&subdomain=${subdomain}`;
+            } else {
+                window.location.href = '/signup?upgrade=true';
+            }
         }
     </script>
     <script src="/static/business_no_auth.js?v=17"></script>
