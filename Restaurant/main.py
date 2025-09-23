@@ -7,6 +7,9 @@ from sqlalchemy import func, extract
 from typing import List
 import sys
 import os
+import json
+import hashlib
+import hmac
 from datetime import date, timedelta
 from middleware import TenantMiddleware
 from tenant import get_current_restaurant_id, get_current_restaurant, requires_plan
@@ -79,6 +82,127 @@ async def website_root():
     except FileNotFoundError:
         return HTMLResponse("<h1>TableLink - Website Loading...</h1>")
 
+# Square Webhooks (before middleware to avoid restaurant validation)
+@app.post("/webhooks/square")
+async def square_webhook(request: Request, db: Session = Depends(get_db)):
+    try:
+        body = await request.body()
+        data = json.loads(body)
+        event_type = data.get("type")
+        
+        print(f"Square webhook received: {event_type}")
+        
+        if event_type == "payment.created":
+            payment_data = data.get("data", {}).get("object", {})
+            
+            # Get customer email
+            customer_email = payment_data.get("buyer_email_address")
+            
+            # Determine plan from amount
+            amount_money = payment_data.get("amount_money", {})
+            amount = amount_money.get("amount", 0) / 100
+            
+            if amount == 49:
+                plan_type = "basic"
+            elif amount == 79:
+                plan_type = "professional"
+            else:
+                return {"status": "unknown_amount"}
+            
+            # Check if this is an upgrade (existing restaurant) or new signup
+            existing_restaurant = db.query(Restaurant).filter(
+                Restaurant.admin_email == customer_email,
+                Restaurant.active == True
+            ).first()
+            
+            if existing_restaurant:
+                # This is an upgrade - update existing restaurant
+                existing_restaurant.plan_type = plan_type
+                existing_restaurant.subscription_status = "active"
+                existing_restaurant.trial_ends_at = None
+                db.commit()
+                
+                result = {
+                    'success': True,
+                    'upgraded': True,
+                    'restaurant_id': existing_restaurant.id,
+                    'subdomain': existing_restaurant.subdomain,
+                    'plan_type': plan_type
+                }
+            else:
+                # This is a new signup - create restaurant
+                signup_data = get_signup_data(customer_email)
+                if not signup_data:
+                    return {"status": "signup_data_not_found"}
+                
+                result = auto_create_restaurant_from_payment(
+                    db, 
+                    signup_data["email"],
+                    signup_data["restaurant_name"],
+                    signup_data["username"],
+                    signup_data["password"],
+                    signup_data["table_count"],
+                    plan_type
+                )
+                
+                # Clean up temporary data
+                cleanup_signup_data(customer_email)
+            
+            return {"status": "success", "restaurant_created": result}
+            
+        return {"status": "event_ignored"}
+            
+    except Exception as e:
+        print(f"Webhook error: {e}")
+        return {"status": "error", "message": str(e)}
+
+def get_signup_data(email):
+    try:
+        import json
+        import os
+        filename = f"/tmp/signup_{email.replace('@', '_').replace('.', '_')}.json"
+        if os.path.exists(filename):
+            with open(filename, "r") as f:
+                return json.load(f)
+        return None
+    except:
+        return None
+
+def cleanup_signup_data(email):
+    try:
+        import os
+        filename = f"/tmp/signup_{email.replace('@', '_').replace('.', '_')}.json"
+        if os.path.exists(filename):
+            os.remove(filename)
+    except:
+        pass
+
+def auto_create_restaurant_from_payment(db, email, restaurant_name, username, password, table_count, plan_type):
+    try:
+        # Generate subdomain from restaurant name
+        subdomain = restaurant_name.lower().replace(' ', '-').replace('.', '').replace('_', '')[:20]
+        
+        from onboarding import create_new_restaurant
+        
+        result = create_new_restaurant(
+            db=db,
+            restaurant_name=restaurant_name,
+            admin_email=email,
+            admin_username=username,
+            admin_password=password,
+            table_count=table_count,
+            plan_type=plan_type
+        )
+        
+        if result['success']:
+            print(f"Restaurant created: https://tablelink.space/r/{result['subdomain']}/business/login")
+            print(f"Username: {username}, Password: {password}")
+        
+        return result
+        
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
 # Add tenant middleware
 app.add_middleware(TenantMiddleware)
 
@@ -118,6 +242,89 @@ def get_restaurant_name():
         return config.get('restaurant_name', 'TablePulse Restaurant')
 
 # Setup routes
+# Signup routes
+@app.get("/signup", response_class=HTMLResponse)
+async def signup_page(request: Request):
+    return templates.TemplateResponse("signup.html", {"request": request})
+
+@app.post("/signup")
+async def process_signup(
+    restaurant_name: str = Form(...),
+    email: str = Form(...),
+    plan: str = Form(...),
+    table_count: int = Form(...),
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        print(f"Signup request: plan={plan}, email={email}, restaurant_name={restaurant_name}")
+        
+        # Store signup data temporarily
+        signup_data = {
+            "restaurant_name": restaurant_name,
+            "email": email,
+            "plan": plan,
+            "table_count": table_count,
+            "username": username,
+            "password": password
+        }
+        
+        # Store in session or temporary table (simplified: use email as key)
+        import json
+        with open(f"/tmp/signup_{email.replace('@', '_').replace('.', '_')}.json", "w") as f:
+            json.dump(signup_data, f)
+        
+        # Handle free trial vs paid plans
+        print(f"Checking plan type: '{plan}' == 'trial' ? {plan == 'trial'}")
+        if plan == "trial":
+            # Create restaurant immediately for free trial
+            from onboarding import create_new_restaurant
+            from datetime import datetime, timedelta
+            
+            result = create_new_restaurant(
+                db=db,
+                restaurant_name=restaurant_name,
+                admin_email=email,
+                admin_username=username,
+                admin_password=password,
+                table_count=table_count,
+                plan_type="trial"
+            )
+            
+            if result['success']:
+                # Set trial end date and admin email
+                restaurant = db.query(Restaurant).filter(Restaurant.id == result['restaurant_id']).first()
+                restaurant.trial_ends_at = datetime.utcnow() + timedelta(days=15)
+                restaurant.admin_email = email
+                db.commit()
+                
+                return {
+                    "success": True, 
+                    "trial": True,
+                    "login_url": result['login_url'],
+                    "username": username,
+                    "password": password
+                }
+            else:
+                return {"success": False, "error": result['error']}
+        else:
+            # Paid plans - redirect to Square
+            if plan == "basic":
+                checkout_url = "https://square.link/u/IP8KYRbl"
+            else:
+                checkout_url = "https://square.link/u/Tf8mr4CA"
+            
+            return {"success": True, "checkout_url": checkout_url}
+        
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def generate_secure_password():
+    import secrets
+    import string
+    return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+
 @app.get("/setup", response_class=HTMLResponse)
 async def setup_page(request: Request):
     if is_setup_complete():
@@ -345,6 +552,47 @@ async def update_restaurant_plan(
         "success": True,
         "message": f"Plan updated to {plan_type}",
         "plan_type": plan_type
+    }
+
+@app.get("/admin/subscriptions", response_class=HTMLResponse)
+async def admin_subscriptions(request: Request, db: Session = Depends(get_db)):
+    if not check_admin_auth(request):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/admin/login", status_code=302)
+    return templates.TemplateResponse("admin_subscriptions.html", {"request": request})
+
+@app.post("/admin/restaurants/{restaurant_id}/change-plan")
+async def change_restaurant_plan(
+    request: Request,
+    restaurant_id: int,
+    new_plan: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    if not check_admin_auth(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+    
+    old_plan = restaurant.plan_type
+    restaurant.plan_type = new_plan
+    
+    if new_plan in ['basic', 'professional']:
+        restaurant.subscription_status = "active"
+        restaurant.trial_ends_at = None
+    elif new_plan == "trial":
+        from datetime import datetime, timedelta
+        restaurant.trial_ends_at = datetime.utcnow() + timedelta(days=15)
+        restaurant.subscription_status = "trial"
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Plan changed from {old_plan} to {new_plan}",
+        "old_plan": old_plan,
+        "new_plan": new_plan
     }
 
 @app.post("/admin/restaurants/{restaurant_id}/reset-password")
@@ -907,6 +1155,50 @@ async def business_dashboard_authenticated(request: Request, db: Session = Depen
             "restaurant_name": "Restaurant"
         })
 
+@app.get("/business/trial-status")
+async def get_trial_status(request: Request, db: Session = Depends(get_db)):
+    restaurant_id = getattr(request.state, 'restaurant_id', None)
+    
+    # Fallback: detect from referer for AJAX requests
+    referer = request.headers.get('referer', '')
+    if '/r/' in referer and not restaurant_id:
+        try:
+            subdomain = referer.split('/r/')[1].split('/')[0]
+            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+            if restaurant:
+                restaurant_id = restaurant.id
+                print(f"Trial status: Detected restaurant_id={restaurant_id} from subdomain {subdomain}")
+        except:
+            pass
+    
+    if not restaurant_id:
+        print("Trial status: No restaurant_id found")
+        return {"show_warning": False, "days_left": 0, "expired": False}
+    
+    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+    if not restaurant:
+        print(f"Trial status: Restaurant {restaurant_id} not found")
+        return {"show_warning": False, "days_left": 0, "expired": False}
+    
+    print(f"Trial status: Restaurant {restaurant.name}, plan={restaurant.plan_type}")
+    
+    if restaurant.plan_type != "trial":
+        return {"show_warning": False, "days_left": 0, "expired": False}
+    
+    if not restaurant.trial_ends_at:
+        print("Trial status: No trial_ends_at date")
+        return {"show_warning": False, "days_left": 0, "expired": False}
+    
+    from datetime import datetime
+    days_left = (restaurant.trial_ends_at - datetime.utcnow()).days
+    print(f"Trial status: {days_left} days left")
+    
+    return {
+        "show_warning": days_left <= 14,  # Show for all trial accounts
+        "days_left": max(0, days_left),
+        "expired": days_left < 0
+    }
+
 @app.get("/business/qr-codes")
 async def generate_qr_codes(request: Request, db: Session = Depends(get_db)):
     restaurant_id = getattr(request.state, 'restaurant_id', 1)
@@ -969,7 +1261,7 @@ async def get_trial_status(request: Request, db: Session = Depends(get_db)):
     days_left = (restaurant.trial_ends_at - now).days
     
     return {
-        "show_warning": days_left <= 3 and days_left >= 0,
+        "show_warning": True,  # Always show for testing
         "days_left": max(0, days_left),
         "expired": days_left < 0
     }

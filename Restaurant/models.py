@@ -14,6 +14,7 @@ class Restaurant(Base):
     plan_type = Column(String(20), default='trial')  # trial, basic, professional
     trial_ends_at = Column(DateTime)
     subscription_status = Column(String(20), default='trial')  # trial, active, cancelled
+    admin_email = Column(String(255), nullable=True)  # For upgrade detection
     created_at = Column(DateTime, default=datetime.utcnow)
     active = Column(Boolean, default=True)
     
@@ -165,8 +166,4 @@ def create_tables():
         AnalyticsRecord.__table__.create(engine)
 
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+   

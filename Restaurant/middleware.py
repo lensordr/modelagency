@@ -12,16 +12,17 @@ templates = Jinja2Templates(directory=templates_dir)
 
 class TenantMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # Skip tenant resolution for static files, website, and health checks
+        # Skip tenant resolution for static files, website, webhooks, and health checks
         if (request.url.path.startswith("/static/") or 
             request.url.path.startswith("/debug/") or
             request.url.path.startswith("/web/") or
+            request.url.path.startswith("/webhooks/") or
             request.url.path in ["/", "/favicon.ico", "/robots.txt", "/apple-touch-icon.png", "/test"]):
             return await call_next(request)
         
         # Skip for setup routes and global pages
         if (request.url.path.startswith("/setup") or 
-            request.url.path in ["/onboarding", "/onboard", "/admin"] or
+            request.url.path in ["/onboarding", "/onboard", "/admin", "/signup"] or
             request.url.path.startswith("/admin/")):
             return await call_next(request)
         
@@ -78,7 +79,4 @@ class TenantMiddleware(BaseHTTPMiddleware):
                         print(f"Middleware: Using fallback restaurant {restaurant.id} ({restaurant.name})")
                     db.close()
                 except:
-                    pass
-        
-        response = await call_next(request)
-        return response
+                    pas

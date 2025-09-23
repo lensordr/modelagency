@@ -26,6 +26,17 @@
     <div class="container">
         <h1>📋 Business Dashboard</h1>
         
+        <!-- Trial Warning Banner -->
+        <div id="trialBanner" class="trial-banner" style="display: none; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+            <div class="trial-content" style="display: flex; justify-content: space-between; align-items: center;">
+                <span id="trialMessage"></span>
+                <div class="trial-actions">
+                    <a href="/signup" class="upgrade-btn" style="background: white; color: #d97706; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-weight: 600;">Upgrade Now</a>
+                    <button onclick="dismissTrial()" class="dismiss-btn" style="background: transparent; color: white; border: 1px solid white; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Dismiss</button>
+                </div>
+            </div>
+        </div>
+        
         <nav class="dashboard-nav">
             <button onclick="showSection('live-orders')" class="nav-btn active" id="live-orders-btn">🔴 Live Orders</button>
             <button onclick="showSection('waiters-new')" class="nav-btn" id="waiters-new-btn">👨🍳 Waiters</button>
@@ -137,6 +148,40 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script>
+        // Check trial status immediately
+        setTimeout(function() {
+            // Use current path structure for API calls
+            const currentPath = window.location.pathname;
+            const trialStatusUrl = currentPath.includes('/r/') 
+                ? currentPath.replace('/business/dashboard', '/business/trial-status')
+                : '/business/trial-status';
+            
+            fetch(trialStatusUrl)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Trial status:', data);
+                    if (data.show_warning || data.expired) {
+                        const banner = document.getElementById('trialBanner');
+                        const message = document.getElementById('trialMessage');
+                        
+                        if (data.expired) {
+                            message.textContent = '🚫 Your free trial has expired. Please upgrade to continue using TableLink.';
+                            banner.style.background = 'linear-gradient(135deg, #dc2626, #b91c1c)';
+                        } else {
+                            message.textContent = `⏰ Your free trial expires in ${data.days_left} day${data.days_left > 1 ? 's' : ''}!`;
+                        }
+                        
+                        banner.style.display = 'block';
+                    }
+                })
+                .catch(error => console.error('Trial status error:', error));
+        }, 1000);
+        
+        function dismissTrial() {
+            document.getElementById('trialBanner').style.display = 'none';
+        }
+    </script>
     <script src="/static/business_no_auth.js?v=17"></script>
 </body>
 </html>
