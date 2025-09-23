@@ -267,7 +267,13 @@
         // Check username availability
         document.getElementById('username').addEventListener('blur', async function() {
             const username = this.value.trim();
-            if (username.length < 3) return;
+            if (username.length < 3) {
+                // Clear any existing error for short usernames
+                this.style.borderColor = '';
+                const errorDiv = document.getElementById('username-error');
+                if (errorDiv) errorDiv.remove();
+                return;
+            }
             
             try {
                 const response = await fetch('/check-username', {
@@ -294,6 +300,10 @@
                 }
             } catch (error) {
                 console.error('Username check failed:', error);
+                // Clear styling on error
+                this.style.borderColor = '';
+                const errorDiv = document.getElementById('username-error');
+                if (errorDiv) errorDiv.remove();
             }
         });
         
