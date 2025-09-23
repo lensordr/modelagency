@@ -251,6 +251,8 @@ async def check_username(request: Request, db: Session = Depends(get_db)):
         return {"available": False, "message": "Username too short"}
     
     existing_user = db.query(User).filter(User.username == username).first()
+    print(f"Username check: '{username}' -> {'EXISTS' if existing_user else 'AVAILABLE'}")
+    
     return {"available": existing_user is None}
 
 @app.post("/signup")
