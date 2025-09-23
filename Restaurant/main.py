@@ -1816,7 +1816,9 @@ async def clear_database(request: Request, db: Session = Depends(get_db)):
         db.commit()
         
         # Reinitialize with sample data
+        from crud import init_sample_data
         init_sample_data(db)
+        print("Sample data reinitialized successfully")
         
         return {"message": "Database cleared and reinitialized successfully"}
     except Exception as e:
