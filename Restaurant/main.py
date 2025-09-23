@@ -1795,6 +1795,38 @@ async def fix_duplicate_tables(restaurant_id: int, db: Session = Depends(get_db)
     return {"message": f"Removed {deleted_count} duplicate tables"}
 
 
+@app.get("/admin/check-database")
+async def check_database_contents(request: Request, db: Session = Depends(get_db)):
+    if not check_admin_auth(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    users = db.query(User).all()
+    restaurants = db.query(Restaurant).all()
+    
+    user_data = []
+    for user in users:
+        restaurant = db.query(Restaurant).filter(Restaurant.id == user.restaurant_id).first()
+        user_data.append({
+            "username": user.username,
+            "restaurant_name": restaurant.name if restaurant else "DELETED",
+            "restaurant_active": restaurant.active if restaurant else False
+        })
+    
+    restaurant_data = []
+    for r in restaurants:
+        restaurant_data.append({
+            "name": r.name,
+            "subdomain": r.subdomain,
+            "active": r.active
+        })
+    
+    return {
+        "users": user_data,
+        "restaurants": restaurant_data,
+        "total_users": len(users),
+        "total_restaurants": len(restaurants)
+    }
+
 @app.post("/admin/clear-database")
 async def clear_database(request: Request, db: Session = Depends(get_db)):
     if not check_admin_auth(request):
@@ -1804,16 +1836,45 @@ async def clear_database(request: Request, db: Session = Depends(get_db)):
         from models import AnalyticsRecord, OrderItem, Order, MenuItem, Waiter, Table, User, Restaurant
         
         # Delete all data in correct order to avoid FK constraints
-        db.query(AnalyticsRecord).delete()
-        db.query(OrderItem).delete()
-        db.query(Order).delete()
-        db.query(MenuItem).delete()
-        db.query(Waiter).delete()
-        db.query(Table).delete()
-        db.query(User).delete()
-        db.query(Restaurant).delete()
+        print("Deleting analytics records...")
+        count = db.query(AnalyticsRecord).delete()
+        print(f"Deleted {count} analytics records")
+        
+        print("Deleting order items...")
+        count = db.query(OrderItem).delete()
+        print(f"Deleted {count} order items")
+        
+        print("Deleting orders...")
+        count = db.query(Order).delete()
+        print(f"Deleted {count} orders")
+        
+        print("Deleting menu items...")
+        count = db.query(MenuItem).delete()
+        print(f"Deleted {count} menu items")
+        
+        print("Deleting waiters...")
+        count = db.query(Waiter).delete()
+        print(f"Deleted {count} waiters")
+        
+        print("Deleting tables...")
+        count = db.query(Table).delete()
+        print(f"Deleted {count} tables")
+        
+        print("Deleting users...")
+        count = db.query(User).delete()
+        print(f"Deleted {count} users")
+        
+        print("Deleting restaurants...")
+        count = db.query(Restaurant).delete()
+        print(f"Deleted {count} restaurants")
         
         db.commit()
+        print("All data deleted successfully")
+        
+        # Verify deletion
+        remaining_users = db.query(User).count()
+        remaining_restaurants = db.query(Restaurant).count()
+        print(f"Verification: {remaining_users} users, {remaining_restaurants} restaurants remaining")
         
         # Reinitialize with sample data
         from crud import init_sample_data

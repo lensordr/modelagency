@@ -283,7 +283,9 @@
                 });
                 const data = await response.json();
                 
-                if (!data.available) {
+                console.log('Username check response:', data);
+                
+                if (data.available === false) {
                     this.style.borderColor = '#dc2626';
                     let errorDiv = document.getElementById('username-error');
                     if (!errorDiv) {
@@ -293,8 +295,13 @@
                         this.parentNode.appendChild(errorDiv);
                     }
                     errorDiv.textContent = 'Username already taken';
-                } else {
+                } else if (data.available === true) {
                     this.style.borderColor = '#28a745';
+                    const errorDiv = document.getElementById('username-error');
+                    if (errorDiv) errorDiv.remove();
+                } else {
+                    // Handle unexpected response
+                    this.style.borderColor = '';
                     const errorDiv = document.getElementById('username-error');
                     if (errorDiv) errorDiv.remove();
                 }
