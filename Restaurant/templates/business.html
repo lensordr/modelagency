@@ -182,12 +182,27 @@
             document.getElementById('trialBanner').style.display = 'none';
         }
         
-        function upgradeNow() {
+        async function upgradeNow() {
             // Get current restaurant info and redirect to signup with pre-filled data
             const currentPath = window.location.pathname;
             if (currentPath.includes('/r/')) {
                 const subdomain = currentPath.split('/r/')[1].split('/')[0];
-                window.location.href = `/signup?upgrade=true&subdomain=${subdomain}`;
+                
+                // Get restaurant details for pre-filling
+                try {
+                    const response = await fetch('/business/restaurant-info');
+                    const data = await response.json();
+                    const params = new URLSearchParams({
+                        upgrade: 'true',
+                        subdomain: subdomain,
+                        email: data.admin_email || '',
+                        restaurant_name: data.name || ''
+                    });
+                    window.location.href = `/signup?${params.toString()}`;
+                } catch (error) {
+                    // Fallback without pre-filled email
+                    window.location.href = `/signup?upgrade=true&subdomain=${subdomain}`;
+                }
             } else {
                 window.location.href = '/signup?upgrade=true';
             }

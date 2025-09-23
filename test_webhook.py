@@ -37,13 +37,4 @@ def test_webhook():
             json=webhook_payload,
             headers={"Content-Type": "application/json"}
         )
-        
-        print(f"Status Code: {response.status_code}")
-        print(f"Response: {response.json()}")
-        
-    except Exception as e:
-        print(f"Error: {e}")
-
-if __name__ == "__main__":
-    print("Testing Square webhook...")
-    test_webhook()
+    
