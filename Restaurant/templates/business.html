@@ -135,4 +135,79 @@
                 <p style="color: #718096; margin-bottom: 1.5rem;">Generate QR codes for each table. Customers can scan these to access the menu and place orders.</p>
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <button onclick="loadQRCodes()" sty
+                    <button onclick="loadQRCodes()" style="background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer;">🔄 Refresh QR Codes</button>
+                    <button onclick="openQRCodesWindow()" style="background: #6f42c1; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer;">🪟 Open in New Window</button>
+                    <button onclick="printAllQRCodes()" style="background: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer;">🖨️ Print All</button>
+                </div>
+                
+                <div id="qr-codes-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;"></div>
+            </div>
+        </div>
+
+        <div id="message"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script>
+        // Check trial status immediately
+        setTimeout(function() {
+            // Use current path structure for API calls
+            const currentPath = window.location.pathname;
+            const trialStatusUrl = currentPath.includes('/r/') 
+                ? currentPath.replace('/business/dashboard', '/business/trial-status')
+                : '/business/trial-status';
+            
+            fetch(trialStatusUrl)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Trial status:', data);
+                    if (data.show_warning || data.expired) {
+                        const banner = document.getElementById('trialBanner');
+                        const message = document.getElementById('trialMessage');
+                        
+                        if (data.expired) {
+                            message.textContent = '🚫 Your free trial has expired. Please upgrade to continue using TableLink.';
+                            banner.style.background = 'linear-gradient(135deg, #dc2626, #b91c1c)';
+                        } else {
+                            message.textContent = `⏰ Your free trial expires in ${data.days_left} day${data.days_left > 1 ? 's' : ''}!`;
+                        }
+                        
+                        banner.style.display = 'block';
+                    }
+                })
+                .catch(error => console.error('Trial status error:', error));
+        }, 1000);
+        
+        function dismissTrial() {
+            document.getElementById('trialBanner').style.display = 'none';
+        }
+        
+        async function upgradeNow() {
+            // Get current restaurant info and redirect to signup with pre-filled data
+            const currentPath = window.location.pathname;
+            if (currentPath.includes('/r/')) {
+                const subdomain = currentPath.split('/r/')[1].split('/')[0];
+                
+                // Get restaurant details for pre-filling
+                try {
+                    const response = await fetch('/business/restaurant-info');
+                    const data = await response.json();
+                    const params = new URLSearchParams({
+                        upgrade: 'true',
+                        subdomain: subdomain,
+                        email: data.admin_email || '',
+                        restaurant_name: data.name || ''
+                    });
+                    window.location.href = `/signup?${params.toString()}`;
+                } catch (error) {
+                    // Fallback without pre-filled email
+                    window.location.href = `/signup?upgrade=true&subdomain=${subdomain}`;
+                }
+            } else {
+                window.location.href = '/signup?upgrade=true';
+            }
+        }
+    </script>
+    <script src="/static/business_no_auth.js?v=17"></script>
+</body>
+</html>
