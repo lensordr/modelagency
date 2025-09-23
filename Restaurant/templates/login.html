@@ -132,4 +132,90 @@
 
     <script>
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData();
+            formData.append('username', document.getElementById('username').value);
+            formData.append('password', document.getElementById('password').value);
+            
+            try {
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Store token and redirect to correct restaurant dashboard
+                    localStorage.setItem('access_token', data.access_token);
+                    
+                    // Check if we're in a /r/subdomain context
+                    const currentUrl = window.location.href;
+                    if (currentUrl.includes('/r/')) {
+                        const subdomain = currentUrl.split('/r/')[1].split('/')[0];
+                        window.location.href = `/r/${subdomain}/business/dashboard`;
+                    } else {
+                        window.location.href = '/business/dashboard';
+                    }
+                } else {
+                    document.getElementById('error').textContent = data.detail || 'Login failed';
+                    document.getElementById('error').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('error').textContent = 'Login failed';
+                document.getElementById('error').style.display = 'block';
+            }
+        });
         
+        function showChangePasswordForm() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('changePasswordForm').style.display = 'block';
+        }
+        
+        function hideChangePasswordForm() {
+            document.getElementById('changePasswordForm').style.display = 'none';
+            document.getElementById('changeError').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
+        }
+        
+        document.getElementById('passwordChangeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (newPassword !== confirmPassword) {
+                document.getElementById('changeError').textContent = 'Passwords do not match';
+                document.getElementById('changeError').style.display = 'block';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('username', document.getElementById('changeUsername').value);
+            formData.append('new_password', newPassword);
+            
+            try {
+                const response = await fetch('/auth/change-password', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('Password changed successfully! You can now login with your new password.');
+                    hideChangePasswordForm();
+                    document.getElementById('passwordChangeForm').reset();
+                } else {
+                    document.getElementById('changeError').textContent = data.detail || 'Failed to change password';
+                    document.getElementById('changeError').style.display = 'block';
+                }
+            } catch (error) {
+                document.getElementById('changeError').textContent = 'Failed to change password';
+                document.getElementById('changeError').style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
