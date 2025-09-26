@@ -3037,7 +3037,7 @@ async def get_order_split_details_api(
 async def partial_checkout_api(
     request: Request,
     order_id: int,
-    item_ids: str = Form(...),
+    items_data: str = Form(...),
     waiter_id: int = Form(...),
     tip_amount: float = Form(0.0),
     db: Session = Depends(get_db)
@@ -3068,11 +3068,11 @@ async def partial_checkout_api(
         print(f"Partial checkout: order_id={order_id}, restaurant_id={restaurant_id}")
         
         import json
-        item_ids_list = json.loads(item_ids)
-        print(f"Item IDs: {item_ids_list}")
+        items_list = json.loads(items_data)
+        print(f"Items with quantities: {items_list}")
         
-        from crud import partial_checkout_order
-        result = partial_checkout_order(db, order_id, item_ids_list, waiter_id, tip_amount, restaurant_id)
+        from crud import partial_checkout_order_with_qty
+        result = partial_checkout_order_with_qty(db, order_id, items_list, waiter_id, tip_amount, restaurant_id)
         print(f"Checkout result: {result}")
         
         if not result:

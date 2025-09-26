@@ -935,3 +935,105 @@ def get_order_split_details(db: Session, order_id: int, restaurant_id: int = Non
             details['unpaid_total'] += item_total
     
     return details
+
+def partial_checkout_order_with_qty(db: Session, order_id: int, items_with_qty: list, waiter_id: int, tip_amount: float = 0.0, restaurant_id: int = None):
+    """Process partial checkout for selected items with specific quantities"""
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    
+    # Get order and verify it belongs to restaurant
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.restaurant_id == restaurant_id,
+        Order.status == 'active'
+    ).first()
+    
+    if not order:
+        return None
+    
+    partial_total = 0
+    items_processed = 0
+    
+    # Process each item with its quantity
+    for item_data in items_with_qty:
+        item_id = item_data['id']
+        split_qty = item_data['qty']
+        
+        # Get the order item
+        order_item = db.query(OrderItem).filter(
+            OrderItem.id == item_id,
+            OrderItem.order_id == order_id,
+            OrderItem.paid == False
+        ).first()
+        
+        if not order_item:
+            continue
+            
+        # If splitting partial quantity, create new order item for remaining
+        if split_qty < order_item.qty:
+            # Create new order item for remaining quantity
+            remaining_item = OrderItem(
+                order_id=order_id,
+                product_id=order_item.product_id,
+                qty=order_item.qty - split_qty,
+                customizations=order_item.customizations,
+                is_extra_item=getattr(order_item, 'is_extra_item', False),
+                is_new_extra=False,
+                paid=False
+            )
+            db.add(remaining_item)
+            
+            # Update original item to split quantity
+            order_item.qty = split_qty
+        
+        # Mark the split quantity as paid
+        order_item.paid = True
+        partial_total += order_item.menu_item.price * split_qty
+        items_processed += 1
+        
+        # Create analytics record for split item
+        from models import AnalyticsRecord
+        from datetime import datetime
+        analytics_record = AnalyticsRecord(
+            restaurant_id=restaurant_id,
+            table_number=order.table.table_number,
+            waiter_id=waiter_id,
+            item_name=order_item.menu_item.name,
+            item_category=order_item.menu_item.category,
+            quantity=split_qty,
+            unit_price=order_item.menu_item.price,
+            total_price=order_item.menu_item.price * split_qty,
+            tip_amount=tip_amount * (order_item.menu_item.price * split_qty / partial_total) if partial_total > 0 else 0,
+            checkout_date=datetime.utcnow()
+        )
+        db.add(analytics_record)
+    
+    # Check if all items are paid
+    remaining_unpaid = db.query(OrderItem).filter(
+        OrderItem.order_id == order_id,
+        OrderItem.paid == False
+    ).count()
+    
+    # If no unpaid items remain, finish the order
+    if remaining_unpaid == 0:
+        order.status = 'finished'
+        order.waiter_id = waiter_id
+        order.tip_amount = (order.tip_amount or 0) + tip_amount
+        
+        # Reset table status
+        if order.table:
+            order.table.status = 'free'
+            order.table.checkout_requested = False
+            order.table.has_extra_order = False
+            order.table.checkout_method = None
+            order.table.tip_amount = 0.0
+    
+    db.commit()
+    
+    return {
+        'partial_total': partial_total,
+        'tip_amount': tip_amount,
+        'items_processed': items_processed,
+        'remaining_unpaid': remaining_unpaid,
+        'order_completed': remaining_unpaid == 0
+    }

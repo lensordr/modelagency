@@ -1118,10 +1118,16 @@ async function showSplitBillModal() {
                 <div id="split-items-list" style="margin: 15px 0;">
                     ${orderData.items.map(item => `
                         <div style="display: flex; align-items: center; padding: 8px; border: 1px solid #ddd; margin: 5px 0; border-radius: 5px;">
-                            <input type="checkbox" id="item-${item.id}" value="${item.id}" style="margin-right: 10px;">
+                            <input type="checkbox" id="item-${item.id}" value="${item.id}" data-price="${item.price}" data-max-qty="${item.qty}" style="margin-right: 10px;" onchange="toggleQuantitySelector(${item.id}, this.checked)">
                             <label for="item-${item.id}" style="flex: 1; cursor: pointer;">
                                 ${item.name} x${item.qty} - €${item.total.toFixed(2)}
                             </label>
+                            <div id="qty-selector-${item.id}" style="display: none; margin-left: 10px;">
+                                <label>Qty: </label>
+                                <select id="qty-${item.id}" style="width: 60px;" onchange="updateSplitTotal()">
+                                    ${Array.from({length: item.qty}, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}
+                                </select>
+                            </div>
                         </div>
                     `).join('')}
                 </div>
@@ -1133,12 +1139,7 @@ async function showSplitBillModal() {
                     </select>
                 </div>
                 
-                <div style="margin: 15px 0;">
-                    <label>Tip Amount:</label>
-                    <input type="number" id="split-tip-amount-dynamic" step="0.01" min="0" value="0" style="width: 100%; padding: 8px; margin-top: 5px;">
-                </div>
-                
-                <div style="margin: 15px 0; font-weight: bold;">
+                <div style="margin: 15px 0; font-weight: bold; font-size: 16px; color: #007bff;">
                     Selected Total: €<span id="split-total-dynamic">0.00</span>
                 </div>
                 
@@ -1214,7 +1215,7 @@ function updateSplitTotal() {
 async function processSplitCheckout() {
     const checkboxes = document.querySelectorAll('#split-items-list input[type="checkbox"]:checked');
     const waiterId = document.getElementById('split-waiter-select-dynamic').value;
-    const tipAmount = parseFloat(document.getElementById('split-tip-amount-dynamic').value) || 0;
+    const tipAmount = 0; // No tip in split bills
     
     if (checkboxes.length === 0) {
         showMessage('Please select at least one item', 'error');
@@ -1226,11 +1227,17 @@ async function processSplitCheckout() {
         return;
     }
     
-    const itemIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    // Collect items with their selected quantities
+    const itemsWithQty = Array.from(checkboxes).map(cb => {
+        const itemId = parseInt(cb.value);
+        const qtySelect = document.getElementById(`qty-${itemId}`);
+        const qty = qtySelect ? parseInt(qtySelect.value) : 1;
+        return { id: itemId, qty: qty };
+    });
     
     try {
         const formData = new FormData();
-        formData.append('item_ids', JSON.stringify(itemIds));
+        formData.append('items_data', JSON.stringify(itemsWithQty));
         formData.append('waiter_id', waiterId);
         formData.append('tip_amount', tipAmount.toString());
         
@@ -1251,6 +1258,31 @@ async function processSplitCheckout() {
         }
     } catch (error) {
         showMessage('Error connecting to server', 'error');
+    }
+}
+
+function toggleQuantitySelector(itemId, checked) {
+    const selector = document.getElementById(`qty-selector-${itemId}`);
+    if (selector) {
+        selector.style.display = checked ? 'block' : 'none';
+    }
+    updateSplitTotal();
+}
+
+function updateSplitTotal() {
+    const checkboxes = document.querySelectorAll('#split-items-list input[type="checkbox"]:checked');
+    let total = 0;
+    
+    checkboxes.forEach(cb => {
+        const price = parseFloat(cb.getAttribute('data-price'));
+        const qtySelect = document.getElementById(`qty-${cb.value}`);
+        const qty = qtySelect ? parseInt(qtySelect.value) : 1;
+        total += price * qty;
+    });
+    
+    const totalSpan = document.getElementById('split-total-dynamic');
+    if (totalSpan) {
+        totalSpan.textContent = total.toFixed(2);
     }
 }
 
