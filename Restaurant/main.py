@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -1046,9 +1046,40 @@ async def download_ticket(
         )
         
     except ImportError:
-        raise HTTPException(status_code=500, detail="PDF generation not available - reportlab not installed")
+        # Fallback: return simple text receipt
+        receipt_text = f"""RECEIPT - {restaurant.name if restaurant else 'Restaurant'}
+
+Table: {table_number}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+Order #: {order_details['order_id']}
+
+--- ITEMS ---
+"""
+        for item in order_details['items']:
+            receipt_text += f"{item['name']} x{item['qty']} - €{item['total']:.2f}\n"
+        
+        order_total = order_details['total']
+        tip_amount = table.tip_amount or 0
+        products_plus_tip = order_total + tip_amount
+        iva_amount = products_plus_tip * 0.21
+        subtotal_without_iva = products_plus_tip - iva_amount
+        
+        receipt_text += f"""\n--- TOTALS ---
+Subtotal: €{order_total:.2f}
+Tip: €{tip_amount:.2f}
+Subtotal (excl. IVA): €{subtotal_without_iva:.2f}
+IVA (21%): €{iva_amount:.2f}
+TOTAL: €{products_plus_tip:.2f}
+
+Thank you for dining with us!"""
+        
+        return Response(
+            content=receipt_text,
+            media_type="text/plain",
+            headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.txt"}
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating receipt: {str(e)}")
 
 @app.post("/client/checkout")
 async def request_checkout(
