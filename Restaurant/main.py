@@ -3254,7 +3254,7 @@ async def download_pdf_receipt(
         # Fallback to text receipt if reportlab fails
         raise HTTPException(status_code=500, detail="PDF generation not available")
 
-# Simple Receipt Endpoint
+# Complete Order Receipt Endpoint
 @app.get("/client/simple-receipt/{table_number}")
 async def download_simple_receipt(
     table_number: int,
@@ -3262,82 +3262,71 @@ async def download_simple_receipt(
 ):
     from datetime import datetime
     from fastapi.responses import Response
-    from crud import get_active_order_by_table, get_table_by_number
+    from crud import get_order_details_by_table
     
-    # Get order and table - look for any recent order, not just active
-    restaurant_id = 1  # Default restaurant
-    table = get_table_by_number(db, table_number, restaurant_id)
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    
-    if not table:
-        raise HTTPException(status_code=404, detail="Table not found")
-    
-    # Try to get active order first, then most recent order
-    order = get_active_order_by_table(db, table_number, restaurant_id)
-    if not order:
-        # Get most recent order for this table
-        from models import Order
-        order = db.query(Order).filter(
-            Order.table_number == table_number,
-            Order.restaurant_id == restaurant_id
-        ).order_by(Order.created_at.desc()).first()
-    
-    if not order:
-        raise HTTPException(status_code=404, detail="No orders found for this table")
-    
-    # Build order details
-    order_details = {
-        'order_id': order.id,
-        'items': [],
-        'total': 0
-    }
-    
-    # Include ALL items (paid and unpaid)
-    for order_item in order.order_items:
-        item_total = order_item.menu_item.price * order_item.qty
-        order_details['items'].append({
-            'name': order_item.menu_item.name,
-            'qty': order_item.qty,
-            'total': item_total,
-            'customizations': order_item.customizations
-        })
-        order_details['total'] += item_total
-    
-    # Generate receipt
-    receipt_text = f"""RECEIPT - {restaurant.name if restaurant else 'Restaurant'}
+    try:
+        # Use the same logic as client order details to get complete order
+        restaurant_id = 1
+        details = get_order_details_by_table(db, table_number, restaurant_id)
+        
+        if not details:
+            raise HTTPException(status_code=404, detail="No order found for this table")
+        
+        # Get restaurant name
+        restaurant_name = "Restaurant"
+        try:
+            from models import Restaurant
+            restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+            if restaurant:
+                restaurant_name = restaurant.name
+        except:
+            pass
+        
+        # Build complete receipt with all items
+        receipt_text = f"""RECEIPT - {restaurant_name}
 {'='*40}
 Table: {table_number}
 Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-Order #: {order_details['order_id']}
+Order #: {details['order_id']}
 
---- ITEMS ---
+--- COMPLETE ORDER ---
 """
-    
-    for item in order_details['items']:
-        receipt_text += f"{item['name']} x{item['qty']} - €{item['total']:.2f}\n"
-    
-    # Calculate totals
-    order_total = order_details['total']
-    tip_amount = table.tip_amount or 0
-    products_plus_tip = order_total + tip_amount
-    iva_amount = products_plus_tip * 0.21
-    subtotal_without_iva = products_plus_tip - iva_amount
-    
-    receipt_text += f"""\n--- TOTALS ---
-Subtotal: €{order_total:.2f}
-Tip: €{tip_amount:.2f}
+        
+        total_amount = 0
+        for item in details['items']:
+            item_total = item['price'] * item['qty']
+            receipt_text += f"{item['name']} x{item['qty']} - €{item_total:.2f}"
+            if item.get('paid'):
+                receipt_text += " (PAID)"
+            receipt_text += "\n"
+            total_amount += item_total
+        
+        # Calculate totals
+        iva_amount = total_amount * 0.21
+        subtotal_without_iva = total_amount - iva_amount
+        
+        receipt_text += f"""\n--- TOTALS ---
+Subtotal: €{total_amount:.2f}
 Subtotal (excl. IVA): €{subtotal_without_iva:.2f}
 IVA (21%): €{iva_amount:.2f}
-TOTAL: €{products_plus_tip:.2f}
+TOTAL: €{total_amount:.2f}
 
 Thank you for dining with us!
 {'='*40}"""
-    
-    return Response(
-        content=receipt_text,
-        media_type="text/plain",
-        headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.txt"}
-    )
+        
+        return Response(
+            content=receipt_text,
+            media_type="text/plain",
+            headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.txt"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Receipt error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Receipt generation failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
