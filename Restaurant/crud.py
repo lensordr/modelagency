@@ -407,21 +407,21 @@ def finish_order_with_waiter(db: Session, table_number: int, waiter_id: int, res
             unpaid_total = sum(item.menu_item.price * item.qty for item in unpaid_items)
             print(f"Creating analytics for unpaid items totaling €{unpaid_total}")
             
-            for item in unpaid_items:
-                analytics_record = AnalyticsRecord(
-                    restaurant_id=restaurant_id,
-                    table_number=table_number,
-                    waiter_id=waiter_id,
-                    item_name=item.menu_item.name,
-                    item_category=item.menu_item.category,
-                    quantity=item.qty,
-                    unit_price=item.menu_item.price,
-                    total_price=item.menu_item.price * item.qty,
-                    tip_amount=(table.tip_amount or 0) * (item.menu_item.price * item.qty / unpaid_total) if unpaid_total > 0 else 0,
-                    checkout_date=datetime.utcnow()
-                )
-                db.add(analytics_record)
-                print(f"Added analytics record for {item.menu_item.name} x{item.qty}")
+            # Create one analytics record for the entire checkout (like split bills do)
+            analytics_record = AnalyticsRecord(
+                restaurant_id=restaurant_id,
+                table_number=table_number,
+                waiter_id=waiter_id,
+                item_name=f"Order #{order.id}",
+                item_category="Mixed",
+                quantity=sum(item.qty for item in unpaid_items),
+                unit_price=unpaid_total / sum(item.qty for item in unpaid_items) if unpaid_items else 0,
+                total_price=unpaid_total,
+                tip_amount=table.tip_amount or 0,
+                checkout_date=datetime.utcnow()
+            )
+            db.add(analytics_record)
+            print(f"Added single analytics record for order {order.id} with {len(unpaid_items)} items totaling €{unpaid_total}")
             
             # Mark items as paid after creating analytics
             for item in unpaid_items:

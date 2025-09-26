@@ -868,13 +868,35 @@ async def download_ticket(
     elif '/r/sushi' in referer:
         restaurant_id = 3
     
-    # Get order details
-    order_details = get_order_details(db, table_number, restaurant_id)
+    # Get order details (including paid items for receipt)
+    order = get_active_order_by_table(db, table_number, restaurant_id)
     table = get_table_by_number(db, table_number, restaurant_id)
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
     
-    if not order_details or not table:
+    if not order or not table:
         raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Build order details including ALL items (paid and unpaid) for receipt
+    order_details = {
+        'order_id': order.id,
+        'table_number': table_number,
+        'created_at': order.created_at,
+        'items': [],
+        'total': 0
+    }
+    
+    # Include ALL items for receipt (both paid and unpaid)
+    for order_item in order.order_items:
+        item_total = order_item.menu_item.price * order_item.qty
+        order_details['items'].append({
+            'id': order_item.id,
+            'name': order_item.menu_item.name,
+            'price': order_item.menu_item.price,
+            'qty': order_item.qty,
+            'total': item_total,
+            'customizations': order_item.customizations
+        })
+        order_details['total'] += item_total
     
     try:
         from reportlab.lib.pagesizes import letter, A4
