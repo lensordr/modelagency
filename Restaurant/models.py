@@ -113,6 +113,7 @@ class OrderItem(Base):
     is_extra_item = Column(Boolean, default=False)
     is_new_extra = Column(Boolean, default=False)
     customizations = Column(String(1000))  # JSON string for ingredient modifications
+    paid = Column(Boolean, default=False)  # For bill splitting
     
     order = relationship("Order", back_populates="order_items")
     menu_item = relationship("MenuItem", back_populates="order_items")

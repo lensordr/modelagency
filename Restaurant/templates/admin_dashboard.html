@@ -303,45 +303,4 @@
             messageDiv.className = type;
             messageDiv.style.display = 'block';
             
-            setTimeout(() => {
-                messageDiv.style.display = 'none';
-            }, 5000);
-        }
-
-        async function clearDatabase() {
-            if (!confirm('⚠️ WARNING: This will DELETE ALL DATA in the database!\n\nThis includes:\n- All restaurants\n- All users\n- All orders\n- All analytics\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?')) {
-                return;
-            }
-            
-            if (!confirm('Last chance! This will permanently delete EVERYTHING. Type "DELETE" to confirm:') || 
-                prompt('Type "DELETE" to confirm:') !== 'DELETE') {
-                return;
-            }
-            
-            try {
-                const response = await fetch('/admin/clear-database', {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-                const result = await response.json();
-                
-                if (result.message) {
-                    showMessage(result.message, 'success');
-                    setTimeout(() => {
-                        loadStats();
-                        loadRestaurants();
-                    }, 2000);
-                } else {
-                    showMessage(result.error || 'Error clearing database', 'error');
-                }
-            } catch (error) {
-                showMessage('Network error', 'error');
-            }
-        }
-
-        function logout() {
-            window.location.href = '/admin/logout';
-        }
-    </script>
-</body>
-</html>
+            setT

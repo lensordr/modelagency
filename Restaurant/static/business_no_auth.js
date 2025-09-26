@@ -17,6 +17,9 @@ document.addEventListener('DOMContentLoaded', function() {
     currentSection = 'live-orders';
     showSection('live-orders');
     
+    // Check plan features on load
+    checkPlanFeatures();
+    
     document.getElementById('upload-form').addEventListener('submit', uploadMenu);
     
     // Modal controls
@@ -338,6 +341,10 @@ async function showOrderDetails(tableNumber) {
             if (cancelBtn) {
                 cancelBtn.setAttribute('data-table', tableNumber);
             }
+            
+            // Show/hide split bill button based on plan
+            await checkPlanFeatures();
+            
             document.getElementById('order-modal').style.display = 'block';
         }
     } catch (error) {
@@ -1026,29 +1033,19 @@ async function cancelOrder() {
     }
 }
 
-async function cancelTableOrder(tableNumber) {
-    if (!confirm(`Are you sure you want to cancel the entire order for Table ${tableNumber}? This cannot be undone.`)) {
-        return;
-    }
-    
+async function checkPlanFeatures() {
     try {
-        const response = await fetch(`/business/cancel_order/${tableNumber}`, {
-            method: 'DELETE'
-        });
-        
+        const response = await fetch('/business/plan-features');
         const data = await response.json();
         
-        if (response.ok) {
-            showMessage(data.message, 'success');
-            loadDashboard();
-        } else {
-            showMessage(data.detail || 'Error cancelling order', 'error');
+        // Hide/show split bill button based on plan
+        const splitBtn = document.getElementById('split-bill-btn');
+        if (splitBtn) {
+            if (data.bill_splitting) {
+                splitBtn.style.display = 'inline-block';
+            } else {
+                splitBtn.style.display = 'none';
+            }
         }
     } catch (error) {
-        showMessage('Error connecting to server', 'error');
-    }
-}
-
-function printAllQRCodes() {
-    openQRCodesWindow();
-}
+        console.error('Error chec

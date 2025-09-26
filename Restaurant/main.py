@@ -25,7 +25,7 @@ try:
         create_order, update_table_status, get_all_tables, get_order_details,
         finish_order, toggle_menu_item_active, create_menu_item, get_active_order_by_table, add_items_to_order,
         get_sales_by_table_and_period, get_total_sales_summary, get_all_waiters, create_waiter, delete_waiter, finish_order_with_waiter,
-        get_sales_by_waiter_and_period, get_detailed_sales_data
+        get_sales_by_waiter_and_period, get_detailed_sales_data, partial_checkout_order, get_order_split_details
     )
     from auth import authenticate_user, create_access_token, get_current_user, require_admin  # type: ignore
 except ImportError as e:
@@ -2536,7 +2536,7 @@ async def get_analytics_api(
 ):
     try:
         # Get restaurant_id from request state (set by middleware)
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
+        restaurant_id = getattr(request.state, 'restaurant_id', 51)  # Use test-restaurant
         
         from analytics_service import get_analytics_for_period
         
@@ -2997,6 +2997,82 @@ async def export_sales_csv_simple(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename=sales_{period}_{target_date}.xlsx"}
     )
+
+# Plan Check API
+@app.get("/business/plan-features")
+async def get_plan_features(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    restaurant_id = getattr(request.state, 'restaurant_id', 51)
+    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+    
+    if not restaurant:
+        return {"bill_splitting": False, "advanced_analytics": False}
+    
+    return {
+        "bill_splitting": restaurant.plan_type in ["trial", "professional"],
+        "advanced_analytics": restaurant.plan_type in ["trial", "professional"],
+        "plan_type": restaurant.plan_type
+    }
+
+# Bill Split API Endpoints
+@app.get("/business/order/{order_id}/split-details")
+async def get_order_split_details_api(
+    request: Request,
+    order_id: int,
+    db: Session = Depends(get_db)
+):
+    restaurant_id = getattr(request.state, 'restaurant_id', 51)
+    
+    # Check plan access - only Trial and Professional
+    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+    if not restaurant or restaurant.plan_type not in ["trial", "professional"]:
+        raise HTTPException(status_code=403, detail="Bill splitting requires Trial or Professional plan")
+    
+    from crud import get_order_split_details
+    details = get_order_split_details(db, order_id, restaurant_id)
+    if not details:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return details
+
+@app.post("/business/order/{order_id}/partial-checkout")
+async def partial_checkout_api(
+    request: Request,
+    order_id: int,
+    item_ids: str = Form(...),
+    waiter_id: int = Form(...),
+    tip_amount: float = Form(0.0),
+    db: Session = Depends(get_db)
+):
+    try:
+        restaurant_id = getattr(request.state, 'restaurant_id', 51)
+        
+        # Check plan access - only Trial and Professional
+        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+        if not restaurant or restaurant.plan_type not in ["trial", "professional"]:
+            raise HTTPException(status_code=403, detail="Bill splitting requires Trial or Professional plan")
+        
+        print(f"Partial checkout: order_id={order_id}, restaurant_id={restaurant_id}")
+        
+        import json
+        item_ids_list = json.loads(item_ids)
+        print(f"Item IDs: {item_ids_list}")
+        
+        from crud import partial_checkout_order
+        result = partial_checkout_order(db, order_id, item_ids_list, waiter_id, tip_amount, restaurant_id)
+        print(f"Checkout result: {result}")
+        
+        if not result:
+            raise HTTPException(status_code=400, detail="Unable to process partial checkout")
+        
+        return result
+        
+    except Exception as e:
+        print(f"Partial checkout error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

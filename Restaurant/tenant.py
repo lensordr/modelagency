@@ -93,20 +93,22 @@ def get_current_restaurant() -> Restaurant:
         raise HTTPException(status_code=400, detail="No restaurant context")
     return tenant_context.restaurant
 
-def requires_plan(required_plan: str):
+def requires_plan(required_plans):
     """Decorator to check if restaurant has required plan"""
     def decorator(func):
         def wrapper(*args, **kwargs):
             restaurant = get_current_restaurant()
             
-            # Trial users get professional features
-            if restaurant.plan_type == "trial":
+            # Convert single plan to list
+            if isinstance(required_plans, str):
+                plans = [required_plans]
+            else:
+                plans = required_plans
+            
+            # Check if restaurant plan is in allowed plans
+            if restaurant.plan_type in plans:
                 return func(*args, **kwargs)
             
-            # Check plan hierarchy: professional > basic
-            if required_plan == "professional" and restaurant.plan_type != "professional":
-                raise HTTPException(status_code=403, detail="Professional plan required")
-            
-            return func(*args, **kwargs)
+            raise HTTPException(status_code=403, detail=f"Plan required: {', '.join(plans)}")
         return wrapper
     return decorator

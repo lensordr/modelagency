@@ -169,12 +169,17 @@ def get_order_details(db: Session, table_number: int, restaurant_id: int = None)
         'total': 0
     }
     
+    # Only show unpaid items
     for order_item in order.order_items:
+        # Skip paid items
+        if getattr(order_item, 'paid', False):
+            continue
+            
         item_total = order_item.menu_item.price * order_item.qty
         is_extra = getattr(order_item, 'is_extra_item', False)
         is_new_extra = getattr(order_item, 'is_new_extra', False)
         
-        print(f"Item {order_item.menu_item.name}: is_extra_item={is_extra}, is_new_extra={is_new_extra}")
+        print(f"Item {order_item.menu_item.name}: is_extra_item={is_extra}, is_new_extra={is_new_extra}, paid={getattr(order_item, 'paid', False)}")
         
         details['items'].append({
             'id': order_item.id,
@@ -768,3 +773,129 @@ def cancel_order(db: Session, table_number: int, restaurant_id: int = None):
         db.commit()
         return True
     return False
+
+# Bill Split Functions (Trial & Professional only)
+def partial_checkout_order(db: Session, order_id: int, item_ids: list, waiter_id: int, tip_amount: float = 0.0, restaurant_id: int = None):
+    """Process partial checkout for selected items"""
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    
+    # Get order and verify it belongs to restaurant
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.restaurant_id == restaurant_id,
+        Order.status == 'active'
+    ).first()
+    
+    if not order:
+        return None
+    
+    # Mark selected items as paid
+    selected_items = db.query(OrderItem).filter(
+        OrderItem.order_id == order_id,
+        OrderItem.id.in_(item_ids),
+        OrderItem.paid == False
+    ).all()
+    
+    if not selected_items:
+        return None
+    
+    # Calculate partial total
+    partial_total = sum(item.menu_item.price * item.qty for item in selected_items)
+    
+    # Mark items as paid
+    for item in selected_items:
+        item.paid = True
+    
+    # Create analytics records for paid items
+    from models import AnalyticsRecord
+    for item in selected_items:
+        analytics_record = AnalyticsRecord(
+            restaurant_id=restaurant_id,
+            table_number=order.table.table_number,
+            waiter_id=waiter_id,
+            item_name=item.menu_item.name,
+            item_category=item.menu_item.category,
+            quantity=item.qty,
+            unit_price=item.menu_item.price,
+            total_price=item.menu_item.price * item.qty,
+            tip_amount=tip_amount * (item.menu_item.price * item.qty / partial_total) if partial_total > 0 else 0,
+            checkout_date=datetime.utcnow()
+        )
+        db.add(analytics_record)
+    
+    # Check if all items are paid
+    remaining_unpaid = db.query(OrderItem).filter(
+        OrderItem.order_id == order_id,
+        OrderItem.paid == False
+    ).count()
+    
+    # If no unpaid items remain, finish the order
+    if remaining_unpaid == 0:
+        order.status = 'finished'
+        order.waiter_id = waiter_id
+        order.tip_amount = (order.tip_amount or 0) + tip_amount
+        
+        # Reset table status
+        if order.table:
+            order.table.status = 'free'
+            order.table.checkout_requested = False
+            order.table.has_extra_order = False
+            order.table.checkout_method = None
+            order.table.tip_amount = 0.0
+    
+    db.commit()
+    
+    return {
+        'partial_total': partial_total,
+        'tip_amount': tip_amount,
+        'items_paid': len(selected_items),
+        'remaining_unpaid': remaining_unpaid,
+        'order_completed': remaining_unpaid == 0
+    }
+
+def get_order_split_details(db: Session, order_id: int, restaurant_id: int = None):
+    """Get order details with paid/unpaid status for bill splitting"""
+    if restaurant_id is None:
+        restaurant_id = get_current_restaurant_id()
+    
+    order = db.query(Order).filter(
+        Order.id == order_id,
+        Order.restaurant_id == restaurant_id
+    ).first()
+    
+    if not order:
+        return None
+    
+    details = {
+        'order_id': order.id,
+        'table_number': order.table.table_number if order.table else 0,
+        'created_at': order.created_at,
+        'status': order.status,
+        'items': [],
+        'paid_total': 0,
+        'unpaid_total': 0,
+        'total': 0
+    }
+    
+    for order_item in order.order_items:
+        item_total = order_item.menu_item.price * order_item.qty
+        item_data = {
+            'id': order_item.id,
+            'name': order_item.menu_item.name,
+            'price': order_item.menu_item.price,
+            'qty': order_item.qty,
+            'total': item_total,
+            'paid': order_item.paid,
+            'customizations': order_item.customizations
+        }
+        
+        details['items'].append(item_data)
+        details['total'] += item_total
+        
+        if order_item.paid:
+            details['paid_total'] += item_total
+        else:
+            details['unpaid_total'] += item_total
+    
+    return details
