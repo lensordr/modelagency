@@ -3154,6 +3154,79 @@ async def partial_checkout_api(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+# Simple Receipt Endpoint
+@app.get("/client/simple-receipt/{table_number}")
+async def download_simple_receipt(
+    table_number: int,
+    db: Session = Depends(get_db)
+):
+    from datetime import datetime
+    from fastapi.responses import Response
+    from crud import get_active_order_by_table, get_table_by_number
+    
+    # Get order and table
+    restaurant_id = 1  # Default restaurant
+    order = get_active_order_by_table(db, table_number, restaurant_id)
+    table = get_table_by_number(db, table_number, restaurant_id)
+    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+    
+    if not order or not table:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Build order details
+    order_details = {
+        'order_id': order.id,
+        'items': [],
+        'total': 0
+    }
+    
+    # Include ALL items (paid and unpaid)
+    for order_item in order.order_items:
+        item_total = order_item.menu_item.price * order_item.qty
+        order_details['items'].append({
+            'name': order_item.menu_item.name,
+            'qty': order_item.qty,
+            'total': item_total,
+            'customizations': order_item.customizations
+        })
+        order_details['total'] += item_total
+    
+    # Generate receipt
+    receipt_text = f"""RECEIPT - {restaurant.name if restaurant else 'Restaurant'}
+{'='*40}
+Table: {table_number}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+Order #: {order_details['order_id']}
+
+--- ITEMS ---
+"""
+    
+    for item in order_details['items']:
+        receipt_text += f"{item['name']} x{item['qty']} - €{item['total']:.2f}\n"
+    
+    # Calculate totals
+    order_total = order_details['total']
+    tip_amount = table.tip_amount or 0
+    products_plus_tip = order_total + tip_amount
+    iva_amount = products_plus_tip * 0.21
+    subtotal_without_iva = products_plus_tip - iva_amount
+    
+    receipt_text += f"""\n--- TOTALS ---
+Subtotal: €{order_total:.2f}
+Tip: €{tip_amount:.2f}
+Subtotal (excl. IVA): €{subtotal_without_iva:.2f}
+IVA (21%): €{iva_amount:.2f}
+TOTAL: €{products_plus_tip:.2f}
+
+Thank you for dining with us!
+{'='*40}"""
+    
+    return Response(
+        content=receipt_text,
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.txt"}
+    )
+
 if __name__ == "__main__":
     import uvicorn
     import os
