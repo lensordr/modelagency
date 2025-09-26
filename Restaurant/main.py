@@ -3254,7 +3254,7 @@ async def download_pdf_receipt(
         # Fallback to text receipt if reportlab fails
         raise HTTPException(status_code=500, detail="PDF generation not available")
 
-# Simple Working Receipt Endpoint
+# Detailed Receipt Endpoint
 @app.get("/client/simple-receipt/{table_number}")
 async def download_simple_receipt(
     table_number: int,
@@ -3263,17 +3263,81 @@ async def download_simple_receipt(
     from datetime import datetime
     from fastapi.responses import Response
     
-    # Create basic receipt that always works
-    restaurant_name = "Restaurant"
     try:
-        from models import Restaurant
-        restaurant = db.query(Restaurant).filter(Restaurant.id == 1).first()
-        if restaurant:
-            restaurant_name = restaurant.name
-    except:
-        pass
-    
-    receipt_text = f"""RECEIPT - {restaurant_name}
+        # Get order details using internal function
+        restaurant_id = 1
+        
+        # Try to get order details from client endpoint logic
+        from crud import get_active_order_by_table
+        order = get_active_order_by_table(db, table_number, restaurant_id)
+        
+        if not order:
+            raise Exception("No active order found")
+        
+        # Build order data
+        order_data = {
+            'order_id': order.id,
+            'items': []
+        }
+        
+        for order_item in order.order_items:
+            order_data['items'].append({
+                'name': order_item.menu_item.name,
+                'price': order_item.menu_item.price,
+                'qty': order_item.qty
+            })
+        
+        # Get restaurant name
+        restaurant_name = "Restaurant"
+        try:
+            from models import Restaurant
+            restaurant = db.query(Restaurant).filter(Restaurant.id == 1).first()
+            if restaurant:
+                restaurant_name = restaurant.name
+        except:
+            pass
+        
+        # Build detailed receipt
+        receipt_text = f"""RECEIPT - {restaurant_name}
+{'='*40}
+Table: {table_number}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+Order #: {order_data.get('order_id', 'N/A')}
+
+--- ITEMS ---
+"""
+        
+        subtotal = 0
+        for item in order_data.get('items', []):
+            item_total = item['price'] * item['qty']
+            receipt_text += f"{item['name']} x{item['qty']} - €{item_total:.2f}\n"
+            subtotal += item_total
+        
+        # Calculate IVA and total
+        iva_amount = subtotal * 0.21
+        subtotal_without_iva = subtotal - iva_amount
+        
+        receipt_text += f"""\n--- TOTALS ---
+Subtotal: €{subtotal:.2f}
+Subtotal (excl. IVA): €{subtotal_without_iva:.2f}
+IVA (21%): €{iva_amount:.2f}
+TOTAL: €{subtotal:.2f}
+
+Thank you for dining with us!
+{'='*40}"""
+        
+    except Exception as e:
+        # Fallback to basic receipt if detailed fails
+        restaurant_name = "Restaurant"
+        try:
+            from models import Restaurant
+            restaurant = db.query(Restaurant).filter(Restaurant.id == 1).first()
+            if restaurant:
+                restaurant_name = restaurant.name
+        except:
+            pass
+        
+        receipt_text = f"""RECEIPT - {restaurant_name}
 {'='*40}
 Table: {table_number}
 Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
