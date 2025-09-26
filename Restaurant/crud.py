@@ -172,7 +172,10 @@ def get_order_details(db: Session, table_number: int, restaurant_id: int = None)
     # Only show unpaid items
     for order_item in order.order_items:
         # Skip paid items
-        if getattr(order_item, 'paid', False):
+        is_paid = getattr(order_item, 'paid', False)
+        print(f"Item {order_item.menu_item.name}: paid={is_paid}")
+        if is_paid:
+            print(f"Skipping paid item: {order_item.menu_item.name}")
             continue
             
         item_total = order_item.menu_item.price * order_item.qty
@@ -1040,6 +1043,11 @@ def partial_checkout_order_with_qty(db: Session, order_id: int, items_with_qty: 
             order.table.has_extra_order = False
             order.table.checkout_method = None
             order.table.tip_amount = 0.0
+    
+    # Just update timestamp to trigger client refresh
+    if order.table:
+        from datetime import datetime
+        order.table.last_updated = datetime.utcnow()
     
     db.commit()
     

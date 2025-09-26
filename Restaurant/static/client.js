@@ -518,6 +518,8 @@ async function requestCheckout(method) {
     }
 }
 
+let lastOrderHash = '';
+
 async function checkTableStatus() {
     try {
         const response = await fetch(`/client/order_details/${tableNumber}`);
@@ -529,6 +531,17 @@ async function checkTableStatus() {
             setTimeout(() => {
                 location.reload();
             }, 2000);
+        } else if (data.has_order) {
+            // Check if order was recently updated (split bill)
+            if (data.recently_updated) {
+                console.log('Order recently updated, refreshing order display...');
+                // Remove existing order display and reload it
+                const existingOrder = document.getElementById('existing-order');
+                if (existingOrder) {
+                    existingOrder.remove();
+                }
+                displayExistingOrder(data);
+            }
         }
     } catch (error) {
         // Ignore errors in background check
