@@ -386,13 +386,49 @@ def finish_order_with_waiter(db: Session, table_number: int, waiter_id: int, res
     order = get_active_order_by_table(db, table_number, restaurant_id)
     table = get_table_by_number(db, table_number, restaurant_id)
     if order and table:
+        # Only create analytics for unpaid items (remaining items)
+        unpaid_items = [item for item in order.order_items if not getattr(item, 'paid', False)]
+        
+        if unpaid_items:
+            # Mark remaining items as paid to avoid double processing
+            for item in unpaid_items:
+                item.paid = True
+            
+            # Create analytics records only for unpaid items
+            from models import AnalyticsRecord
+            from datetime import datetime
+            
+            # Calculate total for unpaid items only
+            unpaid_total = sum(item.menu_item.price * item.qty for item in unpaid_items)
+            
+            for item in unpaid_items:
+                analytics_record = AnalyticsRecord(
+                    restaurant_id=restaurant_id,
+                    table_number=table_number,
+                    waiter_id=waiter_id,
+                    item_name=item.menu_item.name,
+                    item_category=item.menu_item.category,
+                    quantity=item.qty,
+                    unit_price=item.menu_item.price,
+                    total_price=item.menu_item.price * item.qty,
+                    tip_amount=(table.tip_amount or 0) * (item.menu_item.price * item.qty / unpaid_total) if unpaid_total > 0 else 0,
+                    checkout_date=datetime.utcnow()
+                )
+                db.add(analytics_record)
+        
+        # Reset table status
+        table.status = 'free'
+        table.checkout_requested = False
+        table.has_extra_order = False
+        table.checkout_method = None
+        table.tip_amount = 0.0
+        table.food_ready = False
+        
         order.status = 'finished'
         order.waiter_id = waiter_id
-        order.tip_amount = table.tip_amount or 0.0
+        order.tip_amount = (order.tip_amount or 0) + (table.tip_amount or 0.0)
         db.commit()
         db.refresh(order)
-        
-        # Analytics handled by checkout_table endpoint
     return order
 
 def update_analytics_from_order(db: Session, order, restaurant_id: int = None):

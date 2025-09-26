@@ -2110,46 +2110,10 @@ async def checkout_table(
     table = get_table_by_number(db, table_number, restaurant_id)
     
     if order and table:
-        # Group items by category
-        category_totals = {}
-        for item in order.order_items:
-            category = item.menu_item.category
-            if category not in category_totals:
-                category_totals[category] = {'quantity': 0, 'total_price': 0}
-            category_totals[category]['quantity'] += item.qty
-            category_totals[category]['total_price'] += item.menu_item.price * item.qty
-        
-        total_order_price = sum(cat['total_price'] for cat in category_totals.values())
-        
-        # Create one analytics record per category
-        for category, totals in category_totals.items():
-            analytics_record = AnalyticsRecord(
-                restaurant_id=restaurant_id,
-                table_number=table_number,
-                waiter_id=waiter_id,
-                item_name=f"Order #{order.id}",
-                item_category=category,
-                quantity=totals['quantity'],
-                unit_price=totals['total_price'] / totals['quantity'] if totals['quantity'] > 0 else 0,
-                total_price=totals['total_price'],
-                tip_amount=(table.tip_amount or 0.0) * (totals['total_price'] / total_order_price) if total_order_price > 0 else 0,
-                checkout_date=datetime.utcnow()
-            )
-            db.add(analytics_record)
-        
-        # Finish the order
+        # Finish the order (this will handle analytics for unpaid items only)
         finish_order_with_waiter(db, table_number, waiter_id, restaurant_id)
         
-        # Clear table status after checkout
-        table.status = 'free'
-        table.checkout_requested = False
-        table.has_extra_order = False
-        table.checkout_method = None
-        table.tip_amount = 0.0
-        table.food_ready = False
-        db.commit()
-        
-        print(f"Created {len(category_totals)} analytics records for order {order.id}: €{total_order_price} + €{table.tip_amount or 0} tip")
+        print(f"Checkout completed for table {table_number} - analytics handled by finish_order_with_waiter")
     
     return {"message": "Table checkout completed successfully"}
 
