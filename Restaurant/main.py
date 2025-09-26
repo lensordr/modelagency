@@ -45,6 +45,24 @@ async def lifespan(app: FastAPI):
     # Startup
     create_tables()
     
+    # Run database migrations
+    try:
+        from sqlalchemy import text
+        db = next(get_db())
+        # Add paid column if it doesn't exist
+        try:
+            db.execute(text("ALTER TABLE order_items ADD COLUMN paid BOOLEAN DEFAULT FALSE"))
+            db.commit()
+            print("✅ Added 'paid' column to order_items table")
+        except Exception as e:
+            if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
+                print("✅ 'paid' column already exists")
+            else:
+                print(f"⚠️ Migration warning: {e}")
+        db.close()
+    except Exception as e:
+        print(f"⚠️ Migration error: {e}")
+    
     # Always initialize sample data
     db = next(get_db())
     init_sample_data(db)

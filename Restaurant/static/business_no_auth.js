@@ -1048,4 +1048,216 @@ async function checkPlanFeatures() {
             }
         }
     } catch (error) {
-        console.error('Error chec
+        console.error('Error checking plan features:', error);
+        // Hide button on error to be safe
+        const splitBtn = document.getElementById('split-bill-btn');
+        if (splitBtn) {
+            splitBtn.style.display = 'none';
+        }
+    }
+}
+
+async function cancelTableOrder(tableNumber) {
+    if (!confirm(`Are you sure you want to cancel the entire order for Table ${tableNumber}? This cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/business/cancel_order/${tableNumber}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showMessage(data.message, 'success');
+            loadDashboard();
+        } else {
+            showMessage(data.detail || 'Error cancelling order', 'error');
+        }
+    } catch (error) {
+        showMessage('Error connecting to server', 'error');
+    }
+}
+
+function printAllQRCodes() {
+    openQRCodesWindow();
+}
+// Bill Split Functions
+let splitBillData = null;
+
+async function showSplitBillModal() {
+    const tableNumber = document.getElementById('checkout-table-btn').getAttribute('data-table');
+    
+    try {
+        // Get order details for splitting
+        const response = await fetch(`/business/order_details/${tableNumber}`);
+        const orderData = await response.json();
+        
+        if (!response.ok) {
+            showMessage('Error loading order details', 'error');
+            return;
+        }
+        
+        splitBillData = orderData;
+        
+        // Create split bill modal
+        const modal = document.createElement('div');
+        modal.id = 'split-bill-modal-dynamic';
+        modal.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.5); z-index: 1001; display: flex; 
+            align-items: center; justify-content: center;
+        `;
+        
+        modal.innerHTML = `
+            <div style="background: white; padding: 20px; border-radius: 10px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <h3>Split Bill - Table ${tableNumber}</h3>
+                <p>Select items to checkout separately:</p>
+                
+                <div id="split-items-list" style="margin: 15px 0;">
+                    ${orderData.items.map(item => `
+                        <div style="display: flex; align-items: center; padding: 8px; border: 1px solid #ddd; margin: 5px 0; border-radius: 5px;">
+                            <input type="checkbox" id="item-${item.id}" value="${item.id}" style="margin-right: 10px;">
+                            <label for="item-${item.id}" style="flex: 1; cursor: pointer;">
+                                ${item.name} x${item.qty} - €${item.total.toFixed(2)}
+                            </label>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div style="margin: 15px 0;">
+                    <label>Waiter:</label>
+                    <select id="split-waiter-select-dynamic" style="width: 100%; padding: 8px; margin-top: 5px;">
+                        <option value="">Choose waiter...</option>
+                    </select>
+                </div>
+                
+                <div style="margin: 15px 0;">
+                    <label>Tip Amount:</label>
+                    <input type="number" id="split-tip-amount-dynamic" step="0.01" min="0" value="0" style="width: 100%; padding: 8px; margin-top: 5px;">
+                </div>
+                
+                <div style="margin: 15px 0; font-weight: bold;">
+                    Selected Total: €<span id="split-total-dynamic">0.00</span>
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button onclick="processSplitCheckout()" style="flex: 1; background: #28a745; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">
+                        Process Split Checkout
+                    </button>
+                    <button onclick="closeSplitBillModal()" style="flex: 1; background: #6c757d; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Load waiters for split modal
+        await loadWaitersForSplitModal();
+        
+        // Add event listeners for checkboxes
+        document.querySelectorAll('#split-items-list input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', updateSplitTotal);
+        });
+        
+    } catch (error) {
+        showMessage('Error loading split bill modal', 'error');
+    }
+}
+
+async function loadWaitersForSplitModal() {
+    try {
+        const response = await fetch('/business/waiters');
+        const data = await response.json();
+        
+        console.log('Loading waiters for split modal:', data);
+        
+        if (response.ok && data.waiters) {
+            const select = document.getElementById('split-waiter-select-dynamic');
+            if (select) {
+                select.innerHTML = '<option value="">Choose waiter...</option>';
+                data.waiters.forEach(waiter => {
+                    const option = document.createElement('option');
+                    option.value = waiter.id;
+                    option.textContent = waiter.name;
+                    select.appendChild(option);
+                });
+                console.log('Loaded', data.waiters.length, 'waiters for split modal');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading waiters for split modal:', error);
+    }
+}
+
+function updateSplitTotal() {
+    const checkboxes = document.querySelectorAll('#split-items-list input[type="checkbox"]:checked');
+    let total = 0;
+    
+    checkboxes.forEach(checkbox => {
+        const itemId = parseInt(checkbox.value);
+        const item = splitBillData.items.find(i => i.id === itemId);
+        if (item) {
+            total += item.total;
+        }
+    });
+    
+    const totalSpan = document.getElementById('split-total-dynamic');
+    if (totalSpan) {
+        totalSpan.textContent = total.toFixed(2);
+    }
+}
+
+async function processSplitCheckout() {
+    const checkboxes = document.querySelectorAll('#split-items-list input[type="checkbox"]:checked');
+    const waiterId = document.getElementById('split-waiter-select-dynamic').value;
+    const tipAmount = parseFloat(document.getElementById('split-tip-amount-dynamic').value) || 0;
+    
+    if (checkboxes.length === 0) {
+        showMessage('Please select at least one item', 'error');
+        return;
+    }
+    
+    if (!waiterId) {
+        showMessage('Please select a waiter', 'error');
+        return;
+    }
+    
+    const itemIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    try {
+        const formData = new FormData();
+        formData.append('item_ids', JSON.stringify(itemIds));
+        formData.append('waiter_id', waiterId);
+        formData.append('tip_amount', tipAmount.toString());
+        
+        const response = await fetch(`/business/order/${splitBillData.order_id}/partial-checkout`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showMessage('Split checkout completed successfully', 'success');
+            closeSplitBillModal();
+            closeModal();
+            loadDashboard();
+        } else {
+            showMessage(data.detail || 'Error processing split checkout', 'error');
+        }
+    } catch (error) {
+        showMessage('Error connecting to server', 'error');
+    }
+}
+
+function closeSplitBillModal() {
+    const modal = document.getElementById('split-bill-modal-dynamic');
+    if (modal) {
+        modal.remove();
+    }
+    splitBillData = null;
+}
