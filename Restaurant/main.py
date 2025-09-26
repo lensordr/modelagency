@@ -3041,7 +3041,22 @@ async def get_order_split_details_api(
     order_id: int,
     db: Session = Depends(get_db)
 ):
-    restaurant_id = getattr(request.state, 'restaurant_id', 51)
+    # Get restaurant ID from middleware or detect from URL
+    restaurant_id = getattr(request.state, 'restaurant_id', None)
+    if not restaurant_id:
+        # Fallback: detect from referer header
+        referer = request.headers.get('referer', '')
+        if '/r/' in referer:
+            try:
+                subdomain = referer.split('/r/')[1].split('/')[0]
+                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+                if restaurant:
+                    restaurant_id = restaurant.id
+            except:
+                pass
+        # Final fallback
+        if not restaurant_id:
+            restaurant_id = 1
     
     # Check plan access - only Trial and Professional
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
@@ -3064,7 +3079,22 @@ async def partial_checkout_api(
     db: Session = Depends(get_db)
 ):
     try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 51)
+        # Get restaurant ID from middleware or detect from URL
+        restaurant_id = getattr(request.state, 'restaurant_id', None)
+        if not restaurant_id:
+            # Fallback: detect from referer header
+            referer = request.headers.get('referer', '')
+            if '/r/' in referer:
+                try:
+                    subdomain = referer.split('/r/')[1].split('/')[0]
+                    restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+                    if restaurant:
+                        restaurant_id = restaurant.id
+                except:
+                    pass
+            # Final fallback
+            if not restaurant_id:
+                restaurant_id = 1
         
         # Check plan access - only Trial and Professional
         restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
