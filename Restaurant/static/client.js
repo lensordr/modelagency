@@ -571,7 +571,7 @@ async function deleteOrderItem(orderItemId) {
 }
 
 function downloadTicket() {
-    window.open(`/client/simple-receipt/${tableNumber}`, '_blank');
+    window.open(`/client/pdf-receipt/${tableNumber}`, '_blank');
 }
 
 function showMessage(message, type) {
