@@ -18,8 +18,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.getElementById('order-form').addEventListener('submit', placeOrder);
     
-    // Auto-refresh to detect when table is finished
-    setInterval(checkTableStatus, 5000);
+    // Auto-refresh to detect when table is finished or split happens
+    setInterval(checkTableStatus, 1000); // Check every 1 second for immediate refresh
 });
 
 async function loadMenu() {
