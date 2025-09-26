@@ -3164,14 +3164,26 @@ async def download_simple_receipt(
     from fastapi.responses import Response
     from crud import get_active_order_by_table, get_table_by_number
     
-    # Get order and table
+    # Get order and table - look for any recent order, not just active
     restaurant_id = 1  # Default restaurant
-    order = get_active_order_by_table(db, table_number, restaurant_id)
     table = get_table_by_number(db, table_number, restaurant_id)
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
     
-    if not order or not table:
-        raise HTTPException(status_code=404, detail="Order not found")
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    
+    # Try to get active order first, then most recent order
+    order = get_active_order_by_table(db, table_number, restaurant_id)
+    if not order:
+        # Get most recent order for this table
+        from models import Order
+        order = db.query(Order).filter(
+            Order.table_number == table_number,
+            Order.restaurant_id == restaurant_id
+        ).order_by(Order.created_at.desc()).first()
+    
+    if not order:
+        raise HTTPException(status_code=404, detail="No orders found for this table")
     
     # Build order details
     order_details = {
