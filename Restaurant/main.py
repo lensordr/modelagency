@@ -855,10 +855,17 @@ async def get_client_order_details(request: Request, table_number: int, db: Sess
         if table.last_updated and (datetime.utcnow() - table.last_updated) < timedelta(seconds=10):
             recently_updated = True
     
+    # Check refresh flag
+    refresh_needed = table.food_ready if table else False
+    if refresh_needed and table:
+        table.food_ready = False
+        db.commit()
+    
     return {
         "has_order": True, 
         "checkout_requested": table.checkout_requested if table else False,
         "recently_updated": recently_updated,
+        "refresh_needed": refresh_needed,
         **details
     }
 

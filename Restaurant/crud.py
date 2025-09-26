@@ -1049,6 +1049,10 @@ def partial_checkout_order_with_qty(db: Session, order_id: int, items_with_qty: 
         from datetime import datetime
         order.table.last_updated = datetime.utcnow()
     
+    # Set refresh flag for client
+    if order.table:
+        order.table.food_ready = True
+    
     db.commit()
     
     return {
