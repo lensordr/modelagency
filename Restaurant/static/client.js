@@ -532,11 +532,12 @@ async function checkTableStatus() {
                 location.reload();
             }, 2000);
         } else if (data.has_order) {
-            // Check if refresh is needed (split bill)
-            if (data.refresh_needed) {
-                console.log('Split bill detected, refreshing page...');
+            // Simple refresh check - compare order total
+            if (window.lastTotal !== undefined && data.total !== window.lastTotal) {
+                console.log(`Order changed: €${window.lastTotal} -> €${data.total}, refreshing...`);
                 location.reload();
             }
+            window.lastTotal = data.total;
         }
     } catch (error) {
         // Ignore errors in background check
