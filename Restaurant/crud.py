@@ -386,20 +386,26 @@ def finish_order_with_waiter(db: Session, table_number: int, waiter_id: int, res
     order = get_active_order_by_table(db, table_number, restaurant_id)
     table = get_table_by_number(db, table_number, restaurant_id)
     if order and table:
-        # Only create analytics for unpaid items (remaining items)
-        unpaid_items = [item for item in order.order_items if not getattr(item, 'paid', False)]
+        # Get all unpaid items (for regular checkout, all items are unpaid)
+        unpaid_items = []
+        for item in order.order_items:
+            try:
+                is_paid = getattr(item, 'paid', False)
+            except:
+                is_paid = False  # Fallback for items without paid column
+            if not is_paid:
+                unpaid_items.append(item)
+        
+        print(f"Finishing order {order.id}: Found {len(unpaid_items)} unpaid items out of {len(order.order_items)} total items")
         
         if unpaid_items:
-            # Mark remaining items as paid to avoid double processing
-            for item in unpaid_items:
-                item.paid = True
-            
-            # Create analytics records only for unpaid items
+            # Create analytics records for unpaid items
             from models import AnalyticsRecord
             from datetime import datetime
             
             # Calculate total for unpaid items only
             unpaid_total = sum(item.menu_item.price * item.qty for item in unpaid_items)
+            print(f"Creating analytics for unpaid items totaling €{unpaid_total}")
             
             for item in unpaid_items:
                 analytics_record = AnalyticsRecord(
@@ -415,6 +421,13 @@ def finish_order_with_waiter(db: Session, table_number: int, waiter_id: int, res
                     checkout_date=datetime.utcnow()
                 )
                 db.add(analytics_record)
+                print(f"Added analytics record for {item.menu_item.name} x{item.qty}")
+            
+            # Mark items as paid after creating analytics
+            for item in unpaid_items:
+                item.paid = True
+        else:
+            print(f"No unpaid items found for order {order.id} - no analytics created")
         
         # Reset table status
         table.status = 'free'

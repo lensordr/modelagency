@@ -25,9 +25,16 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
         
         print(f"Analytics service: restaurant_id={restaurant_id}, period={period}, start_date={start_date}, end_date={end_date}")
         
-        # Count unique orders by using distinct item_name (which contains "Order #123" format)
+        # Count orders by counting distinct checkout timestamps (rounded to minute)
+        # This works for both split bills and regular orders
         orders_query = db.query(
-            func.count(func.distinct(AnalyticsRecord.item_name))
+            func.count(func.distinct(
+                func.concat(
+                    AnalyticsRecord.table_number,
+                    '-',
+                    func.date_trunc('minute', AnalyticsRecord.checkout_date)
+                )
+            ))
         ).filter(
             func.date(AnalyticsRecord.checkout_date) >= start_date,
             func.date(AnalyticsRecord.checkout_date) <= end_date
