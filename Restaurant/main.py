@@ -3154,17 +3154,117 @@ async def partial_checkout_api(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-# Receipt for Checkout Requests
+# PDF Receipt Endpoint
+@app.get("/client/pdf-receipt/{table_number}")
+async def download_pdf_receipt(
+    table_number: int,
+    db: Session = Depends(get_db)
+):
+    from datetime import datetime
+    from fastapi.responses import StreamingResponse
+    from crud import get_active_order_by_table, get_table_by_number
+    import io
+    
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import inch
+        
+        # Get order and table
+        restaurant_id = 1
+        table = get_table_by_number(db, table_number, restaurant_id)
+        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
+        
+        if not table:
+            raise HTTPException(status_code=404, detail="Table not found")
+        
+        # Get order
+        order = get_active_order_by_table(db, table_number, restaurant_id)
+        if not order:
+            from models import Order
+            order = db.query(Order).filter(
+                Order.table_number == table_number,
+                Order.restaurant_id == restaurant_id
+            ).order_by(Order.created_at.desc()).first()
+        
+        if not order:
+            raise HTTPException(status_code=404, detail="No orders found")
+        
+        # Build order details
+        order_details = {'order_id': order.id, 'items': [], 'total': 0}
+        for order_item in order.order_items:
+            item_total = order_item.menu_item.price * order_item.qty
+            order_details['items'].append({
+                'name': order_item.menu_item.name,
+                'qty': order_item.qty,
+                'total': item_total
+            })
+            order_details['total'] += item_total
+        
+        # Create PDF
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Header
+        story.append(Paragraph(f"<b>{restaurant.name if restaurant else 'Restaurant'}</b>", styles['Title']))
+        story.append(Paragraph("RECEIPT", styles['Title']))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Order info
+        story.append(Paragraph(f"<b>Table:</b> {table_number}", styles['Normal']))
+        story.append(Paragraph(f"<b>Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
+        story.append(Paragraph(f"<b>Order #:</b> {order_details['order_id']}", styles['Normal']))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Items
+        for item in order_details['items']:
+            story.append(Paragraph(f"{item['name']} x{item['qty']} - €{item['total']:.2f}", styles['Normal']))
+        
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Totals
+        order_total = order_details['total']
+        tip_amount = table.tip_amount or 0
+        total_with_tip = order_total + tip_amount
+        iva = total_with_tip * 0.21
+        subtotal = total_with_tip - iva
+        
+        story.append(Paragraph(f"Subtotal: €{order_total:.2f}", styles['Normal']))
+        story.append(Paragraph(f"Tip: €{tip_amount:.2f}", styles['Normal']))
+        story.append(Paragraph(f"Subtotal (excl. IVA): €{subtotal:.2f}", styles['Normal']))
+        story.append(Paragraph(f"IVA (21%): €{iva:.2f}", styles['Normal']))
+        story.append(Paragraph(f"<b>TOTAL: €{total_with_tip:.2f}</b>", styles['Heading2']))
+        
+        story.append(Spacer(1, 0.3*inch))
+        story.append(Paragraph("Thank you for dining with us!", styles['Normal']))
+        
+        doc.build(story)
+        buffer.seek(0)
+        
+        return StreamingResponse(
+            io.BytesIO(buffer.getvalue()),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.pdf"}
+        )
+        
+    except ImportError:
+        # Fallback to text receipt if reportlab fails
+        raise HTTPException(status_code=500, detail="PDF generation not available")
+
+# Receipt from Analytics Data
 @app.get("/client/simple-receipt/{table_number}")
 async def download_simple_receipt(
     request: Request,
     table_number: int,
     db: Session = Depends(get_db)
 ):
-    from simple_receipt import generate_simple_receipt
-    from crud import get_order_details, get_table_by_number
+    from datetime import datetime
+    from fastapi.responses import Response
     
-    # Get restaurant_id from request state (like other endpoints)
+    # Get restaurant_id from request state
     restaurant_id = getattr(request.state, 'restaurant_id', 1)
     referer = request.headers.get('referer', '')
     
@@ -3175,7 +3275,6 @@ async def download_simple_receipt(
             restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
             if restaurant:
                 restaurant_id = restaurant.id
-                print(f"Receipt: Detected restaurant_id={restaurant_id} from subdomain {subdomain}")
         except:
             pass
     
@@ -3186,101 +3285,67 @@ async def download_simple_receipt(
         restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
         if restaurant:
             restaurant_name = restaurant.name
-            print(f"Receipt: Using restaurant '{restaurant_name}' (ID: {restaurant_id})")
     except:
         pass
     
-    # Use the same function as client order details
-    order_details = get_order_details(db, table_number, restaurant_id)
-    table = get_table_by_number(db, table_number, restaurant_id)
-    
-    if order_details:
-        # Get tip amount from table
-        tip_amount = table.tip_amount if table else 0
-        
-        # Use the existing receipt generator
-        return generate_simple_receipt(order_details, table_number, restaurant_name, tip_amount)
-    else:
-        # No order found
-        from datetime import datetime
-        from fastapi.responses import Response
-        
-        receipt_text = f"""RECEIPT - {restaurant_name}
-{'='*40}
-Table: {table_number}
-Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-
-No active order found.
-Receipt is available after placing an order.
-
-Thank you for dining with us!
-{'='*40}"""
-        
-        return Response(
-            content=receipt_text,
-            media_type="text/plain",
-            headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.txt"}
-        )
-
-# PDF Receipt Endpoint
-@app.get("/client/pdf-receipt/{table_number}")
-async def download_pdf_receipt(
-    request: Request,
-    table_number: int,
-    db: Session = Depends(get_db)
-):
-    from pdf_receipt import generate_pdf_receipt
+    # Try to get order details first
     from crud import get_order_details, get_table_by_number
-    
-    # Get restaurant_id from request state
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    
-    if '/r/' in referer:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-        except:
-            pass
-    
-    # Get restaurant name
-    restaurant_name = "Restaurant"
-    try:
-        from models import Restaurant
-        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-        if restaurant:
-            restaurant_name = restaurant.name
-    except:
-        pass
-    
-    # Get order details
     order_details = get_order_details(db, table_number, restaurant_id)
     table = get_table_by_number(db, table_number, restaurant_id)
     
-    if order_details:
-        tip_amount = table.tip_amount if table else 0
-        return generate_pdf_receipt(order_details, table_number, restaurant_name, tip_amount)
-    else:
-        from datetime import datetime
-        from fastapi.responses import Response
+    if order_details and order_details.get('items'):
+        # Show detailed receipt with actual items
+        receipt_text = f"""RECEIPT - {restaurant_name}
+{'='*40}
+Table: {table_number}
+Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+Order #: {order_details['order_id']}
+
+--- ITEMS ---
+"""
         
+        total_amount = 0
+        for item in order_details['items']:
+            item_total = item['price'] * item['qty']
+            receipt_text += f"{item['name']} x{item['qty']} - €{item_total:.2f}\n"
+            total_amount += item_total
+        
+        # Add tip if available
+        tip_amount = table.tip_amount if table else 0
+        products_plus_tip = total_amount + tip_amount
+        iva_amount = products_plus_tip * 0.21
+        subtotal_without_iva = products_plus_tip - iva_amount
+        
+        receipt_text += f"""\n--- TOTALS ---
+Subtotal: €{total_amount:.2f}
+Tip: €{tip_amount:.2f}
+Subtotal (excl. IVA): €{subtotal_without_iva:.2f}
+IVA (21%): €{iva_amount:.2f}
+TOTAL: €{products_plus_tip:.2f}
+
+Thank you for dining with us!
+{'='*40}"""
+    else:
+        # Fallback to simple receipt
         receipt_text = f"""RECEIPT - {restaurant_name}
 {'='*40}
 Table: {table_number}
 Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 
-No active order found.
+--- ORDER RECEIPT ---
+Your order has been processed.
 
+Table: {table_number}
 Thank you for dining with us!
+
+For detailed itemization, please ask your waiter.
 {'='*40}"""
-        
-        return Response(
-            content=receipt_text,
-            media_type="text/plain",
-            headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.txt"}
-        )
+    
+    return Response(
+        content=receipt_text,
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.txt"}
+    )
 
 if __name__ == "__main__":
     import uvicorn

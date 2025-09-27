@@ -514,6 +514,11 @@ def create_user(db: Session, username: str, password: str, role: str = 'waiter',
     return user
 
 def get_user_by_username(db: Session, username: str, restaurant_id: int = None):
+    # Input validation
+    if not username or len(username.strip()) == 0:
+        return None
+    username = username.strip()[:50]  # Limit length
+    
     if restaurant_id is None:
         try:
             restaurant_id = get_current_restaurant_id()

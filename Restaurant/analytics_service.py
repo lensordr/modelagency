@@ -82,20 +82,23 @@ def get_analytics_for_period(db: Session, target_date: str, period: str = "day",
         
         print(f"Analytics service: Found {len(top_items)} top items for restaurant {restaurant_id}")
         
-        # Categories
+        # Categories - get from actual menu items, not stored analytics categories
+        from models import Order, OrderItem
         categories_query = db.query(
-            AnalyticsRecord.item_category.label('category'),
-            func.sum(AnalyticsRecord.quantity).label('quantity_sold'),
-            func.sum(AnalyticsRecord.total_price).label('revenue')
-        ).filter(
-            func.date(AnalyticsRecord.checkout_date) >= start_date,
-            func.date(AnalyticsRecord.checkout_date) <= end_date
+            MenuItem.category.label('category'),
+            func.sum(OrderItem.qty).label('quantity_sold'),
+            func.sum(OrderItem.qty * MenuItem.price).label('revenue')
+        ).join(OrderItem).join(Order).filter(
+            Order.status == 'finished',
+            func.date(Order.created_at) >= start_date,
+            func.date(Order.created_at) <= end_date,
+            MenuItem.category != 'Mixed'
         )
         if restaurant_id:
-            categories_query = categories_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
+            categories_query = categories_query.filter(Order.restaurant_id == restaurant_id)
         if waiter_id:
-            categories_query = categories_query.filter(AnalyticsRecord.waiter_id == waiter_id)
-        categories = categories_query.group_by(AnalyticsRecord.item_category).all()
+            categories_query = categories_query.filter(Order.waiter_id == waiter_id)
+        categories = categories_query.group_by(MenuItem.category).all()
         
         # Waiter performance - count distinct orders using item_name
         waiter_performance_query = db.query(
@@ -396,28 +399,31 @@ def get_category_comparison(db: Session, period: str = "month", target_date: str
             start_date = target_date_obj.replace(month=1, day=1)
             end_date = target_date_obj
         
-        # Category performance
+        # Category performance - use actual menu item categories
+        from models import Order, OrderItem
         categories_query = db.query(
-            AnalyticsRecord.item_category,
-            func.sum(AnalyticsRecord.quantity).label('total_quantity'),
-            func.sum(AnalyticsRecord.total_price).label('total_revenue'),
-            func.count(func.distinct(AnalyticsRecord.item_name)).label('unique_orders'),
-            func.count(func.distinct(AnalyticsRecord.item_name)).label('orders_count'),
-            func.avg(AnalyticsRecord.unit_price).label('avg_item_price')
-        ).filter(
+            MenuItem.category.label('item_category'),
+            func.sum(OrderItem.qty).label('total_quantity'),
+            func.sum(OrderItem.qty * MenuItem.price).label('total_revenue'),
+            func.count(func.distinct(Order.id)).label('unique_orders'),
+            func.count(func.distinct(Order.id)).label('orders_count'),
+            func.avg(MenuItem.price).label('avg_item_price')
+        ).select_from(MenuItem).join(OrderItem, MenuItem.id == OrderItem.product_id).join(Order, OrderItem.order_id == Order.id).filter(
             and_(
-                func.date(AnalyticsRecord.checkout_date) >= start_date,
-                func.date(AnalyticsRecord.checkout_date) <= end_date
+                Order.status == 'finished',
+                func.date(Order.created_at) >= start_date,
+                func.date(Order.created_at) <= end_date,
+                MenuItem.category != 'Mixed'
             )
         )
         if restaurant_id:
-            categories_query = categories_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
+            categories_query = categories_query.filter(Order.restaurant_id == restaurant_id)
         if waiter_id:
-            categories_query = categories_query.filter(AnalyticsRecord.waiter_id == waiter_id)
+            categories_query = categories_query.filter(Order.waiter_id == waiter_id)
         categories = categories_query.group_by(
-            AnalyticsRecord.item_category
+            MenuItem.category
         ).order_by(
-            desc(func.sum(AnalyticsRecord.total_price))
+            desc(func.sum(OrderItem.qty * MenuItem.price))
         ).all()
         
         # Calculate totals for percentages

@@ -7,8 +7,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from models import User, get_db
 
+import os
+
 # Configuration
-SECRET_KEY = "restaurant-secret-key-change-in-production"
+SECRET_KEY = os.getenv("SECRET_KEY", "restaurant-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
 
