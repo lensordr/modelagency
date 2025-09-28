@@ -102,26 +102,69 @@
         <div class="features">
             <h3>Professional Plan Includes:</h3>
             <ul>
+                <li>Everything in Basic Plan</li>
                 <li>Advanced Analytics Dashboard</li>
-                <li>Detailed Waiter Performance</li>
-                <li>Sales Trends & Forecasting</li>
-                <li>Category Analysis</li>
-                <li>CSV/Excel Export</li>
+                <li>Bill Splitting Feature</li>
+                <li>IVA Tax Reports</li>
+                <li>Excel Exports</li>
+                <li>Unlimited Tables</li>
                 <li>Priority Support</li>
+                <li>Custom Features</li>
             </ul>
         </div>
         
         <div style="margin-top: 30px;">
-            <a href="mailto:support@tablelink.com?subject=Upgrade to Professional - {{ restaurant_name }}" class="upgrade-btn">
-                Upgrade to Professional - $79/month
-            </a>
+            <button onclick="upgradeNow()" class="upgrade-btn">
+                Upgrade to Professional - €69/month
+            </button>
             <br>
-            <a href="/business" class="back-btn">Back to Dashboard</a>
+            <a href="/business/dashboard" class="back-btn">Back to Dashboard</a>
         </div>
         
         <p style="margin-top: 30px; color: #666; font-size: 14px;">
-            Questions? Contact us at support@tablelink.com
+            Questions? Contact us at <a href="mailto:lens.ordr@gmail.com">lens.ordr@gmail.com</a>
         </p>
     </div>
+    
+    <script>
+        async function upgradeNow() {
+            try {
+                // Get restaurant info for pre-filling
+                const response = await fetch('/business/restaurant-info');
+                const data = await response.json();
+                
+                if (!data.name) {
+                    // Try sessionStorage if API failed (new tab context)
+                    const storedData = sessionStorage.getItem('restaurant_upgrade_data');
+                    if (storedData) {
+                        data = JSON.parse(storedData);
+                    }
+                }
+                
+                // Build signup URL with pre-filled data
+                const currentPath = window.location.pathname;
+                let signupUrl = '/signup?upgrade=true';
+                
+                if (currentPath.includes('/r/')) {
+                    const subdomain = currentPath.split('/r/')[1].split('/')[0];
+                    const params = new URLSearchParams({
+                        upgrade: 'true',
+                        subdomain: subdomain,
+                        email: data.admin_email || '',
+                        restaurant_name: data.name || subdomain,
+                        username: data.admin_username || 'admin',
+                        table_count: data.table_count || 10
+                    });
+                    signupUrl = `/signup?${params.toString()}`;
+                }
+                
+                window.location.href = signupUrl;
+            } catch (error) {
+                console.error('Error during upgrade:', error);
+                // Fallback
+                window.location.href = '/signup?upgrade=true';
+            }
+        }
+    </script>
 </body>
 </html>

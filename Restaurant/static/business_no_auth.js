@@ -404,10 +404,11 @@ function displayMenuItems() {
     
     menuItems.forEach(item => {
         const itemRow = document.createElement('div');
-        itemRow.className = 'menu-item-row';
+        itemRow.className = `menu-item-row ${item.active ? 'active-item' : 'inactive-item'}`;
+        itemRow.style.opacity = item.active ? '1' : '0.6';
         itemRow.innerHTML = `
             <div class="menu-item-info">
-                <div class="menu-item-name">${item.name}</div>
+                <div class="menu-item-name" style="${item.active ? '' : 'text-decoration: line-through; color: #999;'}">${item.name}</div>
                 <div class="menu-item-price">€${item.price.toFixed(2)}</div>
                 <div style="font-size: 12px; color: #666;">${item.ingredients}</div>
             </div>
@@ -1087,6 +1088,31 @@ function printAllQRCodes() {
 let splitBillData = null;
 
 async function showSplitBillModal() {
+    // For Basic plan, check upgrade requirement first
+    try {
+        const response = await fetch('/business/plan-features');
+        const data = await response.json();
+        
+        if (data.plan_type === 'basic') {
+            // Store restaurant info in sessionStorage for the new tab
+            try {
+                const response = await fetch('/business/restaurant-info');
+                const restaurantData = await response.json();
+                sessionStorage.setItem('restaurant_upgrade_data', JSON.stringify(restaurantData));
+            } catch (error) {
+                console.error('Error getting restaurant info:', error);
+            }
+            
+            // Open upgrade page in new tab like analytics button
+            window.open(window.location.pathname.includes('/r/') ? window.location.pathname.replace('/business/dashboard', '/business/analytics') : '/business/analytics', '_blank');
+            return;
+        }
+    } catch (error) {
+        // On error, assume basic plan and open upgrade in new tab
+        window.open(window.location.pathname.includes('/r/') ? window.location.pathname.replace('/business/dashboard', '/business/analytics') : '/business/analytics', '_blank');
+        return;
+    }
+    
     const tableNumber = document.getElementById('checkout-table-btn').getAttribute('data-table');
     
     try {

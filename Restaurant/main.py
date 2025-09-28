@@ -594,7 +594,7 @@ async def update_restaurant_plan(
     # Set trial end date for new trials
     if plan_type == "trial":
         from datetime import datetime, timedelta
-        restaurant.trial_ends_at = datetime.utcnow() + timedelta(days=5)
+        restaurant.trial_ends_at = datetime.utcnow() + timedelta(days=15)
     else:
         restaurant.trial_ends_at = None
     
@@ -2190,7 +2190,7 @@ async def get_menu_items_route(request: Request, db: Session = Depends(get_db)):
     try:
         restaurant_id = getattr(request.state, 'restaurant_id', 1)
         print(f"Menu items API: Using restaurant_id={restaurant_id}")
-        categories = get_menu_items_by_category(db, include_inactive=False, restaurant_id=restaurant_id)
+        categories = get_menu_items_by_category(db, include_inactive=True, restaurant_id=restaurant_id)
         print(f"Found {len(categories)} categories for restaurant {restaurant_id}")
         items = []
         for category, category_items in categories.items():
@@ -3061,7 +3061,7 @@ async def get_plan_features(
         return {"bill_splitting": False, "advanced_analytics": False}
     
     return {
-        "bill_splitting": restaurant.plan_type in ["trial", "professional"],
+        "bill_splitting": True,
         "advanced_analytics": restaurant.plan_type in ["trial", "professional"],
         "plan_type": restaurant.plan_type
     }
