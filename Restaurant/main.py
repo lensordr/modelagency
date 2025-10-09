@@ -2736,7 +2736,9 @@ async def get_kitchen_orders(request: Request, db: Session = Depends(get_db)):
     for order in orders:
         order_items = []
         for item in order.order_items:
-            if item.menu_item.category == 'Food':
+            # Include food items from all languages
+            food_categories = ['Food', 'Comida', 'Plats', 'Nourriture', 'Essen', 'Cibo']
+            if item.menu_item.category in food_categories:
                 customizations = ''
                 if item.customizations:
                     try:
