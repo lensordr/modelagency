@@ -46,8 +46,16 @@ async def lifespan(app: FastAPI):
     try:
         create_tables()
         print("✅ Database tables created")
+        
+        # Quick check if data exists, if not initialize
+        db = next(get_db())
+        restaurant_count = db.query(Restaurant).count()
+        if restaurant_count == 0:
+            init_sample_data(db)
+            print("✅ Sample data initialized")
+        db.close()
     except Exception as e:
-        print(f"⚠️ Table creation error: {e}")
+        print(f"⚠️ Startup error: {e}")
     
     print("🚀 TableLink started successfully")
     yield
