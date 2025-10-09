@@ -43,6 +43,21 @@ except ImportError as e:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    try:
+        create_tables()
+        
+        # Only initialize if database is empty
+        db = next(get_db())
+        restaurant_count = db.query(Restaurant).count()
+        if restaurant_count == 0:
+            init_sample_data(db)
+        db.close()
+    except Exception as e:
+        if "too many connections" in str(e):
+            print("Database connection limit reached, skipping initialization")
+        else:
+            print(f"Startup error: {e}")
+    
     print("🚀 TableLink started successfully")
     yield
 

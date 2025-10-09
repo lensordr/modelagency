@@ -56,6 +56,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
                     print(f"Middleware: Rewrote path to {new_path} for restaurant {restaurant.id} ({restaurant.name})")
             
             db.close()
+        except Exception as db_error:
+            if "too many connections" in str(db_error):
+                print(f"Database connection limit reached: {db_error}")
+                # Set default values and continue
+                request.state.restaurant_id = 1
+                return await call_next(request)
+            else:
+                raise db_error
             
         except HTTPException as e:
             print(f"Restaurant not found: {e}")
@@ -64,22 +72,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"detail": "Restaurant not found or inactive"}, status_code=404)
         except Exception as e:
             print(f"Tenant middleware error: {e}")
-            # Only set fallback for direct localhost access (not /r/ URLs)
-            if not str(request.url.path).startswith('/r/'):
-                try:
-                    db = next(get_db())
-                    restaurant = db.query(Restaurant).filter(
-                        Restaurant.subdomain == 'demo',
-                        Restaurant.active == True
-                    ).first()
-                    if restaurant:
-                        request.state.restaurant = restaurant
-                        request.state.restaurant_id = restaurant.id
-                        set_tenant_context(restaurant)
-                        print(f"Middleware: Using fallback restaurant {restaurant.id} ({restaurant.name})")
-                    db.close()
-                except:
-                    pass
+            # Set fallback restaurant ID
+            request.state.restaurant_id = 1
         
         response = await call_next(request)
         return response
