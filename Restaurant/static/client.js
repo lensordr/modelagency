@@ -24,9 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadMenu() {
     try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const language = urlParams.get('lang') || 'en';
-        const response = await fetch(`/client/menu?table=${tableNumber}&lang=${language}`);
+        const response = await fetch(`/client/menu?table=${tableNumber}`);
         const data = await response.json();
         
         if (response.ok) {
