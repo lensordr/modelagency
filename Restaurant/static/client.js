@@ -24,7 +24,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadMenu() {
     try {
-        const response = await fetch(`/client/menu?table=${tableNumber}`);
+        const urlParams = new URLSearchParams(window.location.search);
+        const language = urlParams.get('lang') || 'en';
+        const response = await fetch(`/client/menu?table=${tableNumber}&lang=${language}`);
         const data = await response.json();
         
         if (response.ok) {
@@ -48,10 +50,22 @@ function displayMenu() {
     Object.keys(menu).forEach(category => {
         const categoryDiv = document.createElement('div');
         categoryDiv.className = 'menu-category';
-        categoryDiv.innerHTML = `<h3 class="category-title">${category}</h3>`;
+        
+        const categoryHeader = document.createElement('h3');
+        categoryHeader.className = 'category-title';
+        categoryHeader.textContent = category;
+        categoryHeader.style.cursor = 'pointer';
+        categoryHeader.onclick = function() {
+            if (categoryItems.style.display === 'none') {
+                categoryItems.style.display = 'grid';
+            } else {
+                categoryItems.style.display = 'none';
+            }
+        };
         
         const categoryItems = document.createElement('div');
         categoryItems.className = 'category-items';
+        categoryItems.style.display = 'none'; // Start collapsed
         
         menu[category].forEach(item => {
             const menuItemDiv = document.createElement('div');
@@ -72,6 +86,7 @@ function displayMenu() {
             categoryItems.appendChild(menuItemDiv);
         });
         
+        categoryDiv.appendChild(categoryHeader);
         categoryDiv.appendChild(categoryItems);
         menuContainer.appendChild(categoryDiv);
     });

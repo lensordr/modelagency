@@ -74,6 +74,10 @@ h2, h3 {
     gap: 15px;
 }
 
+.category-items.collapsed {
+    display: none;
+}
+
 .menu-item {
     background: rgba(255, 255, 255, 0.95);
     padding: 1.5rem;
