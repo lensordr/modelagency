@@ -445,8 +445,13 @@ async function toggleProduct(productId) {
         const data = await response.json();
         
         if (response.ok) {
+            // Find the menu item and update its status
+            const menuItem = menuItems.find(item => item.id === productId);
+            if (menuItem) {
+                menuItem.active = data.is_active;
+                displayMenuItems(); // Refresh display with updated status
+            }
             showMessage(data.message, 'success');
-            loadMenuItems();
         } else {
             showMessage(data.detail || 'Error toggling product', 'error');
         }

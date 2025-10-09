@@ -1607,3 +1607,21 @@ button:disabled {
         margin-left: 1rem;
     }
 }
+.collapsed {
+    display: none !important;
+}
+
+.lang-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    margin: 0 5px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.lang-btn:hover {
+    background: #0056b3;
+}

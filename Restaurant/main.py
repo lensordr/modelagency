@@ -1640,8 +1640,17 @@ async def toggle_menu_item(
 ):
     try:
         restaurant_id = get_current_restaurant_id()
-        toggle_menu_item_active(db, item_id, restaurant_id)
-        return {"message": "Menu item status updated"}
+        item = db.query(MenuItem).filter(
+            MenuItem.id == item_id,
+            MenuItem.restaurant_id == restaurant_id
+        ).first()
+        if not item:
+            raise HTTPException(status_code=404, detail="Menu item not found")
+        
+        item.active = not item.active
+        db.commit()
+        
+        return {"message": "Menu item status updated", "is_active": item.active}
     except Exception as e:
         print(f"Error toggling menu item: {e}")
         raise HTTPException(status_code=500, detail=str(e))
