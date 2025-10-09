@@ -44,12 +44,6 @@ except ImportError as e:
 async def lifespan(app: FastAPI):
     # Startup
     create_tables()
-    
-    # Always initialize sample data (includes test-restaurant)
-    db = next(get_db())
-    init_sample_data(db)
-    db.close()
-    
     print("🚀 TableLink started successfully")
     yield
 
