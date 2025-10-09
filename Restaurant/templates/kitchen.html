@@ -161,7 +161,8 @@
                 const orderCard = document.createElement('div');
                 orderCard.className = `order-card ${order.is_new ? 'new-order' : ''}`;
                 
-                const foodItems = order.items.filter(item => item.category === 'Food');
+                const foodCategories = ['Food', 'Comida', 'Plats', 'Nourriture', 'Essen', 'Cibo'];
+                const foodItems = order.items.filter(item => foodCategories.includes(item.category));
                 if (foodItems.length === 0) return;
                 
                 orderCard.innerHTML = `
