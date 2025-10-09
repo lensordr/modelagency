@@ -42,38 +42,14 @@ except ImportError as e:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    create_tables()
-    
-    # Run database migrations
+    # Startup - minimal operations only
     try:
-        from sqlalchemy import text
-        db = next(get_db())
-        # Add paid column if it doesn't exist
-        try:
-            db.execute(text("ALTER TABLE order_items ADD COLUMN paid BOOLEAN DEFAULT FALSE"))
-            db.commit()
-            print("✅ Added 'paid' column to order_items table")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
-                print("✅ 'paid' column already exists")
-            else:
-                print(f"⚠️ Migration warning: {e}")
-        db.close()
+        create_tables()
+        print("✅ Database tables created")
     except Exception as e:
-        print(f"⚠️ Migration error: {e}")
+        print(f"⚠️ Table creation error: {e}")
     
-    # Always initialize sample data
-    db = next(get_db())
-    init_sample_data(db)
-    db.close()
-    
-    if is_setup_complete():
-        config = get_setup_config()
-        print(f"\nWelcome back to {config.get('restaurant_name', 'TablePulse')}!")
-    else:
-        print("\nSetup available at /setup - using default data for now")
-    
+    print("🚀 TableLink started successfully")
     yield
 
 app = FastAPI(lifespan=lifespan)
