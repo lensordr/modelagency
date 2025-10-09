@@ -70,6 +70,7 @@ class MenuItem(Base):
     ingredients = Column(String(500))
     price = Column(Float, nullable=False)
     category = Column(String(50), default='Food')
+    language = Column(String(5), default='en')
     active = Column(Boolean, default=True)
     
     restaurant = relationship("Restaurant", back_populates="menu_items")

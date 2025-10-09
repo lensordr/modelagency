@@ -775,7 +775,25 @@ async def client_page(request: Request, table: int = None):
     })
 
 @app.get("/table/{table_number}", response_class=HTMLResponse)
-async def table_page(request: Request, table_number: int):
+async def table_page(request: Request, table_number: int, lang: str = None, db: Session = Depends(get_db)):
+    restaurant_id = getattr(request.state, 'restaurant_id', 1)
+    
+    # Check available languages
+    available_languages = db.query(MenuItem.language).filter(
+        MenuItem.restaurant_id == restaurant_id,
+        MenuItem.active == True
+    ).distinct().all()
+    available_languages = [lang[0] for lang in available_languages if lang[0]]
+    
+    # If no language specified and multiple languages available, show language selection
+    if not lang and len(available_languages) > 1:
+        return templates.TemplateResponse("language_selection.html", {
+            "request": request,
+            "table_number": table_number,
+            "available_languages": available_languages,
+            "restaurant_name": get_restaurant_name()
+        })
+    
     restaurant_name = get_restaurant_name()
     return templates.TemplateResponse("client.html", {
         "request": request, 
@@ -784,7 +802,7 @@ async def table_page(request: Request, table_number: int):
     })
 
 @app.get("/client/menu")
-async def get_menu(request: Request, table: int, db: Session = Depends(get_db)):
+async def get_menu(request: Request, table: int, lang: str = 'en', db: Session = Depends(get_db)):
     # Get restaurant_id from request state
     restaurant_id = getattr(request.state, 'restaurant_id', 1)
     referer = request.headers.get('referer', '')
@@ -795,14 +813,24 @@ async def get_menu(request: Request, table: int, db: Session = Depends(get_db)):
     elif '/r/sushi' in referer:
         restaurant_id = 3
     
-    print(f"Client menu API: Using restaurant_id={restaurant_id}, referer={referer}")
+    print(f"Client menu API: Using restaurant_id={restaurant_id}, language={lang}")
     
     table_obj = get_table_by_number(db, table, restaurant_id)
     if not table_obj:
         raise HTTPException(status_code=404, detail="Table not found")
     
-    categories = get_menu_items_by_category(db, restaurant_id=restaurant_id)
-    print(f"Client menu: Found {len(categories)} categories for restaurant {restaurant_id}")
+    # Get available languages
+    available_languages = db.query(MenuItem.language).filter(
+        MenuItem.restaurant_id == restaurant_id,
+        MenuItem.active == True
+    ).distinct().all()
+    available_languages = [lang_tuple[0] for lang_tuple in available_languages if lang_tuple[0]]
+    
+    # Get menu items for specific language
+    from crud import get_menu_items_by_category_and_language
+    categories = get_menu_items_by_category_and_language(db, restaurant_id, lang)
+    print(f"Client menu: Found {len(categories)} categories for restaurant {restaurant_id} in {lang}")
+    
     menu_by_category = {}
     for category, items in categories.items():
         menu_by_category[category] = [
@@ -822,9 +850,11 @@ async def get_menu(request: Request, table: int, db: Session = Depends(get_db)):
         "table_number": table,
         "table_code": table_obj.code,
         "restaurant_name": restaurant_name,
-        "menu": menu_by_category
+        "menu": menu_by_category,
+        "available_languages": available_languages,
+        "current_language": lang
     })
-    print(f"Client menu: Returning menu for {restaurant_name} with {sum(len(items) for items in menu_by_category.values())} items")
+    print(f"Client menu: Returning menu for {restaurant_name} with {sum(len(items) for items in menu_by_category.values())} items in {lang}")
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -1462,9 +1492,9 @@ async def generate_qr_codes(request: Request, db: Session = Depends(get_db)):
     for table in tables:
         # Generate the customer URL for each table
         if restaurant:
-            table_url = f"https://tablelink.space/r/{restaurant.subdomain}/client?table={table.table_number}"
+            table_url = f"https://tablelink.space/r/{restaurant.subdomain}/table/{table.table_number}"
         else:
-            table_url = f"https://tablelink.space/client?table={table.table_number}"
+            table_url = f"https://tablelink.space/table/{table.table_number}"
         
         qr_data.append({
             "table_number": table.table_number,
@@ -1580,7 +1610,7 @@ async def finish_table_order(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/business/menu")
-async def get_business_menu(request: Request, db: Session = Depends(get_db)):
+async def get_business_menu(request: Request, lang: str = 'en', db: Session = Depends(get_db)):
     try:
         # Get restaurant_id from middleware
         restaurant_id = getattr(request.state, 'restaurant_id', None)
@@ -1599,8 +1629,8 @@ async def get_business_menu(request: Request, db: Session = Depends(get_db)):
         if not restaurant_id:
             restaurant_id = 1  # fallback
         
-        print(f"Business menu API: Using restaurant_id={restaurant_id}")
-        categories = get_menu_items_by_category(db, include_inactive=False, restaurant_id=restaurant_id)
+        print(f"Business menu API: Using restaurant_id={restaurant_id}, language={lang}")
+        categories = get_menu_items_by_category(db, include_inactive=False, restaurant_id=restaurant_id, language=lang)
         menu_by_category = {}
         for category, items in categories.items():
             menu_by_category[category] = [
@@ -1631,20 +1661,75 @@ async def toggle_menu_item(
         print(f"Error toggling menu item: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.delete("/business/menu/delete/{item_id}")
+async def delete_menu_item(
+    item_id: int,
+    db: Session = Depends(get_db)
+):
+    try:
+        restaurant_id = get_current_restaurant_id()
+        item = db.query(MenuItem).filter(
+            MenuItem.id == item_id,
+            MenuItem.restaurant_id == restaurant_id
+        ).first()
+        
+        if not item:
+            raise HTTPException(status_code=404, detail="Menu item not found")
+        
+        db.delete(item)
+        db.commit()
+        return {"message": "Menu item deleted successfully"}
+    except Exception as e:
+        print(f"Error deleting menu item: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/business/menu/add")
 async def add_menu_item(
     name: str = Form(...),
     ingredients: str = Form(...),
     price: float = Form(...),
     category: str = Form(...),
+    language: str = Form('en'),
     db: Session = Depends(get_db)
 ):
     try:
         restaurant_id = get_current_restaurant_id()
-        create_menu_item(db, name, ingredients, price, category, restaurant_id)
+        item = MenuItem(
+            restaurant_id=restaurant_id,
+            name=name,
+            ingredients=ingredients,
+            price=price,
+            category=category,
+            language=language,
+            active=True
+        )
+        db.add(item)
+        db.commit()
         return {"message": "Menu item added successfully"}
     except Exception as e:
         print(f"Error adding menu item: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/business/menu/delete/{item_id}")
+async def delete_menu_item(
+    item_id: int,
+    db: Session = Depends(get_db)
+):
+    try:
+        restaurant_id = get_current_restaurant_id()
+        item = db.query(MenuItem).filter(
+            MenuItem.id == item_id,
+            MenuItem.restaurant_id == restaurant_id
+        ).first()
+        
+        if not item:
+            raise HTTPException(status_code=404, detail="Menu item not found")
+        
+        db.delete(item)
+        db.commit()
+        return {"message": "Menu item deleted successfully"}
+    except Exception as e:
+        print(f"Error deleting menu item: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/test")
@@ -1974,10 +2059,15 @@ async def clear_database(request: Request, db: Session = Depends(get_db)):
 
 
 @app.post("/business/menu/upload")
-async def upload_menu_file(request: Request, menu_file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_menu_file(
+    request: Request, 
+    menu_file: UploadFile = File(...), 
+    language: str = Form('en'),
+    db: Session = Depends(get_db)
+):
     # Use middleware-detected restaurant_id
     restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    print(f"UPLOAD: Using restaurant_id={restaurant_id} from middleware")
+    print(f"UPLOAD: Using restaurant_id={restaurant_id}, language={language}")
     
     try:
         content = await menu_file.read()
@@ -1985,17 +2075,21 @@ async def upload_menu_file(request: Request, menu_file: UploadFile = File(...), 
         wb = openpyxl.load_workbook(io.BytesIO(content))
         ws = wb.active
         
-        # Deactivate existing items instead of deleting
-        db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).update({MenuItem.active: False})
+        # Only deactivate existing items of the same language
+        db.query(MenuItem).filter(
+            MenuItem.restaurant_id == restaurant_id,
+            MenuItem.language == language
+        ).update({MenuItem.active: False})
         
         count = 0
         for row in ws.iter_rows(min_row=2, values_only=True):
             if row and len(row) >= 3 and row[0] and row[2]:
                 name = str(row[0]).strip()
-                # Check if item exists
+                # Check if item exists for this language
                 existing = db.query(MenuItem).filter(
                     MenuItem.restaurant_id == restaurant_id,
-                    MenuItem.name == name
+                    MenuItem.name == name,
+                    MenuItem.language == language
                 ).first()
                 
                 if existing:
@@ -2005,18 +2099,19 @@ async def upload_menu_file(request: Request, menu_file: UploadFile = File(...), 
                     existing.category = str(row[3] if len(row) > 3 and row[3] else 'Food').strip()
                     existing.active = True
                 else:
-                    # Add new item
+                    # Add new item with language
                     db.add(MenuItem(
                         name=name,
                         ingredients=str(row[1] or '').strip(), 
                         price=float(row[2]),
                         category=str(row[3] if len(row) > 3 and row[3] else 'Food').strip(),
+                        language=language,
                         restaurant_id=restaurant_id,
                         active=True
                     ))
                 count += 1
         db.commit()
-        return {"message": "Success", "items": count, "restaurant_id": restaurant_id}
+        return {"message": "Success", "items": count, "language": language, "restaurant_id": restaurant_id}
     except Exception as e:
         db.rollback()
         return {"error": str(e)}

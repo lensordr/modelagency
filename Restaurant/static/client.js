@@ -6,12 +6,20 @@ let tableCode = '';
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     tableNumber = urlParams.get('table');
+    const language = urlParams.get('lang');
     
     if (tableNumber) {
         document.getElementById('table-number').textContent = tableNumber;
         document.getElementById('table-number-input').value = tableNumber;
-        loadMenu();
-        loadExistingOrder();
+        
+        // Only load menu if language is specified
+        if (language) {
+            loadMenu();
+            loadExistingOrder();
+        } else {
+            // No language specified - user should be on language selection page
+            return;
+        }
     } else {
         showMessage('Please specify a table number in the URL (?table=X)', 'error');
     }
@@ -24,12 +32,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadMenu() {
     try {
-        const response = await fetch(`/client/menu?table=${tableNumber}`);
+        const urlParams = new URLSearchParams(window.location.search);
+        const language = urlParams.get('lang') || 'en';
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/client', '') : '';
+        const response = await fetch(`${baseUrl}/client/menu?table=${tableNumber}&lang=${language}`);
         const data = await response.json();
         
         if (response.ok) {
             menu = data.menu;
             tableCode = data.table_code;
+            
+            // Show language selector only if multiple languages available
+            const langSelector = document.querySelector('.language-selector');
+            if (data.available_languages && data.available_languages.length > 1) {
+                langSelector.style.display = 'block';
+                updateLanguageButtons(data.available_languages, data.current_language);
+            } else {
+                langSelector.style.display = 'none';
+            }
+            
             displayMenu();
             document.getElementById('menu-section').style.display = 'block';
         } else {
@@ -352,7 +373,8 @@ async function placeOrder(event) {
         formData.append('code', code);
         formData.append('items', JSON.stringify(order));
         
-        const response = await fetch('/client/order', {
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/client', '') : '';
+        const response = await fetch(`${baseUrl}/client/order`, {
             method: 'POST',
             body: formData
         });
@@ -585,6 +607,36 @@ async function deleteOrderItem(orderItemId) {
 
 function downloadTicket() {
     window.open(`/client/simple-receipt/${tableNumber}`, '_blank');
+}
+
+function updateLanguageButtons(availableLanguages, currentLanguage) {
+    const langSelector = document.querySelector('.language-selector');
+    langSelector.innerHTML = '';
+    
+    const langNames = {
+        'en': '🇺🇸 English',
+        'es': '🇪🇸 Español', 
+        'fr': '🇫🇷 Français',
+        'de': '🇩🇪 Deutsch',
+        'it': '🇮🇹 Italiano'
+    };
+    
+    availableLanguages.forEach(lang => {
+        const btn = document.createElement('button');
+        btn.className = 'lang-btn';
+        btn.textContent = langNames[lang] || lang.toUpperCase();
+        btn.onclick = () => changeLanguage(lang);
+        if (lang === currentLanguage) {
+            btn.style.background = '#0056b3';
+        }
+        langSelector.appendChild(btn);
+    });
+}
+
+function changeLanguage(lang) {
+    const url = new URL(window.location);
+    url.searchParams.set('lang', lang);
+    window.location.href = url.toString();
 }
 
 function showMessage(message, type) {

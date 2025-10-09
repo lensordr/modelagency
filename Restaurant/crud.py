@@ -36,13 +36,15 @@ def get_active_menu_items(db: Session, restaurant_id: int = None):
         MenuItem.restaurant_id == restaurant_id
     ).order_by(MenuItem.category, MenuItem.name).all()
 
-def get_menu_items_by_category(db: Session, include_inactive: bool = False, restaurant_id: int = None):
+def get_menu_items_by_category(db: Session, include_inactive: bool = False, restaurant_id: int = None, language: str = None):
     if restaurant_id is None:
         restaurant_id = get_current_restaurant_id()
     
     query = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id)
     if not include_inactive:
         query = query.filter(MenuItem.active == True)
+    if language:
+        query = query.filter(MenuItem.language == language)
     
     items = query.order_by(MenuItem.category, MenuItem.name).all()
     categories = {}
@@ -51,6 +53,10 @@ def get_menu_items_by_category(db: Session, include_inactive: bool = False, rest
             categories[item.category] = []
         categories[item.category].append(item)
     return categories
+
+def get_menu_items_by_category_and_language(db: Session, restaurant_id: int, language: str = 'en'):
+    """Get menu items grouped by category for a specific language"""
+    return get_menu_items_by_category(db, include_inactive=False, restaurant_id=restaurant_id, language=language)
 
 def get_menu_item_by_id(db: Session, item_id: int, restaurant_id: int = None):
     if restaurant_id is None:

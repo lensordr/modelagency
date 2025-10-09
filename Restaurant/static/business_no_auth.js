@@ -386,11 +386,18 @@ async function finishTable() {
 
 async function loadMenuItems() {
     try {
-        const response = await fetch('/business/menu_items');
+        const language = document.getElementById('view-language')?.value || 'en';
+        const response = await fetch(`/business/menu?lang=${language}`);
         const data = await response.json();
         
         if (response.ok) {
-            menuItems = data.items;
+            // Convert categorized menu to flat array for display
+            menuItems = [];
+            Object.entries(data).forEach(([category, items]) => {
+                items.forEach(item => {
+                    menuItems.push({...item, category, active: item.is_active});
+                });
+            });
             displayMenuItems();
         }
     } catch (error) {
@@ -411,11 +418,15 @@ function displayMenuItems() {
                 <div class="menu-item-name" style="${item.active ? '' : 'text-decoration: line-through; color: #999;'}">${item.name}</div>
                 <div class="menu-item-price">€${item.price.toFixed(2)}</div>
                 <div style="font-size: 12px; color: #666;">${item.ingredients}</div>
+                <div style="font-size: 11px; color: #888;">${item.category}</div>
             </div>
-            <button class="toggle-btn ${item.active ? 'active' : 'inactive'}" 
-                    onclick="toggleProduct(${item.id})">
-                ${item.active ? 'Active' : 'Inactive'}
-            </button>
+            <div style="display: flex; gap: 5px;">
+                <button class="toggle-btn ${item.active ? 'active' : 'inactive'}" 
+                        onclick="toggleProduct(${item.id})">
+                    ${item.active ? 'Active' : 'Inactive'}
+                </button>
+                <button onclick="deleteMenuItem(${item.id})" style="background: #e53e3e; color: white; padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer;">🗑️</button>
+            </div>
         `;
         menuItemsList.appendChild(itemRow);
     });
@@ -423,8 +434,12 @@ function displayMenuItems() {
 
 async function toggleProduct(productId) {
     try {
-        const response = await fetch(`/business/toggle_product/${productId}`, {
-            method: 'POST'
+        const response = await fetch(`/business/menu/toggle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `item_id=${productId}`
         });
         
         const data = await response.json();
@@ -440,11 +455,78 @@ async function toggleProduct(productId) {
     }
 }
 
+async function addMenuItem() {
+    const name = document.getElementById('new-item-name').value.trim();
+    const price = document.getElementById('new-item-price').value;
+    const ingredients = document.getElementById('new-item-ingredients').value.trim();
+    const category = document.getElementById('new-item-category').value.trim();
+    const language = document.getElementById('view-language').value;
+    
+    if (!name || !price || !category) {
+        showMessage('Please fill in name, price, and category', 'error');
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('price', price);
+        formData.append('ingredients', ingredients);
+        formData.append('category', category);
+        formData.append('language', language);
+        
+        const response = await fetch('/business/menu/add', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showMessage('Menu item added successfully', 'success');
+            document.getElementById('new-item-name').value = '';
+            document.getElementById('new-item-price').value = '';
+            document.getElementById('new-item-ingredients').value = '';
+            document.getElementById('new-item-category').value = '';
+            loadMenuItems();
+        } else {
+            showMessage(data.detail || 'Error adding item', 'error');
+        }
+    } catch (error) {
+        showMessage('Error connecting to server', 'error');
+    }
+}
+
+async function deleteMenuItem(itemId) {
+    if (!confirm('Are you sure you want to delete this menu item?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/business/menu/delete/${itemId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showMessage('Menu item deleted successfully', 'success');
+            loadMenuItems();
+        } else {
+            showMessage(data.detail || 'Error deleting item', 'error');
+        }
+    } catch (error) {
+        showMessage('Error connecting to server', 'error');
+    }
+}
+
 async function uploadMenu(event) {
     event.preventDefault();
     
     const fileInput = document.getElementById('menu-file');
+    const languageSelect = document.getElementById('menu-language');
     const file = fileInput.files[0];
+    const language = languageSelect.value;
     
     if (!file) {
         showMessage('Please select a file', 'error');
@@ -453,6 +535,7 @@ async function uploadMenu(event) {
     
     const formData = new FormData();
     formData.append('menu_file', file);
+    formData.append('language', language);
     
     try {
         const response = await fetch('/business/menu/upload', {
@@ -463,7 +546,7 @@ async function uploadMenu(event) {
         const data = await response.json();
         
         if (response.ok) {
-            showMessage('Menu uploaded successfully', 'success');
+            showMessage(`Menu uploaded successfully in ${language.toUpperCase()}`, 'success');
             fileInput.value = '';
             loadMenuItems();
         } else {

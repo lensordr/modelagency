@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Language - {{ restaurant_name }}</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .language-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 { color: #333; margin-bottom: 0.5rem; }
+        .subtitle { color: #666; margin-bottom: 2rem; }
+        .language-btn {
+            display: block;
+            width: 100%;
+            padding: 15px 20px;
+            margin: 10px 0;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .language-btn:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="language-container">
+        <h1>🍽️ {{ restaurant_name }}</h1>
+        <p class="subtitle">📍 Table {{ table_number }}</p>
+        <h2>Select Language / Seleccionar Idioma</h2>
+        
+        {% for lang in available_languages %}
+        <button class="language-btn" onclick="selectLanguage('{{ lang }}')">
+            {% if lang == 'en' %}🇺🇸 English{% endif %}
+            {% if lang == 'es' %}🇪🇸 Español{% endif %}
+            {% if lang == 'fr' %}🇫🇷 Français{% endif %}
+            {% if lang == 'de' %}🇩🇪 Deutsch{% endif %}
+            {% if lang == 'it' %}🇮🇹 Italiano{% endif %}
+        </button>
+        {% endfor %}
+    </div>
+
+    <script>
+        function selectLanguage(lang) {
+            const baseUrl = window.location.pathname.replace('/table/', '/client?table=');
+            window.location.href = `${baseUrl}&lang=${lang}`;
+        }
+    </script>
+</body>
+</html>

@@ -142,13 +142,42 @@
                 <div class="upload-section">
                     <h3>📄 Upload Menu</h3>
                     <form id="upload-form" enctype="multipart/form-data">
+                        <div style="margin-bottom: 15px;">
+                            <label for="menu-language" style="display: block; margin-bottom: 5px; font-weight: 600;">Select Language:</label>
+                            <select id="menu-language" style="width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;">
+                                <option value="en">🇺🇸 English</option>
+                                <option value="es">🇪🇸 Spanish</option>
+                                <option value="fr">🇫🇷 French</option>
+                                <option value="de">🇩🇪 German</option>
+                                <option value="it">🇮🇹 Italian</option>
+                            </select>
+                        </div>
                         <input type="file" id="menu-file" accept=".xlsx,.xls,.pdf" required>
                         <button type="submit">Upload Menu</button>
                     </form>
                 </div>
                 
                 <div class="menu-items-section">
-                    <h3>🍴 Menu Items</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3>🍴 Menu Items</h3>
+                        <select id="view-language" onchange="loadMenuItems()" style="padding: 8px; border: 2px solid #e2e8f0; border-radius: 6px;">
+                            <option value="en">🇺🇸 English</option>
+                            <option value="es">🇪🇸 Spanish</option>
+                            <option value="fr">🇫🇷 French</option>
+                        </select>
+                    </div>
+                    
+                    <div style="background: #f0fff4; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #68d391;">
+                        <h4>➕ Add New Item</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                            <input type="text" id="new-item-name" placeholder="Item name" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <input type="number" id="new-item-price" placeholder="Price" step="0.01" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <input type="text" id="new-item-ingredients" placeholder="Ingredients" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <input type="text" id="new-item-category" placeholder="Category" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <button onclick="addMenuItem()" style="background: #38a169; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px;">Add Item</button>
+                    </div>
+                    
                     <div id="menu-items-list"></div>
                 </div>
             </div>

@@ -17,6 +17,10 @@
         <div id="table-info">
             <h2>📍 Table <span id="table-number">{{ table_number or 'Not specified' }}</span></h2>
             <p style="color: #718096; margin-top: 0.5rem;">Welcome! Browse our menu and place your order</p>
+            <div class="language-selector" style="margin-top: 1rem;">
+                <button onclick="changeLanguage('en')" class="lang-btn">🇺🇸 English</button>
+                <button onclick="changeLanguage('es')" class="lang-btn">🇪🇸 Español</button>
+            </div>
         </div>
 
         <div id="menu-section" style="display: none;">
