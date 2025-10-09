@@ -43,7 +43,6 @@ except ImportError as e:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    create_tables()
     print("🚀 TableLink started successfully")
     yield
 
