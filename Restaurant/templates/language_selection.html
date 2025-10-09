@@ -64,8 +64,8 @@
 
     <script>
         function selectLanguage(lang) {
-            const baseUrl = window.location.pathname.replace('/table/', '/client?table=');
-            window.location.href = `${baseUrl}&lang=${lang}`;
+            const currentPath = window.location.pathname;
+            window.location.href = `${currentPath}?lang=${lang}`;
         }
     </script>
 </body>
