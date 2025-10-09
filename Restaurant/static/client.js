@@ -4,8 +4,14 @@ let tableNumber = null;
 let tableCode = '';
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Extract table number from URL path (/table/X)
+    const pathParts = window.location.pathname.split('/');
+    const tableIndex = pathParts.indexOf('table');
+    if (tableIndex !== -1 && pathParts[tableIndex + 1]) {
+        tableNumber = pathParts[tableIndex + 1];
+    }
+    
     const urlParams = new URLSearchParams(window.location.search);
-    tableNumber = urlParams.get('table');
     const language = urlParams.get('lang');
     
     if (tableNumber) {
