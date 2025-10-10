@@ -2079,10 +2079,13 @@ async def upload_menu_file(
         for row in ws.iter_rows(min_row=2, values_only=True):
             if row and len(row) >= 3 and row[0] and row[2]:
                 name = str(row[0]).strip()
-                # Check if item exists for this language
+                category = str(row[3] if len(row) > 3 and row[3] else 'Food').strip()
+                
+                # Check if item exists for this language AND category
                 existing = db.query(MenuItem).filter(
                     MenuItem.restaurant_id == restaurant_id,
                     MenuItem.name == name,
+                    MenuItem.category == category,
                     MenuItem.language == language
                 ).first()
                 
@@ -2090,7 +2093,7 @@ async def upload_menu_file(
                     # Update existing item
                     existing.ingredients = str(row[1] or '').strip()
                     existing.price = float(row[2])
-                    existing.category = str(row[3] if len(row) > 3 and row[3] else 'Food').strip()
+                    existing.category = category
                     existing.active = True
                 else:
                     # Add new item with language
@@ -2098,7 +2101,7 @@ async def upload_menu_file(
                         name=name,
                         ingredients=str(row[1] or '').strip(), 
                         price=float(row[2]),
-                        category=str(row[3] if len(row) > 3 and row[3] else 'Food').strip(),
+                        category=category,
                         language=language,
                         restaurant_id=restaurant_id,
                         active=True

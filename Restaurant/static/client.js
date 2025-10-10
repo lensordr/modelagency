@@ -76,7 +76,9 @@ function displayMenu() {
     menuContainer.innerHTML = '';
     
     // Display menu by categories
-    Object.keys(menu).forEach(category => {
+    const categoryKeys = Object.keys(menu);
+    
+    categoryKeys.forEach((category, index) => {
         const categoryDiv = document.createElement('div');
         categoryDiv.className = 'menu-category';
         
@@ -94,9 +96,12 @@ function displayMenu() {
         
         const categoryItems = document.createElement('div');
         categoryItems.className = 'category-items';
+        categoryItems.id = `category-items-${index}`; // Unique ID for each category
         categoryItems.style.display = 'none'; // Start collapsed
         
-        menu[category].forEach(item => {
+        const categoryItemsList = menu[category] || [];
+        
+        categoryItemsList.forEach(item => {
             const menuItemDiv = document.createElement('div');
             menuItemDiv.className = 'menu-item';
             menuItemDiv.innerHTML = `
