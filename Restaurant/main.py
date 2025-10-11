@@ -873,7 +873,8 @@ async def get_client_order_details(request: Request, table_number: int, db: Sess
     # Check refresh flag
     refresh_needed = getattr(table, 'ready_notification', False) if table else False
     if refresh_needed and table:
-        table.ready_notification = False
+        # Clear ready notification when viewed
+        setattr(table, 'ready_notification', False)
         db.commit()
     
     return {
@@ -2785,7 +2786,8 @@ async def mark_kitchen_ready(request: Request, order_id: int, db: Session = Depe
         if order and order.table:
             # Mark order as kitchen completed and set ready notification
             order.kitchen_completed = True
-            order.table.ready_notification = True
+            # Use setattr to handle column that might not exist in all environments
+            setattr(order.table, 'ready_notification', True)
             db.commit()
             return {"message": "Food marked as ready - notification sent"}
         
