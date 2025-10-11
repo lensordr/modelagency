@@ -136,15 +136,44 @@
     </div>
 
     <script>
-        let readyOrders = new Set(); // Track which orders are marked ready
+        console.log('Kitchen page loaded');
+        
+        let loadAttempts = 0;
         
         async function loadKitchenOrders() {
+            console.log('Loading kitchen orders... (attempt', ++loadAttempts, ')');
             try {
-                const response = await fetch('/business/kitchen/orders');
+                const response = await fetch('/business/kitchen/orders', {
+                    cache: 'no-cache',
+                    headers: {
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
+                    }
+                });
+                console.log('Kitchen orders response:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                console.log('Kitchen orders data:', data);
                 displayKitchenOrders(data);
+                
+                // Reset error counter on success
+                loadAttempts = 0;
             } catch (error) {
                 console.error('Error loading kitchen orders:', error);
+                
+                // Show error message but keep trying
+                if (loadAttempts % 5 === 0) { // Show error every 5 attempts
+                    document.getElementById('orders-container').innerHTML = `
+                        <p style="color: red; text-align: center; grid-column: 1/-1;">
+                            ⚠️ Connection issue (attempt ${loadAttempts})<br>
+                            <small>Retrying automatically...</small>
+                        </p>
+                    `;
+                }
             }
         }
 
@@ -153,17 +182,17 @@
             container.innerHTML = '';
             
             if (orders.length === 0) {
-                container.innerHTML = '<p style="text-align: center; color: #666; grid-column: 1/-1;">No food orders pending</p>';
+                container.innerHTML = '<p style="text-align: center; color: white; grid-column: 1/-1; font-size: 1.2rem;">🍽️ No kitchen orders pending</p>';
                 return;
             }
             
             orders.forEach(order => {
                 const orderCard = document.createElement('div');
-                orderCard.className = `order-card ${order.is_new ? 'new-order' : ''}`;
+                orderCard.className = 'order-card';
                 
-                const foodCategories = ['Food', 'Comida', 'Plats', 'Nourriture', 'Essen', 'Cibo'];
-                const foodItems = order.items.filter(item => foodCategories.includes(item.category));
-                if (foodItems.length === 0) return;
+                // Backend already filters by needs_kitchen, so show all items
+                const kitchenItems = order.items;
+                if (kitchenItems.length === 0) return;
                 
                 orderCard.innerHTML = `
                     <div class="order-header">
@@ -171,17 +200,14 @@
                         <div class="order-time">${new Date(order.created_at).toLocaleTimeString()}</div>
                     </div>
                     <div class="food-items">
-                        ${foodItems.map(item => `
+                        ${kitchenItems.map(item => `
                             <div class="food-item">
                                 <div class="item-name">${item.name} <span class="item-qty">x${item.qty}</span></div>
                                 ${item.customizations ? `<div class="customizations">${item.customizations}</div>` : ''}
                             </div>
                         `).join('')}
                     </div>
-                    ${readyOrders.has(order.id) ? 
-                        `<button class="delete-btn" onclick="deleteKitchenOrder(${order.id})">🗑️ Remove from Kitchen</button>` :
-                        `<button class="ready-btn" onclick="markOrderReady(${order.id})">✅ Mark Ready</button>`
-                    }
+                    <button class="ready-btn" onclick="markOrderReady(${order.id})">✅ Mark All Ready</button>
                 `;
                 
                 container.appendChild(orderCard);
@@ -189,36 +215,42 @@
         }
 
         async function markOrderReady(orderId) {
+            console.log('Marking order ready:', orderId);
             try {
                 const response = await fetch(`/business/kitchen/ready/${orderId}`, {
                     method: 'POST'
                 });
+                console.log('Response status:', response.status);
+                
                 if (response.ok) {
-                    readyOrders.add(orderId); // Track this order as ready
-                    loadKitchenOrders(); // Refresh to show delete button
+                    const data = await response.json();
+                    console.log('Order marked ready:', data);
+                    loadKitchenOrders(); // Refresh orders
+                } else {
+                    console.error('Failed to mark order ready:', response.status);
                 }
             } catch (error) {
                 console.error('Error marking order ready:', error);
             }
         }
-        
-        async function deleteKitchenOrder(orderId) {
-            try {
-                const response = await fetch(`/business/kitchen/delete/${orderId}`, {
-                    method: 'DELETE'
-                });
-                if (response.ok) {
-                    readyOrders.delete(orderId); // Remove from ready set
-                    loadKitchenOrders(); // Refresh to remove the card
-                }
-            } catch (error) {
-                console.error('Error deleting kitchen order:', error);
-            }
-        }
 
-        // Auto-refresh every 5 seconds
-        setInterval(loadKitchenOrders, 5000);
+        // Auto-refresh every 2 seconds for faster updates
+        setInterval(loadKitchenOrders, 2000);
         loadKitchenOrders();
+        
+        // Force refresh when page becomes visible again
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                console.log('Page became visible - refreshing kitchen orders');
+                loadKitchenOrders();
+            }
+        });
+        
+        // Force refresh on window focus
+        window.addEventListener('focus', function() {
+            console.log('Window focused - refreshing kitchen orders');
+            loadKitchenOrders();
+        });
     </script>
 </body>
 </html>
