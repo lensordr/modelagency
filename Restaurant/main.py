@@ -2733,8 +2733,8 @@ async def get_kitchen_orders(request: Request, db: Session = Depends(get_db)):
     for order in orders:
         order_items = []
         for item in order.order_items:
-            # Only show items that have kitchen=YES in the Excel upload
-            if hasattr(item.menu_item, 'kitchen') and item.menu_item.kitchen == 'YES':
+            # Only show items that need kitchen preparation
+            if getattr(item.menu_item, 'needs_kitchen', True):
                 customizations = ''
                 if item.customizations:
                     try:
