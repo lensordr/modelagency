@@ -870,11 +870,8 @@ async def get_client_order_details(request: Request, table_number: int, db: Sess
         if table.last_updated and (datetime.utcnow() - table.last_updated) < timedelta(seconds=10):
             recently_updated = True
     
-    # Check refresh flag
+    # Check refresh flag (don't auto-clear, only clear when business opens modal)
     refresh_needed = getattr(table, 'ready_notification', False) if table else False
-    if refresh_needed and table:
-        table.ready_notification = False
-        db.commit()
     
     return {
         "has_order": True, 
