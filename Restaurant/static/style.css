@@ -425,6 +425,12 @@ button:disabled {
     color: white !important;
 }
 
+@keyframes blink-orange {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+
 .table-card.extra-order::after {
     content: "Extra Order";
     position: absolute;
