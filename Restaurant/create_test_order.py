@@ -1,65 +1,74 @@
 #!/usr/bin/env python3
+"""
+Create a test order for testing the ready notification system
+"""
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from models import get_db, Order, Table, OrderItem, MenuItem, Restaurant, Waiter
+from models import get_db, Order, OrderItem, Table, MenuItem, Restaurant
 from datetime import datetime
 
 def create_test_order():
     db = next(get_db())
     
-    print("Creating test data for receipt...")
-    
-    # Create restaurant if not exists
-    restaurant = db.query(Restaurant).filter(Restaurant.id == 1).first()
+    # Find test-restaurant
+    restaurant = db.query(Restaurant).filter(Restaurant.subdomain == 'test-restaurant').first()
     if not restaurant:
-        restaurant = Restaurant(id=1, name="Test Restaurant", subdomain="demo", active=True)
-        db.add(restaurant)
-        db.commit()
-        print("Created restaurant")
+        print("test-restaurant not found")
+        db.close()
+        return
     
-    # Create table if not exists
-    table = db.query(Table).filter(Table.table_number == 1, Table.restaurant_id == 1).first()
+    print(f"Using restaurant: {restaurant.name} (ID: {restaurant.id})")
+    
+    # Find a table
+    table = db.query(Table).filter(
+        Table.restaurant_id == restaurant.id,
+        Table.table_number == 3
+    ).first()
+    
     if not table:
-        table = Table(table_number=1, code="ABC", status="occupied", restaurant_id=1, tip_amount=5.0)
-        db.add(table)
-        db.commit()
-        print("Created table 1")
+        print("Table 3 not found")
+        db.close()
+        return
     
-    # Create menu items if not exist
-    pizza = db.query(MenuItem).filter(MenuItem.name == "Pizza Margherita", MenuItem.restaurant_id == 1).first()
-    if not pizza:
-        pizza = MenuItem(name="Pizza Margherita", price=12.0, category="Food", restaurant_id=1)
-        db.add(pizza)
+    # Find a menu item
+    menu_item = db.query(MenuItem).filter(
+        MenuItem.restaurant_id == restaurant.id,
+        MenuItem.active == True
+    ).first()
     
-    coke = db.query(MenuItem).filter(MenuItem.name == "Coca Cola", MenuItem.restaurant_id == 1).first()
-    if not coke:
-        coke = MenuItem(name="Coca Cola", price=3.5, category="Drinks", restaurant_id=1)
-        db.add(coke)
+    if not menu_item:
+        print("No active menu items found")
+        db.close()
+        return
+    
+    # Create order
+    order = Order(
+        restaurant_id=restaurant.id,
+        table_id=table.id,
+        created_at=datetime.utcnow(),
+        status='active',
+        kitchen_completed=False
+    )
+    db.add(order)
+    db.flush()  # Get the order ID
+    
+    # Add order item
+    order_item = OrderItem(
+        order_id=order.id,
+        product_id=menu_item.id,
+        qty=2
+    )
+    db.add(order_item)
+    
+    # Update table status
+    table.status = 'occupied'
+    table.ready_notification = False  # Reset notification
     
     db.commit()
-    print("Created menu items")
     
-    # Create order if not exists
-    order = db.query(Order).filter(Order.table_id == table.id).first()
-    if not order:
-        order = Order(table_id=table.id, restaurant_id=1, status="active", created_at=datetime.now())
-        db.add(order)
-        db.commit()
-        
-        # Add order items
-        pizza_item = OrderItem(order_id=order.id, product_id=pizza.id, qty=2)
-        coke_item = OrderItem(order_id=order.id, product_id=coke.id, qty=1)
-        
-        db.add(pizza_item)
-        db.add(coke_item)
-        db.commit()
-        print(f"Created order {order.id} with 2 items")
-    
-    print("Test data created successfully!")
-    print("Now try the receipt for table 1")
+    print(f"✅ Created test order {order.id} for Table {table.table_number}")
+    print(f"   - Item: {menu_item.name} x2")
+    print(f"   - Kitchen completed: {order.kitchen_completed}")
+    print(f"   - Ready notification: {table.ready_notification}")
     
     db.close()
 

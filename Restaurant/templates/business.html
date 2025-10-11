@@ -10,15 +10,15 @@
     <link rel="stylesheet" href="/static/style.css">
     <style>
         .table-card.food-ready {
-            border-color: #3498db !important;
-            background: linear-gradient(135deg, #2980b9 0%, #3498db 100%) !important;
+            background: linear-gradient(135deg, #f59e0b, #d97706) !important;
             color: white !important;
-            animation: pulse-blue 1.5s infinite;
+            animation: blink-orange 1.5s infinite;
         }
         
-        @keyframes pulse-blue {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(52, 152, 219, 0.7); }
-            50% { box-shadow: 0 0 0 20px rgba(52, 152, 219, 0); }
+        @keyframes blink-orange {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
         }
     </style>
 </head>

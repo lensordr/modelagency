@@ -57,6 +57,7 @@ class Table(Base):
     checkout_method = Column(String(10))  # 'cash' or 'card'
     tip_amount = Column(Float, default=0.0)
     food_ready = Column(Boolean, default=False)
+    ready_notification = Column(Boolean, default=False)
     
     restaurant = relationship("Restaurant", back_populates="tables")
     orders = relationship("Order", back_populates="table")

@@ -124,6 +124,16 @@
             background: linear-gradient(135deg, #dc2626, #b91c1c);
             transform: translateY(-1px);
         }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -225,13 +235,52 @@
                 if (response.ok) {
                     const data = await response.json();
                     console.log('Order marked ready:', data);
+                    
+                    // Show success message
+                    showNotification('✅ Food ready notification sent to business dashboard!', 'success');
+                    
                     loadKitchenOrders(); // Refresh orders
                 } else {
                     console.error('Failed to mark order ready:', response.status);
+                    showNotification('❌ Failed to mark order ready', 'error');
                 }
             } catch (error) {
                 console.error('Error marking order ready:', error);
+                showNotification('❌ Connection error', 'error');
             }
+        }
+        
+        function showNotification(message, type) {
+            // Remove existing notification
+            const existing = document.getElementById('notification');
+            if (existing) existing.remove();
+            
+            // Create notification
+            const notification = document.createElement('div');
+            notification.id = 'notification';
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: 600;
+                z-index: 1000;
+                animation: slideIn 0.3s ease;
+                ${type === 'success' ? 'background: linear-gradient(135deg, #10b981, #059669);' : 'background: linear-gradient(135deg, #ef4444, #dc2626);'}
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove after 3 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.style.animation = 'slideOut 0.3s ease';
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }, 3000);
         }
 
         // Auto-refresh every 2 seconds for faster updates

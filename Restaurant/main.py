@@ -871,9 +871,9 @@ async def get_client_order_details(request: Request, table_number: int, db: Sess
             recently_updated = True
     
     # Check refresh flag
-    refresh_needed = table.food_ready if table else False
+    refresh_needed = getattr(table, 'ready_notification', False) if table else False
     if refresh_needed and table:
-        table.food_ready = False
+        table.ready_notification = False
         db.commit()
     
     return {
@@ -1547,7 +1547,7 @@ async def get_tables_status(request: Request, db: Session = Depends(get_db)):
             "has_extra_order": t.has_extra_order,
             "checkout_method": getattr(t, 'checkout_method', None),
             "tip_amount": getattr(t, 'tip_amount', 0.0),
-            "food_ready": getattr(t, 'food_ready', False)
+            "ready_notification": getattr(t, 'ready_notification', False)
         } for t in tables]
         print(f"Tables API: Returning {len(result)} tables")
         return JSONResponse(content=result)
@@ -2783,10 +2783,11 @@ async def mark_kitchen_ready(request: Request, order_id: int, db: Session = Depe
         ).first()
         
         if order and order.table:
-            # Use setattr in case column doesn't exist yet
-            setattr(order.table, 'food_ready', True)
+            # Mark order as kitchen completed and set ready notification
+            order.kitchen_completed = True
+            order.table.ready_notification = True
             db.commit()
-            return {"message": "Food marked as ready"}
+            return {"message": "Food marked as ready - notification sent"}
         
         return {"error": "Order not found"}
     except Exception as e:

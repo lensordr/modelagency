@@ -69,6 +69,7 @@ async function closeModal() {
             });
             if (response.ok) {
                 console.log('Order marked as viewed successfully');
+                // Notification cleared - table will return to normal color on next refresh
             }
         } catch (error) {
             console.error('Error marking order as viewed:', error);
@@ -214,18 +215,25 @@ function displayTables() {
     console.log('Displaying', tables.length, 'tables');
     tablesGrid.innerHTML = '';
     
+    // Remove banner since we're using table blinking now
+    const existingBanner = document.getElementById('ready-banner');
+    if (existingBanner) {
+        existingBanner.remove();
+        document.querySelector('.container').style.marginTop = '0';
+    }
+    
     tables.forEach(table => {
         const tableCard = document.createElement('div');
         let cardClass = `table-card ${table.status}`;
         
-        console.log(`Table ${table.table_number}: checkout_requested=${table.checkout_requested}, food_ready=${table.food_ready}, has_extra_order=${table.has_extra_order}`);
+        console.log(`Table ${table.table_number}: checkout_requested=${table.checkout_requested}, ready_notification=${table.ready_notification}, has_extra_order=${table.has_extra_order}`);
         
         if (table.checkout_requested) {
             cardClass += ' checkout-requested';
             tableCard.setAttribute('data-checkout-method', table.checkout_method);
-        } else if (table.food_ready) {
+        } else if (table.ready_notification) {
             cardClass += ' food-ready';
-            console.log(`Table ${table.table_number} has food ready - adding green styling`);
+            console.log(`Table ${table.table_number} has food ready - adding orange blinking`);
         } else if (table.has_extra_order) {
             cardClass += ' extra-order';
             console.log(`Table ${table.table_number} has extra order - adding red styling`);
@@ -1406,4 +1414,26 @@ function closeSplitBillModal() {
         modal.remove();
     }
     splitBillData = null;
+}
+
+function showReadyBanner(readyTables) {
+    const existingBanner = document.getElementById('ready-banner');
+    if (existingBanner) {
+        existingBanner.remove();
+        document.querySelector('.container').style.marginTop = '0';
+    }
+    
+    if (readyTables.length > 0) {
+        const banner = document.createElement('div');
+        banner.id = 'ready-banner';
+        banner.className = 'food-ready-banner';
+        banner.innerHTML = `🍽️ FOOD READY: Table${readyTables.length > 1 ? 's' : ''} ${readyTables.map(t => t.table_number).join(', ')} - Click to view`;
+        banner.onclick = () => {
+            if (readyTables.length === 1) {
+                showOrderDetails(readyTables[0].table_number);
+            }
+        };
+        document.body.insertBefore(banner, document.body.firstChild);
+        document.querySelector('.container').style.marginTop = '60px';
+    }
 }
