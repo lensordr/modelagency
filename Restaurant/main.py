@@ -1804,12 +1804,19 @@ async def upload_menu_basic(
         count = 0
         for row in ws.iter_rows(min_row=2, values_only=True):
             if row and len(row) >= 3 and row[0] and row[2]:
+                # Handle kitchen column (column 4) - YES/NO to boolean
+                needs_kitchen = True  # default
+                if len(row) > 4 and row[4]:
+                    kitchen_value = str(row[4]).strip().upper()
+                    needs_kitchen = kitchen_value in ['YES', 'Y', 'TRUE', '1']
+                
                 item = MenuItem(
                     name=str(row[0]).strip(),
                     ingredients=str(row[1] or '').strip(),
                     price=float(row[2]),
                     category=str(row[3] if len(row) > 3 and row[3] else 'Food').strip(),
                     restaurant_id=restaurant_id,
+                    needs_kitchen=needs_kitchen,
                     active=True
                 )
                 db.add(item)
@@ -2081,6 +2088,12 @@ async def upload_menu_file(
                 name = str(row[0]).strip()
                 category = str(row[3] if len(row) > 3 and row[3] else 'Food').strip()
                 
+                # Handle kitchen column (column 4) - YES/NO to boolean
+                needs_kitchen = True  # default
+                if len(row) > 4 and row[4]:
+                    kitchen_value = str(row[4]).strip().upper()
+                    needs_kitchen = kitchen_value in ['YES', 'Y', 'TRUE', '1']
+                
                 # Check if item exists for this language AND category
                 existing = db.query(MenuItem).filter(
                     MenuItem.restaurant_id == restaurant_id,
@@ -2094,6 +2107,7 @@ async def upload_menu_file(
                     existing.ingredients = str(row[1] or '').strip()
                     existing.price = float(row[2])
                     existing.category = category
+                    existing.needs_kitchen = needs_kitchen
                     existing.active = True
                 else:
                     # Add new item with language
@@ -2104,6 +2118,7 @@ async def upload_menu_file(
                         category=category,
                         language=language,
                         restaurant_id=restaurant_id,
+                        needs_kitchen=needs_kitchen,
                         active=True
                     ))
                 count += 1

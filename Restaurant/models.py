@@ -73,6 +73,7 @@ class MenuItem(Base):
     category = Column(String(50), default='Food')
     language = Column(String(5), default='en')
     active = Column(Boolean, default=True)
+    needs_kitchen = Column(Boolean, default=True)
     
     restaurant = relationship("Restaurant", back_populates="menu_items")
     order_items = relationship("OrderItem", back_populates="menu_item")
