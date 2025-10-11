@@ -2722,6 +2722,67 @@ async def get_analytics_api(
 async def kitchen_display(request: Request):
     return templates.TemplateResponse("kitchen.html", {"request": request})
 
+@app.get("/business/instant-order", response_class=HTMLResponse)
+async def instant_order_page(request: Request):
+    return templates.TemplateResponse("instant_order.html", {"request": request})
+
+@app.post("/business/instant-checkout")
+async def instant_checkout(
+    request: Request,
+    items: str = Form(...),
+    total: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    try:
+        restaurant_id = getattr(request.state, 'restaurant_id', 1)
+        
+        # Parse items
+        import json
+        order_items = json.loads(items)
+        total_amount = float(total)
+        
+        # Create analytics records for instant orders
+        from models import AnalyticsRecord
+        from datetime import datetime
+        
+        for item_data in order_items:
+            menu_item = db.query(MenuItem).filter(
+                MenuItem.id == item_data['menu_item_id'],
+                MenuItem.restaurant_id == restaurant_id
+            ).first()
+            
+            if menu_item:
+                # Create analytics record for each item
+                analytics_record = AnalyticsRecord(
+                    restaurant_id=restaurant_id,
+                    item_name=menu_item.name,
+                    item_category=menu_item.category,
+                    table_number=0,  # Bar/instant order
+                    quantity=item_data['qty'],
+                    unit_price=menu_item.price,
+                    total_price=menu_item.price * item_data['qty'],
+                    tip_amount=0,
+                    checkout_date=datetime.utcnow(),
+                    waiter_id=None  # No waiter for instant orders
+                )
+                db.add(analytics_record)
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Instant order completed",
+            "total": total_amount
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Instant checkout error: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 @app.get("/business/kitchen/orders")
 async def get_kitchen_orders(request: Request, db: Session = Depends(get_db)):
     restaurant_id = getattr(request.state, 'restaurant_id', 1)

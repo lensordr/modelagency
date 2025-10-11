@@ -17,6 +17,10 @@ document.addEventListener('DOMContentLoaded', function() {
     currentSection = 'live-orders';
     showSection('live-orders');
     
+    // Initialize instant order variables
+    instantOrderItems = {};
+    instantTotal = 0;
+    
     // Check plan features on load
     checkPlanFeatures();
     
@@ -689,6 +693,8 @@ function showSection(sectionName) {
         loadWaiters();
     } else if (sectionName === 'qr-codes') {
         openQRCodesWindow();
+    } else if (sectionName === 'instant-order') {
+        setTimeout(() => loadInstantOrderMenu(), 100);
     }
 }
 
@@ -1174,6 +1180,232 @@ async function cancelTableOrder(tableNumber) {
 function printAllQRCodes() {
     openQRCodesWindow();
 }
+
+function openInstantOrderPopup() {
+    const popup = window.open('', 'InstantOrder', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    
+    popup.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Bar Instant Order</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+                .container { max-width: 1200px; margin: 0 auto; }
+                .search-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+                .search-input { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #ddd; border-radius: 6px; margin-bottom: 10px; }
+                .main-content { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+                .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+                .menu-item { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s; }
+                .menu-item:hover { border-color: #007bff; transform: translateY(-2px); }
+                .item-name { font-weight: bold; margin-bottom: 5px; }
+                .item-price { color: #28a745; font-size: 18px; font-weight: bold; }
+                .item-category { color: #666; font-size: 12px; text-transform: uppercase; }
+                .order-summary { background: white; padding: 20px; border-radius: 8px; position: sticky; top: 20px; }
+                .order-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+                .qty-controls { display: flex; align-items: center; gap: 10px; }
+                .qty-btn { background: #007bff; color: white; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
+                .checkout-btn { width: 100%; background: #28a745; color: white; border: none; padding: 15px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; }
+                .checkout-btn:disabled { background: #ccc; cursor: not-allowed; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🍺 Bar Instant Order</h1>
+                
+                <div class="search-section">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search menu items...">
+                    <div>
+                        <label><input type="radio" name="category" value="all" checked> All</label>
+                        <label><input type="radio" name="category" value="Drinks"> Drinks</label>
+                        <label><input type="radio" name="category" value="Food"> Food</label>
+                        <label><input type="radio" name="category" value="Appetizers"> Appetizers</label>
+                    </div>
+                </div>
+
+                <div class="main-content">
+                    <div class="menu-section">
+                        <div id="menuGrid" class="menu-grid"></div>
+                    </div>
+
+                    <div class="order-summary">
+                        <h3>Order Summary</h3>
+                        <div id="orderItems">No items selected</div>
+                        <div style="margin-top: 15px; font-weight: bold;">Total: €<span id="totalAmount">0.00</span></div>
+                        <button id="checkoutBtn" class="checkout-btn" disabled onclick="instantCheckout()">Instant Checkout</button>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                let menuItems = [];
+                let orderItems = {};
+                let total = 0;
+
+                async function loadMenu() {
+                    try {
+                        const response = await fetch('${window.location.origin}/business/menu');
+                        const data = await response.json();
+                        
+                        menuItems = [];
+                        Object.entries(data).forEach(([category, items]) => {
+                            items.forEach(item => {
+                                if (item.is_active) {
+                                    menuItems.push({...item, category});
+                                }
+                            });
+                        });
+                        
+                        renderMenu();
+                    } catch (error) {
+                        console.error('Error loading menu:', error);
+                        document.getElementById('menuGrid').innerHTML = '<p>Error loading menu</p>';
+                    }
+                }
+
+                function renderMenu(filter = '') {
+                    const grid = document.getElementById('menuGrid');
+                    const selectedCategory = document.querySelector('input[name="category"]:checked').value;
+                    
+                    let filteredItems = menuItems;
+                    
+                    if (selectedCategory !== 'all') {
+                        filteredItems = filteredItems.filter(item => item.category === selectedCategory);
+                    }
+                    
+                    if (filter) {
+                        filteredItems = filteredItems.filter(item => 
+                            item.name.toLowerCase().includes(filter.toLowerCase())
+                        );
+                    }
+
+                    grid.innerHTML = filteredItems.map(item => \`
+                        <div class="menu-item" onclick="addToOrder(\${item.id})">
+                            <div class="item-category">\${item.category}</div>
+                            <div class="item-name">\${item.name}</div>
+                            <div class="item-price">€\${item.price.toFixed(2)}</div>
+                        </div>
+                    \`).join('');
+                }
+
+                function addToOrder(itemId) {
+                    const item = menuItems.find(i => i.id === itemId);
+                    if (!item) return;
+
+                    if (orderItems[itemId]) {
+                        orderItems[itemId].qty += 1;
+                    } else {
+                        orderItems[itemId] = {...item, qty: 1};
+                    }
+                    updateOrderSummary();
+                }
+
+                function updateOrderSummary() {
+                    const container = document.getElementById('orderItems');
+                    const totalEl = document.getElementById('totalAmount');
+                    const checkoutBtn = document.getElementById('checkoutBtn');
+
+                    if (Object.keys(orderItems).length === 0) {
+                        container.innerHTML = 'No items selected';
+                        total = 0;
+                        checkoutBtn.disabled = true;
+                    } else {
+                        total = 0;
+                        container.innerHTML = Object.values(orderItems).map(item => {
+                            const itemTotal = item.price * item.qty;
+                            total += itemTotal;
+                            return \`
+                                <div class="order-item">
+                                    <div><strong>\${item.name}</strong><br>€\${item.price.toFixed(2)} each</div>
+                                    <div class="qty-controls">
+                                        <button class="qty-btn" onclick="changeQty(\${item.id}, -1)">-</button>
+                                        <span>\${item.qty}</span>
+                                        <button class="qty-btn" onclick="changeQty(\${item.id}, 1)">+</button>
+                                    </div>
+                                </div>
+                            \`;
+                        }).join('');
+                        checkoutBtn.disabled = false;
+                    }
+
+                    totalEl.textContent = total.toFixed(2);
+                }
+
+                function changeQty(itemId, change) {
+                    if (orderItems[itemId]) {
+                        orderItems[itemId].qty += change;
+                        if (orderItems[itemId].qty <= 0) {
+                            delete orderItems[itemId];
+                        }
+                        updateOrderSummary();
+                    }
+                }
+
+                async function instantCheckout() {
+                    if (Object.keys(orderItems).length === 0) return;
+
+                    const checkoutBtn = document.getElementById('checkoutBtn');
+                    checkoutBtn.disabled = true;
+                    checkoutBtn.textContent = 'Processing...';
+
+                    try {
+                        const orderData = Object.values(orderItems).map(item => ({
+                            menu_item_id: item.id,
+                            qty: item.qty
+                        }));
+
+                        const formData = new FormData();
+                        formData.append('items', JSON.stringify(orderData));
+                        formData.append('total', total.toFixed(2));
+
+                        const response = await fetch('${window.location.origin}/business/instant-checkout', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            alert(\`Order completed! Total: €\${total.toFixed(2)}\`);
+                            orderItems = {};
+                            updateOrderSummary();
+                        } else {
+                            alert('Error processing order: ' + result.error);
+                        }
+                    } catch (error) {
+                        alert('Error processing order');
+                    } finally {
+                        checkoutBtn.disabled = false;
+                        checkoutBtn.textContent = 'Instant Checkout';
+                    }
+                }
+
+                document.getElementById('searchInput').addEventListener('input', (e) => {
+                    renderMenu(e.target.value);
+                });
+
+                document.querySelectorAll('input[name="category"]').forEach(radio => {
+                    radio.addEventListener('change', () => renderMenu(document.getElementById('searchInput').value));
+                });
+
+                loadMenu();
+            </script>
+        </body>
+        </html>
+    `);
+    
+    popup.document.close();
+}
+
+function openKitchen() {
+    // Open kitchen display in new window
+    const currentPath = window.location.pathname;
+    const kitchenUrl = currentPath.includes('/r/') 
+        ? currentPath.replace('/business/dashboard', '/business/kitchen')
+        : '/business/kitchen';
+    
+    window.open(kitchenUrl, '_blank', 'width=1200,height=800,scrollbars=yes');
+}
 // Bill Split Functions
 let splitBillData = null;
 
@@ -1409,6 +1641,197 @@ function closeSplitBillModal() {
     }
     splitBillData = null;
 }
+
+// Instant Order Functions
+let instantOrderItems = {};
+let instantTotal = 0;
+
+async function loadInstantOrderMenu() {
+    try {
+        console.log('Loading instant order menu...');
+        const response = await fetch('/business/menu');
+        const data = await response.json();
+        console.log('Menu data:', data);
+        
+        // Convert categorized menu to flat array
+        const activeItems = [];
+        Object.entries(data).forEach(([category, items]) => {
+            items.forEach(item => {
+                if (item.is_active) {
+                    activeItems.push({...item, category});
+                }
+            });
+        });
+        
+        console.log('Active items:', activeItems.length);
+        displayInstantMenu(activeItems);
+        
+        // Add event listeners
+        document.getElementById('instant-search').addEventListener('input', (e) => {
+            filterInstantMenu(activeItems, e.target.value);
+        });
+        
+        document.querySelectorAll('input[name="instant-category"]').forEach(radio => {
+            radio.addEventListener('change', () => filterInstantMenu(activeItems, document.getElementById('instant-search').value));
+        });
+    } catch (error) {
+        console.error('Error loading instant menu:', error);
+    }
+}
+
+function displayInstantMenu(items) {
+    const grid = document.getElementById('instant-menu-grid');
+    console.log('displayInstantMenu called with items:', items);
+    console.log('Grid element found:', !!grid);
+    
+    if (!grid) {
+        console.error('instant-menu-grid element not found in DOM');
+        return;
+    }
+    
+    if (!items || items.length === 0) {
+        console.log('No items to display');
+        grid.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No menu items available</div>';
+        return;
+    }
+    
+    console.log('Creating HTML for', items.length, 'items');
+    const html = items.map(item => `
+        <div onclick="addToInstantOrder(${item.id})" style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#007bff'; this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='#ddd'; this.style.transform='translateY(0)'">
+            <div style="color: #666; font-size: 12px; text-transform: uppercase;">${item.category}</div>
+            <div style="font-weight: bold; margin: 5px 0;">${item.name}</div>
+            <div style="color: #28a745; font-size: 18px; font-weight: bold;">€${item.price.toFixed(2)}</div>
+        </div>
+    `).join('');
+    
+    console.log('Setting grid HTML, length:', html.length);
+    grid.innerHTML = html;
+    console.log('Grid HTML set successfully');
+}
+
+function filterInstantMenu(allItems, searchTerm) {
+    const selectedCategory = document.querySelector('input[name="instant-category"]:checked').value;
+    let filteredItems = allItems;
+    
+    if (selectedCategory !== 'all') {
+        filteredItems = filteredItems.filter(item => item.category === selectedCategory);
+    }
+    
+    if (searchTerm) {
+        filteredItems = filteredItems.filter(item => 
+            item.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }
+    
+    displayInstantMenu(filteredItems);
+}
+
+function addToInstantOrder(itemId) {
+    fetch('/business/menu')
+        .then(response => response.json())
+        .then(data => {
+            let item = null;
+            Object.entries(data).forEach(([category, items]) => {
+                const found = items.find(i => i.id === itemId);
+                if (found) {
+                    item = {...found, category};
+                }
+            });
+            
+            if (!item) return;
+            
+            if (instantOrderItems[itemId]) {
+                instantOrderItems[itemId].qty += 1;
+            } else {
+                instantOrderItems[itemId] = { ...item, qty: 1 };
+            }
+            updateInstantOrderSummary();
+        });
+}
+
+function updateInstantOrderSummary() {
+    const container = document.getElementById('instant-order-items');
+    const totalEl = document.getElementById('instant-total');
+    const checkoutBtn = document.getElementById('instant-checkout-btn');
+    
+    if (Object.keys(instantOrderItems).length === 0) {
+        container.innerHTML = 'No items selected';
+        instantTotal = 0;
+        checkoutBtn.disabled = true;
+    } else {
+        instantTotal = 0;
+        container.innerHTML = Object.values(instantOrderItems).map(item => {
+            const itemTotal = item.price * item.qty;
+            instantTotal += itemTotal;
+            return `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee;">
+                    <div><strong>${item.name}</strong><br>€${item.price.toFixed(2)} each</div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button onclick="changeInstantQty(${item.id}, -1)" style="background: #007bff; color: white; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;">-</button>
+                        <span>${item.qty}</span>
+                        <button onclick="changeInstantQty(${item.id}, 1)" style="background: #007bff; color: white; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;">+</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        checkoutBtn.disabled = false;
+    }
+    
+    totalEl.textContent = instantTotal.toFixed(2);
+}
+
+function changeInstantQty(itemId, change) {
+    if (instantOrderItems[itemId]) {
+        instantOrderItems[itemId].qty += change;
+        if (instantOrderItems[itemId].qty <= 0) {
+            delete instantOrderItems[itemId];
+        }
+        updateInstantOrderSummary();
+    }
+}
+
+async function processInstantCheckout() {
+    if (Object.keys(instantOrderItems).length === 0) return;
+    
+    const checkoutBtn = document.getElementById('instant-checkout-btn');
+    checkoutBtn.disabled = true;
+    checkoutBtn.textContent = 'Processing...';
+    
+    try {
+        const orderData = Object.values(instantOrderItems).map(item => ({
+            menu_item_id: item.id,
+            qty: item.qty
+        }));
+        
+        const formData = new FormData();
+        formData.append('items', JSON.stringify(orderData));
+        formData.append('total', instantTotal.toFixed(2));
+        
+        const response = await fetch('/business/instant-checkout', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showMessage(`Order completed! Total: €${instantTotal.toFixed(2)}`, 'success');
+            instantOrderItems = {};
+            updateInstantOrderSummary();
+        } else {
+            showMessage('Error processing order: ' + result.error, 'error');
+        }
+    } catch (error) {
+        showMessage('Error processing order', 'error');
+    } finally {
+        checkoutBtn.disabled = false;
+        checkoutBtn.textContent = 'Instant Checkout';
+    }
+}
+
+window.addToInstantOrder = addToInstantOrder;
+window.changeInstantQty = changeInstantQty;
+window.processInstantCheckout = processInstantCheckout;
 
 function showReadyBanner(readyTables) {
     const existingBanner = document.getElementById('ready-banner');

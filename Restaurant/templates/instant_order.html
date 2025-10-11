@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instant Order - Bar Service</title>
+    <link rel="stylesheet" href="/static/business.css">
+    <style>
+        .instant-order-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .search-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .menu-item {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .menu-item:hover {
+            border-color: #007bff;
+            transform: translateY(-2px);
+        }
+        .menu-item.selected {
+            border-color: #007bff;
+            background: #f0f8ff;
+        }
+        .item-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .item-price {
+            color: #28a745;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .item-category {
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .order-summary {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 20px;
+        }
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .qty-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .qty-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .checkout-btn {
+            width: 100%;
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .checkout-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="instant-order-container">
+        <h1>🍺 Bar Instant Order</h1>
+        
+        <div class="search-section">
+            <input type="text" id="searchInput" class="search-input" placeholder="Search menu items...">
+            <div>
+                <label>
+                    <input type="radio" name="category" value="all" checked> All
+                </label>
+                <label>
+                    <input type="radio" name="category" value="Drinks"> Drinks
+                </label>
+                <label>
+                    <input type="radio" name="category" value="Food"> Food
+                </label>
+                <label>
+                    <input type="radio" name="category" value="Appetizers"> Appetizers
+                </label>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="menu-section">
+                <div id="menuGrid" class="menu-grid">
+                    <!-- Menu items will be loaded here -->
+                </div>
+            </div>
+
+            <div class="order-summary">
+                <h3>Order Summary</h3>
+                <div id="orderItems">
+                    <p>No items selected</p>
+                </div>
+                <div class="total-section">
+                    <strong>Total: €<span id="totalAmount">0.00</span></strong>
+                </div>
+                <button id="checkoutBtn" class="checkout-btn" disabled>
+                    Instant Checkout
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let menuItems = [];
+        let orderItems = {};
+        let total = 0;
+
+        // Load menu items
+        async function loadMenu() {
+            try {
+                const response = await fetch('/business/menu_items');
+                const data = await response.json();
+                menuItems = data.items.filter(item => item.active);
+                renderMenu();
+            } catch (error) {
+                console.error('Error loading menu:', error);
+            }
+        }
+
+        // Render menu items
+        function renderMenu(filter = '') {
+            const grid = document.getElementById('menuGrid');
+            const selectedCategory = document.querySelector('input[name="category"]:checked').value;
+            
+            let filteredItems = menuItems;
+            
+            // Filter by category
+            if (selectedCategory !== 'all') {
+                filteredItems = filteredItems.filter(item => item.category === selectedCategory);
+            }
+            
+            // Filter by search
+            if (filter) {
+                filteredItems = filteredItems.filter(item => 
+                    item.name.toLowerCase().includes(filter.toLowerCase())
+                );
+            }
+
+            grid.innerHTML = filteredItems.map(item => `
+                <div class="menu-item" onclick="addToOrder(${item.id})">
+                    <div class="item-category">${item.category}</div>
+                    <div class="item-name">${item.name}</div>
+                    <div class="item-price">€${item.price.toFixed(2)}</div>
+                </div>
+            `).join('');
+        }
+
+        // Add item to order
+        function addToOrder(itemId) {
+            const item = menuItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            if (orderItems[itemId]) {
+                orderItems[itemId].qty += 1;
+            } else {
+                orderItems[itemId] = {
+                    ...item,
+                    qty: 1
+                };
+            }
+            updateOrderSummary();
+        }
+
+        // Update order summary
+        function updateOrderSummary() {
+            const container = document.getElementById('orderItems');
+            const totalEl = document.getElementById('totalAmount');
+            const checkoutBtn = document.getElementById('checkoutBtn');
+
+            if (Object.keys(orderItems).length === 0) {
+                container.innerHTML = '<p>No items selected</p>';
+                total = 0;
+                checkoutBtn.disabled = true;
+            } else {
+                total = 0;
+                container.innerHTML = Object.values(orderItems).map(item => {
+                    const itemTotal = item.price * item.qty;
+                    total += itemTotal;
+                    return `
+                        <div class="order-item">
+                            <div>
+                                <strong>${item.name}</strong><br>
+                                €${item.price.toFixed(2)} each
+                            </div>
+                            <div class="qty-controls">
+                                <button class="qty-btn" onclick="changeQty(${item.id}, -1)">-</button>
+                                <span>${item.qty}</span>
+                                <button class="qty-btn" onclick="changeQty(${item.id}, 1)">+</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                checkoutBtn.disabled = false;
+            }
+
+            totalEl.textContent = total.toFixed(2);
+        }
+
+        // Change quantity
+        function changeQty(itemId, change) {
+            if (orderItems[itemId]) {
+                orderItems[itemId].qty += change;
+                if (orderItems[itemId].qty <= 0) {
+                    delete orderItems[itemId];
+                }
+                updateOrderSummary();
+            }
+        }
+
+        // Instant checkout
+        async function instantCheckout() {
+            if (Object.keys(orderItems).length === 0) return;
+
+            const checkoutBtn = document.getElementById('checkoutBtn');
+            checkoutBtn.disabled = true;
+            checkoutBtn.textContent = 'Processing...';
+
+            try {
+                const orderData = Object.values(orderItems).map(item => ({
+                    menu_item_id: item.id,
+                    qty: item.qty
+                }));
+
+                const formData = new FormData();
+                formData.append('items', JSON.stringify(orderData));
+                formData.append('total', total.toFixed(2));
+
+                const response = await fetch('/business/instant-checkout', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`Order completed! Total: €${total.toFixed(2)}`);
+                    // Reset order
+                    orderItems = {};
+                    updateOrderSummary();
+                } else {
+                    alert('Error processing order: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Checkout error:', error);
+                alert('Error processing order');
+            } finally {
+                checkoutBtn.disabled = false;
+                checkoutBtn.textContent = 'Instant Checkout';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            renderMenu(e.target.value);
+        });
+
+        document.querySelectorAll('input[name="category"]').forEach(radio => {
+            radio.addEventListener('change', () => renderMenu(document.getElementById('searchInput').value));
+        });
+
+        document.getElementById('checkoutBtn').addEventListener('click', instantCheckout);
+
+        // Initialize
+        loadMenu();
+    </script>
+</body>
+</html>
