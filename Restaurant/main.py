@@ -873,8 +873,7 @@ async def get_client_order_details(request: Request, table_number: int, db: Sess
     # Check refresh flag
     refresh_needed = getattr(table, 'ready_notification', False) if table else False
     if refresh_needed and table:
-        # Clear ready notification when viewed
-        setattr(table, 'ready_notification', False)
+        table.ready_notification = False
         db.commit()
     
     return {
@@ -2734,8 +2733,8 @@ async def get_kitchen_orders(request: Request, db: Session = Depends(get_db)):
     for order in orders:
         order_items = []
         for item in order.order_items:
-            # Only show food items that need kitchen preparation (not drinks)
-            if item.menu_item.category and 'drink' not in item.menu_item.category.lower() and 'juice' not in item.menu_item.category.lower():
+            # Only show items that have kitchen=YES in the Excel upload
+            if hasattr(item.menu_item, 'kitchen') and item.menu_item.kitchen == 'YES':
                 customizations = ''
                 if item.customizations:
                     try:
@@ -2785,8 +2784,7 @@ async def mark_kitchen_ready(request: Request, order_id: int, db: Session = Depe
         if order and order.table:
             # Mark order as kitchen completed and set ready notification
             order.kitchen_completed = True
-            # Use setattr to handle column that might not exist in all environments
-            setattr(order.table, 'ready_notification', True)
+            order.table.ready_notification = True
             db.commit()
             return {"message": "Food marked as ready - notification sent"}
         
