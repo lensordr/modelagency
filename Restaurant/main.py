@@ -2772,7 +2772,8 @@ async def get_kitchen_orders(request: Request, db: Session = Depends(get_db)):
                     'name': item.menu_item.name,
                     'qty': item.qty,
                     'category': item.menu_item.category,
-                    'customizations': customizations
+                    'customizations': customizations,
+                    'is_new_extra': getattr(item, 'is_new_extra', False)
                 })
         
         if order_items:
