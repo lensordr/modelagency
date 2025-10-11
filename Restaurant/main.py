@@ -2180,7 +2180,7 @@ async def mark_order_viewed(
     table = get_table_by_number(db, table_number, restaurant_id)
     if table:
         table.has_extra_order = False
-        table.food_ready = False  # Clear food ready alert when viewed
+        table.ready_notification = False  # Clear food ready alert when viewed
         
         # Clear is_new_extra flag from all order items for this table
         active_order = get_active_order_by_table(db, table_number, restaurant_id)
