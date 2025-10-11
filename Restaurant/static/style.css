@@ -425,6 +425,19 @@ button:disabled {
     color: white !important;
 }
 
+.table-card.food-ready::after {
+    content: "READY";
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #f59e0b;
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-weight: bold;
+}
+
 @keyframes blink-orange {
     0% { opacity: 1; }
     50% { opacity: 0.3; }
