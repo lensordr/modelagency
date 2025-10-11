@@ -41,8 +41,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load waiters for modal
     loadWaitersForModal();
     
-    // Auto-refresh dashboard every 3 seconds
-    setInterval(loadDashboard, 3000);
+    // Auto-refresh dashboard every 3 seconds but preserve ready notifications
+    setInterval(() => {
+        const readyTables = tables.filter(t => t.ready_notification);
+        loadDashboard();
+        // Restore ready notifications after refresh
+        setTimeout(() => {
+            readyTables.forEach(table => {
+                const tableCard = document.querySelector(`[data-table="${table.table_number}"]`);
+                if (tableCard && !tableCard.classList.contains('food-ready')) {
+                    tableCard.classList.add('food-ready');
+                }
+            });
+        }, 100);
+    }, 3000);
     
     // Check trial status every 30 seconds
     // setInterval(checkTrialStatus, 30000); // Disabled - handled in main template
@@ -246,6 +258,7 @@ function displayTables() {
         // Cancel button removed from table cards - only available in modal
         
         tableCard.innerHTML = tableContent;
+        tableCard.setAttribute('data-table', table.table_number);
         
         if (table.status === 'occupied') {
             tableCard.onclick = () => showOrderDetails(table.table_number);
