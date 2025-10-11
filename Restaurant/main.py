@@ -1805,7 +1805,7 @@ async def upload_menu_basic(
                 needs_kitchen = True  # default
                 if len(row) > 4 and row[4]:
                     kitchen_value = str(row[4]).strip().upper()
-                    needs_kitchen = kitchen_value in ['YES', 'Y', 'TRUE', '1', 'SI', 'S', 'SÍ']
+                    needs_kitchen = kitchen_value in ['YES', 'Y', 'TRUE', '1', 'SI', 'S', 'SÍ', 'OUI', 'O', 'JA', 'J', 'SÌ', 'VERO', 'V']
                     print(f"Kitchen upload: {row[0]} -> '{row[4]}' -> {needs_kitchen}")
                 
                 item = MenuItem(
@@ -2090,7 +2090,7 @@ async def upload_menu_file(
                 needs_kitchen = True  # default
                 if len(row) > 4 and row[4]:
                     kitchen_value = str(row[4]).strip().upper()
-                    needs_kitchen = kitchen_value in ['YES', 'Y', 'TRUE', '1', 'SI', 'S', 'SÍ']
+                    needs_kitchen = kitchen_value in ['YES', 'Y', 'TRUE', '1', 'SI', 'S', 'SÍ', 'OUI', 'O', 'JA', 'J', 'SÌ', 'VERO', 'V']
                     print(f"Kitchen upload: {name} -> '{row[4]}' -> {needs_kitchen}")
                 
                 # Check if item exists for this language AND category
