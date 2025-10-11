@@ -79,10 +79,8 @@ async function closeModal() {
     modal.style.display = 'none';
     currentTableNumber = null;
     
-    // Immediately refresh dashboard to clear alerts
-    setTimeout(() => {
-        loadDashboard();
-    }, 100);
+    // Refresh dashboard immediately to clear ready notification
+    loadDashboard();
 }
 
 function getAuthHeaders() {
