@@ -41,20 +41,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load waiters for modal
     loadWaitersForModal();
     
-    // Auto-refresh dashboard every 3 seconds but preserve ready notifications
-    setInterval(() => {
-        const readyTables = tables.filter(t => t.ready_notification);
-        loadDashboard();
-        // Restore ready notifications after refresh
-        setTimeout(() => {
-            readyTables.forEach(table => {
-                const tableCard = document.querySelector(`[data-table="${table.table_number}"]`);
-                if (tableCard && !tableCard.classList.contains('food-ready')) {
-                    tableCard.classList.add('food-ready');
-                }
-            });
-        }, 100);
-    }, 3000);
+    // Auto-refresh dashboard every 3 seconds
+    setInterval(loadDashboard, 3000);
     
     // Check trial status every 30 seconds
     // setInterval(checkTrialStatus, 30000); // Disabled - handled in main template
@@ -225,12 +213,7 @@ function displayTables() {
     console.log('Displaying', tables.length, 'tables');
     tablesGrid.innerHTML = '';
     
-    // Remove banner since we're using table blinking now
-    const existingBanner = document.getElementById('ready-banner');
-    if (existingBanner) {
-        existingBanner.remove();
-        document.querySelector('.container').style.marginTop = '0';
-    }
+    // No banner needed - using table colors
     
     tables.forEach(table => {
         const tableCard = document.createElement('div');
