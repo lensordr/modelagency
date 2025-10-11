@@ -134,6 +134,21 @@
             from { transform: translateX(0); opacity: 1; }
             to { transform: translateX(100%); opacity: 0; }
         }
+        .new-tag {
+            background: #dc2626;
+            color: white;
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 8px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -212,7 +227,7 @@
                     <div class="food-items">
                         ${kitchenItems.map(item => `
                             <div class="food-item">
-                                <div class="item-name">${item.name} <span class="item-qty">x${item.qty}</span></div>
+                                <div class="item-name">${item.name} <span class="item-qty">x${item.qty}</span>${item.is_new_extra ? '<span class="new-tag">🔥 NEW</span>' : ''}</div>
                                 ${item.customizations ? `<div class="customizations">${item.customizations}</div>` : ''}
                             </div>
                         `).join('')}
