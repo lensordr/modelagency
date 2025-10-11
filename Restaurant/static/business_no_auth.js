@@ -69,7 +69,8 @@ async function closeModal() {
             });
             if (response.ok) {
                 console.log('Order marked as viewed successfully');
-                // Notification cleared - table will return to normal color on next refresh
+                // Clear ready notification immediately
+                loadDashboard();
             }
         } catch (error) {
             console.error('Error marking order as viewed:', error);
@@ -79,8 +80,7 @@ async function closeModal() {
     modal.style.display = 'none';
     currentTableNumber = null;
     
-    // Refresh dashboard immediately to clear ready notification
-    loadDashboard();
+    // Don't auto-refresh to preserve notifications
 }
 
 function getAuthHeaders() {
