@@ -1801,11 +1801,12 @@ async def upload_menu_basic(
         count = 0
         for row in ws.iter_rows(min_row=2, values_only=True):
             if row and len(row) >= 3 and row[0] and row[2]:
-                # Handle kitchen column (column 4) - YES/NO to boolean
+                # Handle kitchen column (column 5) - YES/NO to boolean
                 needs_kitchen = True  # default
                 if len(row) > 4 and row[4]:
                     kitchen_value = str(row[4]).strip().upper()
                     needs_kitchen = kitchen_value in ['YES', 'Y', 'TRUE', '1']
+                    print(f"Kitchen upload: {row[0]} -> '{row[4]}' -> {needs_kitchen}")
                 
                 item = MenuItem(
                     name=str(row[0]).strip(),
@@ -2085,11 +2086,12 @@ async def upload_menu_file(
                 name = str(row[0]).strip()
                 category = str(row[3] if len(row) > 3 and row[3] else 'Food').strip()
                 
-                # Handle kitchen column (column 4) - YES/NO to boolean
+                # Handle kitchen column (column 5) - YES/NO to boolean  
                 needs_kitchen = True  # default
                 if len(row) > 4 and row[4]:
                     kitchen_value = str(row[4]).strip().upper()
                     needs_kitchen = kitchen_value in ['YES', 'Y', 'TRUE', '1']
+                    print(f"Kitchen upload: {name} -> '{row[4]}' -> {needs_kitchen}")
                 
                 # Check if item exists for this language AND category
                 existing = db.query(MenuItem).filter(
