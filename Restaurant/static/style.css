@@ -419,6 +419,12 @@ button:disabled {
     background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%) !important;
 }
 
+.table-card.food-ready {
+    animation: blink-orange 1.5s infinite !important;
+    background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+    color: white !important;
+}
+
 .table-card.extra-order::after {
     content: "Extra Order";
     position: absolute;
