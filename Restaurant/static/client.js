@@ -420,7 +420,8 @@ async function placeOrder(event) {
 
 async function loadExistingOrder() {
     try {
-        const response = await fetch(`/client/order_details/${tableNumber}`);
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+        const response = await fetch(`${baseUrl}/client/order_details/${tableNumber}`);
         const data = await response.json();
         
         if (data.has_order) {
@@ -535,7 +536,8 @@ async function requestCheckout(method) {
         formData.append('checkout_method', method);
         formData.append('tip_amount', selectedTipAmount);
         
-        const response = await fetch('/client/checkout', {
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+        const response = await fetch(`${baseUrl}/client/checkout`, {
             method: 'POST',
             body: formData
         });
@@ -575,7 +577,8 @@ let lastOrderHash = '';
 
 async function checkTableStatus() {
     try {
-        const response = await fetch(`/client/order_details/${tableNumber}`);
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+        const response = await fetch(`${baseUrl}/client/order_details/${tableNumber}`);
         const data = await response.json();
         
         if (!data.has_order && document.getElementById('existing-order')) {
@@ -603,7 +606,8 @@ async function deleteOrderItem(orderItemId) {
     }
     
     try {
-        const response = await fetch(`/client/order_item/${orderItemId}`, {
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+        const response = await fetch(`${baseUrl}/client/order_item/${orderItemId}`, {
             method: 'DELETE'
         });
         
@@ -624,7 +628,8 @@ async function deleteOrderItem(orderItemId) {
 }
 
 function downloadTicket() {
-    window.open(`/client/simple-receipt/${tableNumber}`, '_blank');
+    const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+    window.open(`${baseUrl}/client/simple-receipt/${tableNumber}`, '_blank');
 }
 
 function updateLanguageButtons(availableLanguages, currentLanguage) {
