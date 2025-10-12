@@ -1430,11 +1430,11 @@ async def get_restaurant_info(request: Request, db: Session = Depends(get_db)):
                 print(f"Referer parsing error: {e}")
     
     if not restaurant_id:
-        return {"name": "", "admin_email": ""}
+        return {"name": "", "admin_email": "", "business_type": "restaurant"}
     
     restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
     if not restaurant:
-        return {"name": "", "admin_email": ""}
+        return {"name": "", "admin_email": "", "business_type": "restaurant"}
     
     try:
         print(f"Getting info for restaurant_id: {restaurant_id}")
@@ -1456,7 +1456,8 @@ async def get_restaurant_info(request: Request, db: Session = Depends(get_db)):
             "name": restaurant.name,
             "admin_email": restaurant.admin_email or "",
             "admin_username": admin_user.username if admin_user else "admin",
-            "table_count": table_count
+            "table_count": table_count,
+            "business_type": getattr(restaurant, 'business_type', 'restaurant')
         }
         print(f"Returning: {result}")
         return result
@@ -1469,7 +1470,8 @@ async def get_restaurant_info(request: Request, db: Session = Depends(get_db)):
             "name": restaurant.name,
             "admin_email": restaurant.admin_email or "",
             "admin_username": "admin",
-            "table_count": 10
+            "table_count": 10,
+            "business_type": getattr(restaurant, 'business_type', 'restaurant')
         }
 
 @app.get("/business/qr-codes")

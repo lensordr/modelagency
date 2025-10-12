@@ -1919,14 +1919,12 @@ function openBarOrdersPopup() {
 
 async function updateBusinessTypeUI() {
     try {
-        // Detect business type from menu categories
-        const response = await fetch('/business/menu');
+        // Get business type from restaurant info API
+        const response = await fetch('/business/restaurant-info');
         const data = await response.json();
         
-        const isHotel = Object.keys(data || {}).some(category => 
-            category.toLowerCase().includes('room service') || 
-            category.toLowerCase().includes('hotel')
-        );
+        // Check if business_type is available in the response
+        const isHotel = data.business_type === 'hotel';
         
         // Store business type globally for use in displayTables
         window.businessType = isHotel ? 'hotel' : 'restaurant';

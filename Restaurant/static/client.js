@@ -391,7 +391,7 @@ async function placeOrder(event) {
         formData.append('code', code);
         formData.append('items', JSON.stringify(order));
         
-        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/client', '') : '';
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.split('/table/')[0] : '';
         const response = await fetch(`${baseUrl}/client/order`, {
             method: 'POST',
             body: formData
