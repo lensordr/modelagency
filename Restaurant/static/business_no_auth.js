@@ -1182,31 +1182,57 @@ function printAllQRCodes() {
 }
 
 function openInstantOrderPopup() {
-    const popup = window.open('', 'InstantOrder', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+    // Detect mobile device
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    
+    let popup;
+    if (isMobile) {
+        // On mobile, open in same tab
+        window.location.href = '/business/instant-order';
+        return;
+    } else {
+        // On desktop, open popup with responsive dimensions
+        const width = Math.min(1200, window.innerWidth * 0.9);
+        const height = Math.min(800, window.innerHeight * 0.9);
+        popup = window.open('', 'InstantOrder', `width=${width},height=${height},scrollbars=yes,resizable=yes`);
+    }
     
     popup.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Bar Instant Order</title>
             <style>
-                body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+                body { font-family: Arial, sans-serif; margin: 10px; background: #f5f5f5; }
                 .container { max-width: 1200px; margin: 0 auto; }
-                .search-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-                .search-input { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #ddd; border-radius: 6px; margin-bottom: 10px; }
+                .search-section { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+                .search-input { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #ddd; border-radius: 6px; margin-bottom: 10px; box-sizing: border-box; }
                 .main-content { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
-                .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
-                .menu-item { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s; }
+                .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+                .menu-item { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
                 .menu-item:hover { border-color: #007bff; transform: translateY(-2px); }
-                .item-name { font-weight: bold; margin-bottom: 5px; }
-                .item-price { color: #28a745; font-size: 18px; font-weight: bold; }
-                .item-category { color: #666; font-size: 12px; text-transform: uppercase; }
-                .order-summary { background: white; padding: 20px; border-radius: 8px; position: sticky; top: 20px; }
-                .order-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
-                .qty-controls { display: flex; align-items: center; gap: 10px; }
-                .qty-btn { background: #007bff; color: white; border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
-                .checkout-btn { width: 100%; background: #28a745; color: white; border: none; padding: 15px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; }
+                .item-name { font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+                .item-price { color: #28a745; font-size: 16px; font-weight: bold; }
+                .item-category { color: #666; font-size: 11px; text-transform: uppercase; }
+                .order-summary { background: white; padding: 15px; border-radius: 8px; position: sticky; top: 20px; }
+                .order-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+                .qty-controls { display: flex; align-items: center; gap: 8px; }
+                .qty-btn { background: #007bff; color: white; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; }
+                .checkout-btn { width: 100%; background: #28a745; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 15px; }
                 .checkout-btn:disabled { background: #ccc; cursor: not-allowed; }
+                
+                @media (max-width: 768px) {
+                    body { margin: 5px; }
+                    .main-content { grid-template-columns: 1fr; }
+                    .menu-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+                    .search-section { padding: 10px; }
+                    .order-summary { position: static; margin-top: 15px; }
+                    .menu-item { padding: 10px; }
+                    .item-name { font-size: 13px; }
+                    .item-price { font-size: 15px; }
+                }
             </style>
         </head>
         <body>
@@ -1215,12 +1241,7 @@ function openInstantOrderPopup() {
                 
                 <div class="search-section">
                     <input type="text" id="searchInput" class="search-input" placeholder="Search menu items...">
-                    <div>
-                        <label><input type="radio" name="category" value="all" checked> All</label>
-                        <label><input type="radio" name="category" value="Drinks"> Drinks</label>
-                        <label><input type="radio" name="category" value="Food"> Food</label>
-                        <label><input type="radio" name="category" value="Appetizers"> Appetizers</label>
-                    </div>
+
                 </div>
 
                 <div class="main-content">
@@ -1265,13 +1286,8 @@ function openInstantOrderPopup() {
 
                 function renderMenu(filter = '') {
                     const grid = document.getElementById('menuGrid');
-                    const selectedCategory = document.querySelector('input[name="category"]:checked').value;
                     
                     let filteredItems = menuItems;
-                    
-                    if (selectedCategory !== 'all') {
-                        filteredItems = filteredItems.filter(item => item.category === selectedCategory);
-                    }
                     
                     if (filter) {
                         filteredItems = filteredItems.filter(item => 
@@ -1382,10 +1398,6 @@ function openInstantOrderPopup() {
 
                 document.getElementById('searchInput').addEventListener('input', (e) => {
                     renderMenu(e.target.value);
-                });
-
-                document.querySelectorAll('input[name="category"]').forEach(radio => {
-                    radio.addEventListener('change', () => renderMenu(document.getElementById('searchInput').value));
                 });
 
                 loadMenu();

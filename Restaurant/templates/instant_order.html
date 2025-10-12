@@ -116,6 +116,44 @@
             .main-content {
                 grid-template-columns: 1fr;
             }
+            .instant-order-container {
+                padding: 10px;
+            }
+            .search-section {
+                padding: 15px;
+            }
+            .menu-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 10px;
+            }
+            .menu-item {
+                padding: 12px;
+            }
+            .order-summary {
+                position: static;
+                margin-top: 20px;
+            }
+            .item-name {
+                font-size: 14px;
+            }
+            .item-price {
+                font-size: 16px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .menu-grid {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
+            .menu-item {
+                padding: 10px;
+            }
+            .item-name {
+                font-size: 13px;
+            }
+            .item-price {
+                font-size: 15px;
+            }
         }
     </style>
 </head>
@@ -125,20 +163,7 @@
         
         <div class="search-section">
             <input type="text" id="searchInput" class="search-input" placeholder="Search menu items...">
-            <div>
-                <label>
-                    <input type="radio" name="category" value="all" checked> All
-                </label>
-                <label>
-                    <input type="radio" name="category" value="Drinks"> Drinks
-                </label>
-                <label>
-                    <input type="radio" name="category" value="Food"> Food
-                </label>
-                <label>
-                    <input type="radio" name="category" value="Appetizers"> Appetizers
-                </label>
-            </div>
+
         </div>
 
         <div class="main-content">
@@ -171,26 +196,31 @@
         // Load menu items
         async function loadMenu() {
             try {
-                const response = await fetch('/business/menu_items');
+                const response = await fetch('/business/menu');
                 const data = await response.json();
-                menuItems = data.items.filter(item => item.active);
+                
+                // Convert categorized menu to flat array
+                menuItems = [];
+                Object.entries(data).forEach(([category, items]) => {
+                    items.forEach(item => {
+                        if (item.is_active) {
+                            menuItems.push({...item, category});
+                        }
+                    });
+                });
+                
                 renderMenu();
             } catch (error) {
                 console.error('Error loading menu:', error);
+                document.getElementById('menuGrid').innerHTML = '<p>Error loading menu</p>';
             }
         }
 
         // Render menu items
         function renderMenu(filter = '') {
             const grid = document.getElementById('menuGrid');
-            const selectedCategory = document.querySelector('input[name="category"]:checked').value;
             
             let filteredItems = menuItems;
-            
-            // Filter by category
-            if (selectedCategory !== 'all') {
-                filteredItems = filteredItems.filter(item => item.category === selectedCategory);
-            }
             
             // Filter by search
             if (filter) {
@@ -315,10 +345,6 @@
         // Event listeners
         document.getElementById('searchInput').addEventListener('input', (e) => {
             renderMenu(e.target.value);
-        });
-
-        document.querySelectorAll('input[name="category"]').forEach(radio => {
-            radio.addEventListener('change', () => renderMenu(document.getElementById('searchInput').value));
         });
 
         document.getElementById('checkoutBtn').addEventListener('click', instantCheckout);

@@ -2726,6 +2726,10 @@ async def kitchen_display(request: Request):
 async def instant_order_page(request: Request):
     return templates.TemplateResponse("instant_order.html", {"request": request})
 
+@app.get("/instant-order", response_class=HTMLResponse)
+async def instant_order_page_alt(request: Request):
+    return templates.TemplateResponse("instant_order.html", {"request": request})
+
 @app.post("/business/instant-checkout")
 async def instant_checkout(
     request: Request,
