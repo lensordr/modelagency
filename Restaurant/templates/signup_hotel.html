@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - TableLink</title>
+    <title>Hotel Sign Up - TableLink</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -59,7 +59,7 @@
         }
         .plan-selector {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 1rem;
             margin-bottom: 1.5rem;
         }
@@ -112,14 +112,16 @@
 <body>
     <div class="signup-container">
         <div class="logo">
-            <h1>🍽️ TableLink</h1>
-            <p>Create Your Restaurant Account</p>
+            <h1>🏨 TableLink Hotel</h1>
+            <p>Create Your Hotel Account</p>
         </div>
         
         <form id="signupForm">
             <input type="hidden" id="upgrade" name="upgrade" value="false">
+            <input type="hidden" id="business_type" name="business_type" value="hotel">
+            
             <div class="form-group">
-                <label for="restaurant_name">Restaurant Name</label>
+                <label for="restaurant_name">Hotel Name</label>
                 <input type="text" id="restaurant_name" name="restaurant_name" autocomplete="organization" required>
             </div>
             
@@ -135,25 +137,28 @@
                         <h3>Free Trial</h3>
                         <div class="price">15 days free</div>
                     </div>
-                    <div class="plan-option" data-plan="basic" data-amount="49">
+                    <div class="plan-option" data-plan="basic" data-amount="79">
                         <h3>Basic</h3>
-                        <div class="price">€49/month</div>
-                    </div>
-                    <div class="plan-option" data-plan="professional" data-amount="79">
-                        <h3>Professional</h3>
                         <div class="price">€79/month</div>
+                    </div>
+                    <div class="plan-option" data-plan="professional" data-amount="99">
+                        <h3>Professional</h3>
+                        <div class="price">€99/month</div>
                     </div>
                 </div>
                 <input type="hidden" id="plan" name="plan" value="trial">
             </div>
             
-            <input type="hidden" id="business_type" name="business_type" value="restaurant">
-            <input type="hidden" id="room_prefix" name="room_prefix" value="">
+            <div class="form-group">
+                <label for="room_prefix">Room Prefix (Optional)</label>
+                <input type="text" id="room_prefix" name="room_prefix" placeholder="e.g., RM, SUITE" maxlength="10">
+                <small style="color: #64748b; font-size: 0.875rem;">Prefix for room numbers (e.g., RM101, SUITE201)</small>
+            </div>
             
             <div class="form-group">
-                <label for="table_count" id="table_count_label">Number of Tables</label>
-                <input type="number" id="table_count" name="table_count" value="10" min="1" max="100" required>
-                <small style="color: #64748b; font-size: 0.875rem;" id="table_count_help">Enter between 1-100 tables</small>
+                <label for="table_count">Number of Rooms</label>
+                <input type="number" id="table_count" name="table_count" value="20" min="1" max="500" required>
+                <small style="color: #64748b; font-size: 0.875rem;">Enter between 1-500 rooms</small>
             </div>
             
             <div class="form-group">
@@ -178,7 +183,7 @@
     <!-- Credentials Modal -->
     <div id="credentialsModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000;">
         <div class="modal-content" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 16px; max-width: 500px; width: 90%; text-align: center;">
-            <h2 style="color: #10b981; margin-bottom: 1rem;">✓ Trial Account Created!</h2>
+            <h2 style="color: #10b981; margin-bottom: 1rem;">✓ Hotel Trial Account Created!</h2>
             <div style="background: #f0fdf4; padding: 1.5rem; border-radius: 8px; margin: 1rem 0; border: 2px solid #10b981;">
                 <h3 style="margin: 0 0 1rem 0; color: #1e293b;">🔑 Save These Credentials</h3>
                 <div style="text-align: left; font-family: monospace; background: white; padding: 1rem; border-radius: 4px; margin: 0.5rem 0;">
@@ -194,69 +199,12 @@
     </div>
 
     <script>
-        // Check if this is an upgrade and hide trial option
-        const urlParams = new URLSearchParams(window.location.search);
-        const isUpgrade = urlParams.get('upgrade') === 'true';
-        const subdomain = urlParams.get('subdomain');
-        
-        if (isUpgrade) {
-            // Set upgrade flag
-            document.getElementById('upgrade').value = 'true';
-            console.log('Upgrade flag set to true');
-            
-            // Hide trial option for upgrades
-            const trialOption = document.querySelector('[data-plan="trial"]');
-            if (trialOption) {
-                trialOption.style.display = 'none';
-            }
-            
-            // Pre-select professional plan
-            document.querySelectorAll('.plan-option').forEach(o => o.classList.remove('selected'));
-            const proOption = document.querySelector('[data-plan="professional"]');
-            if (proOption) {
-                proOption.classList.add('selected');
-                document.getElementById('plan').value = 'professional';
-            }
-            
-            // Pre-fill restaurant name if subdomain available
-            if (subdomain) {
-                const restaurantName = subdomain.charAt(0).toUpperCase() + subdomain.slice(1) + ' Restaurant';
-                document.getElementById('restaurant_name').value = restaurantName;
-            }
-            
-            // Pre-fill all fields if provided
-            const email = urlParams.get('email');
-            const restaurantName = urlParams.get('restaurant_name');
-            const username = urlParams.get('username');
-            const tableCount = urlParams.get('table_count');
-            
-            if (email) document.getElementById('email').value = email;
-            if (restaurantName) document.getElementById('restaurant_name').value = restaurantName;
-            if (username) document.getElementById('username').value = username;
-            if (tableCount) document.getElementById('table_count').value = tableCount;
-            
-            // Make fields readonly for upgrades (except password)
-            if (isUpgrade) {
-                document.getElementById('email').readOnly = true;
-                document.getElementById('restaurant_name').readOnly = true;
-                document.getElementById('username').readOnly = true;
-                document.getElementById('table_count').readOnly = true;
-                
-                // Add password verification message
-                const passwordField = document.getElementById('password');
-                const passwordLabel = passwordField.previousElementSibling;
-                passwordLabel.innerHTML = 'Current Admin Password <span style="color: #dc2626;">(Required for verification)</span>';
-                passwordField.placeholder = 'Enter your current admin password';
-            }
-        }
-        
         // Plan selection
         document.querySelectorAll('.plan-option').forEach(option => {
             option.addEventListener('click', () => {
                 document.querySelectorAll('.plan-option').forEach(o => o.classList.remove('selected'));
                 option.classList.add('selected');
                 document.getElementById('plan').value = option.dataset.plan;
-                console.log('Selected plan:', option.dataset.plan); // Debug log
             });
         });
 
@@ -268,63 +216,11 @@
             }
         });
         
-        // Check username availability
-        document.getElementById('username').addEventListener('blur', async function() {
-            const username = this.value.trim();
-            if (username.length < 3) {
-                // Clear any existing error for short usernames
-                this.style.borderColor = '';
-                const errorDiv = document.getElementById('username-error');
-                if (errorDiv) errorDiv.remove();
-                return;
-            }
-            
-            try {
-                const response = await fetch('/check-username', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username: username})
-                });
-                const data = await response.json();
-                
-                console.log('Username check response:', data);
-                
-                if (data.available === false) {
-                    this.style.borderColor = '#dc2626';
-                    let errorDiv = document.getElementById('username-error');
-                    if (!errorDiv) {
-                        errorDiv = document.createElement('div');
-                        errorDiv.id = 'username-error';
-                        errorDiv.style.cssText = 'color: #dc2626; font-size: 0.875rem; margin-top: 0.5rem;';
-                        this.parentNode.appendChild(errorDiv);
-                    }
-                    errorDiv.textContent = 'Username already taken';
-                } else if (data.available === true) {
-                    this.style.borderColor = '#28a745';
-                    const errorDiv = document.getElementById('username-error');
-                    if (errorDiv) errorDiv.remove();
-                } else {
-                    // Handle unexpected response
-                    this.style.borderColor = '';
-                    const errorDiv = document.getElementById('username-error');
-                    if (errorDiv) errorDiv.remove();
-                }
-            } catch (error) {
-                console.error('Username check failed:', error);
-                // Clear styling on error
-                this.style.borderColor = '';
-                const errorDiv = document.getElementById('username-error');
-                if (errorDiv) errorDiv.remove();
-            }
-        });
-        
         // Form submission
         document.getElementById('signupForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const formData = new FormData(e.target);
-            console.log('Form data plan:', formData.get('plan')); // Debug log
-            console.log('Form data upgrade:', formData.get('upgrade')); // Debug log
             
             try {
                 const response = await fetch('/signup', {
@@ -333,7 +229,6 @@
                 });
                 
                 const result = await response.json();
-                console.log('Server response:', result); // Debug log
                 
                 if (result.success) {
                     if (result.trial) {
@@ -341,17 +236,18 @@
                         showCredentialsModal(result.username, result.password, result.login_url);
                     } else {
                         // Redirect to Square checkout for paid plans
-                        console.log('Redirecting to:', result.checkout_url);
-                        window.location.href = result.checkout_url;
+                        if (formData.get('plan') === 'basic') {
+                            window.location.href = 'https://square.link/u/sSbfDKmT';
+                        } else {
+                            window.location.href = 'https://square.link/u/T0KF4RT4';
+                        }
                     }
                 } else {
-                    // Show error inline instead of alert
                     const errorDiv = document.getElementById('password-error');
                     if (errorDiv) {
                         errorDiv.textContent = result.error;
                         errorDiv.style.display = 'block';
                         
-                        // Clear error after 5 seconds
                         setTimeout(() => {
                             errorDiv.style.display = 'none';
                         }, 5000);
@@ -376,8 +272,6 @@
         function proceedToLogin() {
             window.location.href = loginUrl;
         }
-        
-
     </script>
 </body>
 </html>

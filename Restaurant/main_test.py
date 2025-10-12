@@ -134,9 +134,7 @@ async def square_webhook(request: Request, db: Session = Depends(get_db)):
                     signup_data["username"],
                     signup_data["password"],
                     signup_data["table_count"],
-                    plan_type,
-                    signup_data.get("business_type", "restaurant"),
-                    signup_data.get("room_prefix", "")
+                    plan_type
                 )
                 
                 # Clean up temporary data
@@ -171,7 +169,7 @@ def cleanup_signup_data(email):
     except:
         pass
 
-def auto_create_restaurant_from_payment(db, email, restaurant_name, username, password, table_count, plan_type, business_type="restaurant", room_prefix=""):
+def auto_create_restaurant_from_payment(db, email, restaurant_name, username, password, table_count, plan_type):
     try:
         # Generate subdomain from restaurant name
         subdomain = restaurant_name.lower().replace(' ', '-').replace('.', '').replace('_', '')[:20]
@@ -185,9 +183,7 @@ def auto_create_restaurant_from_payment(db, email, restaurant_name, username, pa
             admin_username=username,
             admin_password=password,
             table_count=table_count,
-            plan_type=plan_type,
-            business_type=business_type,
-            room_prefix=room_prefix
+            plan_type=plan_type
         )
         
         if result['success']:
@@ -249,10 +245,6 @@ def get_restaurant_name():
 async def signup_page(request: Request):
     return templates.TemplateResponse("signup.html", {"request": request})
 
-@app.get("/signup-hotel", response_class=HTMLResponse)
-async def signup_hotel_page(request: Request):
-    return templates.TemplateResponse("signup_hotel.html", {"request": request})
-
 @app.post("/check-username")
 async def check_username(request: Request, db: Session = Depends(get_db)):
     data = await request.json()
@@ -275,8 +267,6 @@ async def process_signup(
     username: str = Form(...),
     password: str = Form(...),
     upgrade: str = Form("false"),
-    business_type: str = Form("restaurant"),
-    room_prefix: str = Form(""),
     db: Session = Depends(get_db)
 ):
     try:
@@ -289,9 +279,7 @@ async def process_signup(
             "plan": plan,
             "table_count": table_count,
             "username": username,
-            "password": password,
-            "business_type": business_type,
-            "room_prefix": room_prefix
+            "password": password
         }
         
         # Store in session or temporary table (simplified: use email as key)
@@ -349,9 +337,7 @@ async def process_signup(
                 admin_username=username,
                 admin_password=password,
                 table_count=table_count,
-                plan_type="trial",
-                business_type=business_type,
-                room_prefix=room_prefix
+                plan_type="trial"
             )
             
             if result['success']:
@@ -449,8 +435,6 @@ async def create_restaurant(
     admin_password: str = Form(...),
     table_count: int = Form(...),
     plan_type: str = Form("trial"),
-    business_type: str = Form("restaurant"),
-    room_prefix: str = Form(""),
     menu_file: UploadFile = File(None),
     db: Session = Depends(get_db)
 ):
@@ -475,9 +459,7 @@ async def create_restaurant(
             admin_password=admin_password,
             table_count=table_count,
             plan_type=plan_type,
-            menu_file_content=menu_content,
-            business_type=business_type,
-            room_prefix=room_prefix
+            menu_file_content=menu_content
         )
         
         if result['success']:
@@ -1699,7 +1681,6 @@ async def add_menu_item(
     price: float = Form(...),
     category: str = Form(...),
     language: str = Form('en'),
-    needs_kitchen: bool = Form(True),
     db: Session = Depends(get_db)
 ):
     try:
@@ -1711,7 +1692,6 @@ async def add_menu_item(
             price=price,
             category=category,
             language=language,
-            needs_kitchen=needs_kitchen,
             active=True
         )
         db.add(item)
@@ -3544,5 +3524,5 @@ For detailed itemization, please ask your waiter.
 if __name__ == "__main__":
     import uvicorn
     import os
-    port = int(os.environ.get("PORT", 8000))
+    port = 8001
     uvicorn.run(app, host="0.0.0.0", port=port)

@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', function() {
     instantOrderItems = {};
     instantTotal = 0;
     
+    // Check business type and update UI
+    updateBusinessTypeUI();
+    
     // Check plan features on load
     checkPlanFeatures();
     
@@ -217,7 +220,8 @@ function displayTables() {
     console.log('Displaying', tables.length, 'tables');
     tablesGrid.innerHTML = '';
     
-    // No banner needed - using table colors
+    // Check if this is a hotel by looking at current business type
+    const isHotel = window.businessType === 'hotel';
     
     tables.forEach(table => {
         const tableCard = document.createElement('div');
@@ -237,12 +241,13 @@ function displayTables() {
         }
         
         tableCard.className = cardClass;
+        
+        // Use Room or Table based on business type
+        const locationLabel = isHotel ? 'Room' : 'Table';
         let tableContent = `
-            <div>Table ${table.table_number}</div>
+            <div>${locationLabel} ${table.table_number}</div>
             <div style="font-size: 12px; margin-top: 5px;">Code: ${table.code}</div>
         `;
-        
-        // Cancel button removed from table cards - only available in modal
         
         tableCard.innerHTML = tableContent;
         tableCard.setAttribute('data-table', table.table_number);
@@ -273,6 +278,14 @@ async function showOrderDetails(tableNumber) {
             console.log(`Opening modal for table ${tableNumber}`);
             
             document.getElementById('modal-table-number').textContent = tableNumber;
+            
+            // Update modal title based on business type
+            const isHotel = window.businessType === 'hotel';
+            const locationLabel = isHotel ? 'Room' : 'Table';
+            const modalTitle = document.getElementById('order-modal-title');
+            if (modalTitle) {
+                modalTitle.innerHTML = `📋 Order Details - ${locationLabel} <span id="modal-table-number">${tableNumber}</span>`;
+            }
             
             const orderDetailsDiv = document.getElementById('order-details');
             console.log('Order data received:', data);
@@ -1877,6 +1890,8 @@ function filterMenuItems() {
     });
 }
 
+
+
 function openBarOrdersPopup() {
     const currentPath = window.location.pathname;
     let instantOrderUrl = '/business/instant-order';
@@ -1899,6 +1914,43 @@ function openBarOrdersPopup() {
         if (!popup) {
             alert('Please allow popups for this site');
         }
+    }
+}
+
+async function updateBusinessTypeUI() {
+    try {
+        // Detect business type from menu categories
+        const response = await fetch('/business/menu');
+        const data = await response.json();
+        
+        const isHotel = Object.keys(data || {}).some(category => 
+            category.toLowerCase().includes('room service') || 
+            category.toLowerCase().includes('hotel')
+        );
+        
+        // Store business type globally for use in displayTables
+        window.businessType = isHotel ? 'hotel' : 'restaurant';
+        
+        if (isHotel) {
+            // Update labels for hotel context
+            const tablesTitle = document.getElementById('tables-overview-title');
+            const tablesDesc = document.getElementById('tables-overview-desc');
+            const orderModalTitle = document.getElementById('order-modal-title');
+            const splitModalTitle = document.getElementById('split-modal-title');
+            const qrCodesTitle = document.getElementById('qr-codes-title');
+            const qrCodesDesc = document.getElementById('qr-codes-desc');
+            
+            if (tablesTitle) tablesTitle.innerHTML = '🏨 Rooms Overview';
+            if (tablesDesc) tablesDesc.textContent = 'Click on occupied rooms to view order details';
+            if (qrCodesTitle) qrCodesTitle.innerHTML = '📱 QR Codes for Rooms';
+            if (qrCodesDesc) qrCodesDesc.textContent = 'Generate QR codes for each room. Guests can scan these to access the room service menu and place orders.';
+            
+            // Update page title
+            document.title = 'Hotel Business Dashboard';
+        }
+    } catch (error) {
+        console.error('Error detecting business type:', error);
+        window.businessType = 'restaurant'; // fallback
     }
 }
 

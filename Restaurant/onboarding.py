@@ -32,7 +32,9 @@ def create_new_restaurant(
     admin_password: str,
     table_count: int,
     plan_type: str = "trial",
-    menu_file_content: bytes = None
+    menu_file_content: bytes = None,
+    business_type: str = "restaurant",
+    room_prefix: str = ""
 ) -> dict:
     """Create a new restaurant with all necessary setup"""
     try:
@@ -50,7 +52,9 @@ def create_new_restaurant(
             plan_type=plan_type,
             trial_ends_at=trial_ends_at,
             active=True,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
+            business_type=business_type,
+            room_prefix=room_prefix
         )
         db.add(restaurant)
         db.flush()  # Get the ID
@@ -67,12 +71,20 @@ def create_new_restaurant(
         )
         db.add(admin_user)
         
-        # Create tables with proper codes
+        # Create tables/rooms with proper codes
         table_codes = ['123', '456', '789', '321', '654', '987', '147', '258', '369', '741']
         for i in range(1, table_count + 1):
-            code = table_codes[i-1] if i <= len(table_codes) else f"T{i:03d}"
+            if business_type == "hotel":
+                # For hotels, use room numbers with prefix
+                table_number = i
+                code = table_codes[i-1] if i <= len(table_codes) else f"R{i:03d}"
+            else:
+                # For restaurants, use table numbers
+                table_number = i
+                code = table_codes[i-1] if i <= len(table_codes) else f"T{i:03d}"
+            
             table = Table(
-                table_number=i,
+                table_number=table_number,
                 code=code,
                 status="free",
                 restaurant_id=restaurant_id
@@ -88,12 +100,20 @@ def create_new_restaurant(
         
         # Create default menu items if no file provided
         if not menu_file_content:
-            default_items = [
-                {"name": "Margherita Pizza", "ingredients": "Tomato, Mozzarella, Basil", "price": 12.50, "category": "Pizza"},
-                {"name": "Caesar Salad", "ingredients": "Lettuce, Parmesan, Croutons, Caesar Dressing", "price": 8.90, "category": "Salad"},
-                {"name": "Pasta Carbonara", "ingredients": "Pasta, Eggs, Bacon, Parmesan", "price": 14.00, "category": "Pasta"},
-                {"name": "Tiramisu", "ingredients": "Mascarpone, Coffee, Ladyfingers", "price": 6.50, "category": "Dessert"}
-            ]
+            if business_type == "hotel":
+                default_items = [
+                    {"name": "Continental Breakfast", "ingredients": "Coffee, Juice, Pastries, Fruit", "price": 15.00, "category": "Room Service"},
+                    {"name": "Club Sandwich", "ingredients": "Turkey, Bacon, Lettuce, Tomato, Mayo", "price": 18.50, "category": "Room Service"},
+                    {"name": "Caesar Salad", "ingredients": "Lettuce, Parmesan, Croutons, Caesar Dressing", "price": 14.00, "category": "Room Service"},
+                    {"name": "Chocolate Cake", "ingredients": "Chocolate, Cream, Berries", "price": 8.50, "category": "Dessert"}
+                ]
+            else:
+                default_items = [
+                    {"name": "Margherita Pizza", "ingredients": "Tomato, Mozzarella, Basil", "price": 12.50, "category": "Pizza"},
+                    {"name": "Caesar Salad", "ingredients": "Lettuce, Parmesan, Croutons, Caesar Dressing", "price": 8.90, "category": "Salad"},
+                    {"name": "Pasta Carbonara", "ingredients": "Pasta, Eggs, Bacon, Parmesan", "price": 14.00, "category": "Pasta"},
+                    {"name": "Tiramisu", "ingredients": "Mascarpone, Coffee, Ladyfingers", "price": 6.50, "category": "Dessert"}
+                ]
             
             for item_data in default_items:
                 menu_item = MenuItem(

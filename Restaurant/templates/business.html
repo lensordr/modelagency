@@ -44,15 +44,15 @@
 
         <div id="live-orders" class="section-content">
             <div class="dashboard-section">
-            <h2>🏽 Tables Overview</h2>
-            <p style="color: #718096; margin-bottom: 1.5rem;">Click on occupied tables to view order details</p>
+            <h2 id="tables-overview-title">🏽 Tables Overview</h2>
+            <p style="color: #718096; margin-bottom: 1.5rem;" id="tables-overview-desc">Click on occupied tables to view order details</p>
             <div id="tables-grid"></div>
             </div>
             
             <div id="order-modal" class="modal" style="display: none;">
                 <div class="modal-content">
                     <span class="close">&times;</span>
-                    <h2>📋 Order Details - Table <span id="modal-table-number"></span></h2>
+                    <h2 id="order-modal-title">📋 Order Details - Table <span id="modal-table-number"></span></h2>
                     <div id="order-details"></div>
                     <div class="waiter-selection">
                         <label for="waiter-select">Select Waiter:</label>
@@ -73,7 +73,7 @@
         <div id="split-bill-modal" class="modal" style="display: none;">
             <div class="modal-content">
                 <span class="close" onclick="closeSplitBillModal()">&times;</span>
-                <h2>💰 Split Bill - Table <span id="split-modal-table-number"></span></h2>
+                <h2 id="split-modal-title">💰 Split Bill - Table <span id="split-modal-table-number"></span></h2>
                 <p style="color: #666; margin-bottom: 20px;">Select items to checkout separately. Remaining items will stay active for other customers.</p>
                 <div id="split-order-details"></div>
                 <div class="waiter-selection" style="margin: 20px 0;">
@@ -190,8 +190,8 @@
 
         <div id="qr-codes" class="section-content" style="display: none;">
             <div class="dashboard-section">
-                <h2>📱 QR Codes for Tables</h2>
-                <p style="color: #718096; margin-bottom: 1.5rem;">Generate QR codes for each table. Customers can scan these to access the menu and place orders.</p>
+                <h2 id="qr-codes-title">📱 QR Codes for Tables</h2>
+                <p style="color: #718096; margin-bottom: 1.5rem;" id="qr-codes-desc">Generate QR codes for each table. Customers can scan these to access the menu and place orders.</p>
                 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <button onclick="loadQRCodes()" style="background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer;">🔄 Refresh QR Codes</button>

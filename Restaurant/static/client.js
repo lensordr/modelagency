@@ -52,6 +52,9 @@ async function loadMenu() {
             menu = data.menu;
             tableCode = data.table_code;
             
+            // Update UI based on business type (detect from URL or data)
+            updateBusinessTypeUI(data);
+            
             // Show language selector only if multiple languages available
             const langSelector = document.querySelector('.language-selector');
             if (data.available_languages && data.available_languages.length > 1) {
@@ -652,6 +655,34 @@ function changeLanguage(lang) {
     const url = new URL(window.location);
     url.searchParams.set('lang', lang);
     window.location.href = url.toString();
+}
+
+function updateBusinessTypeUI(data) {
+    // Detect if this is a hotel based on menu categories or URL
+    const isHotel = Object.keys(data.menu || {}).some(category => 
+        category.toLowerCase().includes('room service') || 
+        category.toLowerCase().includes('hotel')
+    ) || window.location.pathname.includes('hotel');
+    
+    if (isHotel) {
+        // Update labels for hotel context
+        const locationHeader = document.getElementById('location-header');
+        const welcomeMessage = document.getElementById('welcome-message');
+        const codeLabel = document.getElementById('code-label');
+        
+        if (locationHeader) {
+            locationHeader.innerHTML = `🏨 Room <span id="table-number">${tableNumber}</span>`;
+        }
+        if (welcomeMessage) {
+            welcomeMessage.textContent = 'Welcome! Browse our room service menu and place your order';
+        }
+        if (codeLabel) {
+            codeLabel.textContent = 'Enter 3-digit room code:';
+        }
+        
+        // Update page title
+        document.title = `Hotel Room Service - Room ${tableNumber}`;
+    }
 }
 
 function showMessage(message, type) {

@@ -15,8 +15,8 @@
             <h1>🍽️ {{ restaurant_name }}</h1>
         </div>
         <div id="table-info">
-            <h2>📍 Table <span id="table-number">{{ table_number or 'Not specified' }}</span></h2>
-            <p style="color: #718096; margin-top: 0.5rem;">Welcome! Browse our menu and place your order</p>
+            <h2 id="location-header">📍 Table <span id="table-number">{{ table_number or 'Not specified' }}</span></h2>
+            <p style="color: #718096; margin-top: 0.5rem;" id="welcome-message">Welcome! Browse our menu and place your order</p>
             <div class="language-selector" style="margin-top: 1rem;">
                 <button onclick="changeLanguage('en')" class="lang-btn">🇺🇸 English</button>
                 <button onclick="changeLanguage('es')" class="lang-btn">🇪🇸 Español</button>
@@ -35,7 +35,7 @@
                 <form id="order-form">
                     <input type="hidden" id="table-number-input" name="table_number" value="{{ table_number }}">
                     <div class="form-group">
-                        <label for="table-code">Enter 3-digit table code:</label>
+                        <label for="table-code" id="code-label">Enter 3-digit table code:</label>
                         <input type="text" id="table-code" name="code" maxlength="3" pattern="[0-9]{3}" required>
                     </div>
                     <button type="submit" id="place-order-btn" disabled>Place Order</button>

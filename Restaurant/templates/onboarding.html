@@ -25,8 +25,8 @@
     <div class="onboard-container">
         <a href="/admin" class="back-link">← Back to Admin Dashboard</a>
         
-        <h1>🍽️ Create New Restaurant</h1>
-        <p>Set up a new restaurant on the TableLink platform</p>
+        <h1 id="page_title">🍽️ Create New Restaurant</h1>
+        <p id="page_description">Set up a new restaurant on the TableLink platform</p>
         
         <div id="message" style="display: none;"></div>
         
@@ -56,7 +56,22 @@
             </div>
             
             <div class="form-group">
-                <label for="table_count">Number of Tables *</label>
+                <label for="business_type">Business Type *</label>
+                <select id="business_type" name="business_type" onchange="updateBusinessType()">
+                    <option value="restaurant">🍽️ Restaurant</option>
+                    <option value="hotel">🏨 Hotel</option>
+                </select>
+            </div>
+            
+            <div class="form-group" id="room_prefix_group" style="display: none;">
+                <label for="room_prefix">Room Prefix (Optional)</label>
+                <input type="text" id="room_prefix" name="room_prefix" 
+                       placeholder="e.g., RM, SUITE" maxlength="10">
+                <small style="color: #666; font-size: 14px;">Prefix for room numbers (e.g., RM101, SUITE201)</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="table_count" id="table_count_label">Number of Tables *</label>
                 <input type="number" id="table_count" name="table_count" required 
                        min="1" max="100" value="10" placeholder="10">
             </div>
@@ -73,7 +88,7 @@
             <div class="form-group">
                 <label for="menu_file">Menu File (Optional)</label>
                 <input type="file" id="menu_file" name="menu_file" accept=".xlsx,.xls">
-                <small style="color: #666; font-size: 14px;">Upload Excel file with columns: Name, Ingredients, Price, Category</small>
+                <small style="color: #666; font-size: 14px;" id="menu_help">Upload Excel file with columns: Name, Ingredients, Price, Category</small>
             </div>
             
             <button type="submit" class="btn-create" id="create-btn">
@@ -103,6 +118,29 @@
         if (planParam) {
             const planSelect = document.getElementById('plan_type');
             planSelect.value = planParam;
+        }
+        
+        function updateBusinessType() {
+            const businessType = document.getElementById('business_type').value;
+            const roomPrefixGroup = document.getElementById('room_prefix_group');
+            const tableCountLabel = document.getElementById('table_count_label');
+            const pageTitle = document.getElementById('page_title');
+            const pageDescription = document.getElementById('page_description');
+            const menuHelp = document.getElementById('menu_help');
+            
+            if (businessType === 'hotel') {
+                roomPrefixGroup.style.display = 'block';
+                tableCountLabel.textContent = 'Number of Rooms *';
+                pageTitle.innerHTML = '🏨 Create New Hotel';
+                pageDescription.textContent = 'Set up a new hotel on the TableLink platform';
+                menuHelp.textContent = 'Upload Excel file with room service menu: Name, Ingredients, Price, Category';
+            } else {
+                roomPrefixGroup.style.display = 'none';
+                tableCountLabel.textContent = 'Number of Tables *';
+                pageTitle.innerHTML = '🍽️ Create New Restaurant';
+                pageDescription.textContent = 'Set up a new restaurant on the TableLink platform';
+                menuHelp.textContent = 'Upload Excel file with columns: Name, Ingredients, Price, Category';
+            }
         }
         
         document.getElementById('onboard-form').addEventListener('submit', async function(e) {
@@ -139,6 +177,15 @@
                     document.getElementById('created-url').href = result.login_url;
                     document.getElementById('created-username').textContent = result.admin_username;
                     document.getElementById('created-password').textContent = result.admin_password;
+                    
+                    // Update success message based on business type
+                    const businessType = document.getElementById('business_type').value;
+                    const successTitle = document.querySelector('#success-details h3');
+                    if (businessType === 'hotel') {
+                        successTitle.innerHTML = '🏨 Hotel Created Successfully!';
+                    } else {
+                        successTitle.innerHTML = '🎉 Restaurant Created Successfully!';
+                    }
                     
                     document.getElementById('success-details').style.display = 'block';
                 } else {

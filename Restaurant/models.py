@@ -17,6 +17,8 @@ class Restaurant(Base):
     admin_email = Column(String(255), nullable=True)  # For upgrade detection
     created_at = Column(DateTime, default=datetime.utcnow)
     active = Column(Boolean, default=True)
+    business_type = Column(String(20), default='restaurant')  # 'restaurant' or 'hotel'
+    room_prefix = Column(String(10), default='')  # e.g., 'RM', 'SUITE' for hotels
     
     # Relationships
     users = relationship("User", back_populates="restaurant")
