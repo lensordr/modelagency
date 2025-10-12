@@ -28,10 +28,11 @@
     <section class="hero">
         <div class="container">
             <div class="hero-content">
-                <h1>Modern Restaurant Management Made Simple</h1>
-                <p>Streamline your restaurant operations with QR code ordering, real-time analytics, and comprehensive business insights.</p>
+                <h1>Modern Business Management Made Simple</h1>
+                <p>Streamline your restaurant or hotel operations with QR code ordering, real-time analytics, and comprehensive business insights.</p>
                 <div class="hero-buttons">
-                    <a href="/signup" class="btn-primary">🚀 Start 15-Day Free Trial</a>
+                    <a href="/signup" class="btn-primary">🍽️ Restaurant Trial</a>
+                    <a href="/signup-hotel" class="btn-primary">🏨 Hotel Trial</a>
                     <a href="#demo" class="btn-secondary">Try Demo</a>
                 </div>
             </div>
@@ -41,18 +42,48 @@
         </div>
     </section>
 
+    <!-- Business Types Section -->
+    <section class="business-types">
+        <div class="container">
+            <div class="section-header">
+                <h2>Perfect for Restaurants & Hotels</h2>
+                <p>Tailored solutions for your business type</p>
+            </div>
+            <div class="business-grid">
+                <div class="business-card">
+                    <div class="business-icon">🍽️</div>
+                    <h3>Restaurants</h3>
+                    <p>Table management, kitchen display, menu ordering, and comprehensive analytics for restaurants.</p>
+                    <div class="business-buttons">
+                        <a href="/signup" class="btn-business">Start Restaurant Trial</a>
+                        <a href="#restaurant-demo" class="btn-demo-small">Try Demo</a>
+                    </div>
+                </div>
+                <div class="business-card">
+                    <div class="business-icon">🏨</div>
+                    <h3>Hotels</h3>
+                    <p>Room service management, guest ordering, housekeeping integration, and hotel-specific analytics.</p>
+                    <div class="business-buttons">
+                        <a href="/signup-hotel" class="btn-business">Start Hotel Trial</a>
+                        <a href="#hotel-demo" class="btn-demo-small">Try Demo</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Features Section -->
     <section id="features" class="features">
         <div class="container">
             <div class="section-header">
-                <h2>Everything You Need to Run Your Restaurant</h2>
-                <p>Powerful features designed for modern restaurants</p>
+                <h2>Everything You Need to Run Your Business</h2>
+                <p>Powerful features designed for modern restaurants and hotels</p>
             </div>
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">📱</div>
                     <h3>QR Code Ordering</h3>
-                    <p>Customers scan QR codes to view menus and place orders directly from their tables.</p>
+                    <p>Customers scan QR codes to view menus and place orders directly from tables or hotel rooms.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">📊</div>
@@ -62,7 +93,7 @@
                 <div class="feature-card">
                     <div class="feature-icon">👨🍳</div>
                     <h3>Staff Management</h3>
-                    <p>Manage waiters, track performance, and optimize your team's efficiency.</p>
+                    <p>Manage waiters, room service staff, track performance, and optimize your team's efficiency.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">💳</div>
@@ -93,31 +124,46 @@
         <div class="container">
             <div class="section-header">
                 <h2>Try TableLink Now</h2>
-                <p>Experience the power of modern restaurant management</p>
+                <p>Experience the power of modern business management</p>
             </div>
-            <div class="demo-grid">
-                <div class="demo-card">
-                    <h3>🍽️ Customer Experience</h3>
-                    <p>See how customers order from their tables</p>
-                    <a href="/r/test-restaurant/table/1" class="btn-demo" target="_blank">Try Customer View</a>
-                </div>
-                <div class="demo-card">
-                    <h3>💼 Business Dashboard</h3>
-                    <p>Manage orders and view analytics</p>
-                    <a href="/r/test-restaurant/business/login" class="btn-demo" target="_blank">Try Business View</a>
-                    <div class="demo-credentials">
-                        <small>Admin: admin / Pass: test123</small>
+            
+            <!-- Restaurant Demo -->
+            <div id="restaurant-demo" class="demo-section">
+                <h3>🍽️ Restaurant Demo</h3>
+                <div class="demo-grid">
+                    <div class="demo-card">
+                        <h4>Customer Experience</h4>
+                        <p>See how customers order from tables</p>
+                        <a href="/r/test-restaurant/table/1" class="btn-demo" target="_blank">Try Table View</a>
+                    </div>
+                    <div class="demo-card">
+                        <h4>Business Dashboard</h4>
+                        <p>Manage orders and view analytics</p>
+                        <a href="/r/test-restaurant/business/login" class="btn-demo" target="_blank">Try Dashboard</a>
+                        <div class="demo-credentials">
+                            <small>Admin: admin / Pass: test123</small>
+                        </div>
                     </div>
                 </div>
-                <div class="demo-card">
-                    <h3>🍳 Kitchen Display</h3>
-                    <p>Dedicated screen for kitchen staff</p>
-                    <a href="/r/test-restaurant/business/kitchen" class="btn-demo" target="_blank">Try Kitchen View</a>
-                </div>
-                <div class="demo-card">
-                    <h3>📊 Advanced Analytics</h3>
-                    <p>Deep insights and reporting</p>
-                    <a href="/r/test-restaurant/business/analytics" class="btn-demo" target="_blank">Try Analytics</a>
+            </div>
+            
+            <!-- Hotel Demo -->
+            <div id="hotel-demo" class="demo-section">
+                <h3>🏨 Hotel Demo</h3>
+                <div class="demo-grid">
+                    <div class="demo-card">
+                        <h4>Room Service Experience</h4>
+                        <p>See how guests order from rooms</p>
+                        <a href="/r/test-hotel/table/101" class="btn-demo" target="_blank">Try Room View</a>
+                    </div>
+                    <div class="demo-card">
+                        <h4>Hotel Dashboard</h4>
+                        <p>Manage room service and analytics</p>
+                        <a href="/r/test-hotel/business/login" class="btn-demo" target="_blank">Try Dashboard</a>
+                        <div class="demo-credentials">
+                            <small>Admin: admin / Pass: test123</small>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -128,49 +174,83 @@
         <div class="container">
             <div class="section-header">
                 <h2>Simple, Transparent Pricing</h2>
-                <p>Choose the plan that fits your restaurant</p>
+                <p>Choose the plan that fits your business</p>
             </div>
-            <div class="pricing-grid">
-                <div class="pricing-card">
-                    <h3>Free Trial</h3>
-                    <div class="price">€0<span>/15 days</span></div>
-                    <ul>
-                        <li>✅ Full Access</li>
-                        <li>✅ All Features</li>
-                        <li>✅ QR Code Ordering</li>
-                        <li>✅ Analytics Dashboard</li>
-                        <li>✅ Staff Management</li>
-                        <li>✅ PDF Receipts</li>
-                    </ul>
-                    <a href="/signup" class="btn-pricing">Start 15-Day Free Trial</a>
+            
+            <!-- Restaurant Pricing -->
+            <div class="pricing-section">
+                <h3>🍽️ Restaurant Pricing</h3>
+                <div class="pricing-grid">
+                    <div class="pricing-card">
+                        <h4>Free Trial</h4>
+                        <div class="price">€0<span>/15 days</span></div>
+                        <ul>
+                            <li>✅ Full Access</li>
+                            <li>✅ QR Code Ordering</li>
+                            <li>✅ Analytics Dashboard</li>
+                            <li>✅ Staff Management</li>
+                        </ul>
+                        <a href="/signup" class="btn-pricing">Start Restaurant Trial</a>
+                    </div>
+                    <div class="pricing-card">
+                        <h4>Basic</h4>
+                        <div class="price">€49<span>/month</span></div>
+                        <ul>
+                            <li>✅ Up to 50 tables</li>
+                            <li>✅ Basic Dashboard</li>
+                            <li>✅ Email Support</li>
+                        </ul>
+                        <a href="/signup" class="btn-pricing">Get Started</a>
+                    </div>
+                    <div class="pricing-card">
+                        <h4>Professional</h4>
+                        <div class="price">€79<span>/month</span></div>
+                        <ul>
+                            <li>✅ Advanced Analytics</li>
+                            <li>✅ Unlimited Tables</li>
+                            <li>✅ Priority Support</li>
+                        </ul>
+                        <a href="/signup" class="btn-pricing">Get Started</a>
+                    </div>
                 </div>
-                <div class="pricing-card featured">
-                    <div class="popular-badge">Most Popular</div>
-                    <h3>Basic</h3>
-                    <div class="price">€49<span>/month</span></div>
-                    <ul>
-                        <li>✅ QR Code Ordering</li>
-                        <li>✅ Basic Dashboard</li>
-                        <li>✅ Up to 50 tables</li>
-                        <li>✅ Staff Management</li>
-                        <li>✅ Email Support</li>
-                        <li>✅ PDF Receipts</li>
-                    </ul>
-                    <a href="/signup" class="btn-pricing">Get Started</a>
-                </div>
-                <div class="pricing-card">
-                    <h3>Professional</h3>
-                    <div class="price">€79<span>/month</span></div>
-                    <ul>
-                        <li>✅ Everything in Basic</li>
-                        <li>✅ Advanced Analytics</li>
-                        <li>✅ IVA Tax Reports</li>
-                        <li>✅ Excel Exports</li>
-                        <li>✅ Unlimited Tables</li>
-                        <li>✅ Priority Support</li>
-                        <li>✅ Custom Features</li>
-                    </ul>
-                    <a href="/signup" class="btn-pricing">Get Started</a>
+            </div>
+            
+            <!-- Hotel Pricing -->
+            <div class="pricing-section">
+                <h3>🏨 Hotel Pricing</h3>
+                <div class="pricing-grid">
+                    <div class="pricing-card">
+                        <h4>Free Trial</h4>
+                        <div class="price">€0<span>/15 days</span></div>
+                        <ul>
+                            <li>✅ Full Access</li>
+                            <li>✅ Room Service Ordering</li>
+                            <li>✅ Analytics Dashboard</li>
+                            <li>✅ Staff Management</li>
+                        </ul>
+                        <a href="/signup-hotel" class="btn-pricing">Start Hotel Trial</a>
+                    </div>
+                    <div class="pricing-card">
+                        <h4>Basic</h4>
+                        <div class="price">€79<span>/month</span></div>
+                        <ul>
+                            <li>✅ Up to 100 rooms</li>
+                            <li>✅ Basic Dashboard</li>
+                            <li>✅ Email Support</li>
+                        </ul>
+                        <a href="/signup-hotel" class="btn-pricing">Get Started</a>
+                    </div>
+                    <div class="pricing-card featured">
+                        <div class="popular-badge">Recommended</div>
+                        <h4>Professional</h4>
+                        <div class="price">€99<span>/month</span></div>
+                        <ul>
+                            <li>✅ Advanced Analytics</li>
+                            <li>✅ Unlimited Rooms</li>
+                            <li>✅ Priority Support</li>
+                        </ul>
+                        <a href="/signup-hotel" class="btn-pricing">Get Started</a>
+                    </div>
                 </div>
             </div>
         </div>

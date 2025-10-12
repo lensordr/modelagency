@@ -251,10 +251,8 @@ async def signup_page(request: Request):
 
 @app.get("/signup-hotel", response_class=HTMLResponse)
 async def signup_hotel_page(request: Request):
-    # Fallback to regular signup with hotel pre-selected
-    return templates.TemplateResponse("signup.html", {
-        "request": request,
-        "hotel_mode": True
+    return templates.TemplateResponse("signup_hotel.html", {
+        "request": request
     })
 
 @app.post("/check-username")
@@ -859,7 +857,9 @@ async def get_menu(request: Request, table: int, lang: str = 'en', db: Session =
         "restaurant_name": restaurant_name,
         "menu": menu_by_category,
         "available_languages": available_languages,
-        "current_language": lang
+        "current_language": lang,
+        "business_type": getattr(restaurant, 'business_type', 'restaurant'),
+        "room_prefix": getattr(restaurant, 'room_prefix', '')
     })
     print(f"Client menu: Returning menu for {restaurant_name} with {sum(len(items) for items in menu_by_category.values())} items in {lang}")
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"

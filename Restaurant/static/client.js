@@ -658,11 +658,8 @@ function changeLanguage(lang) {
 }
 
 function updateBusinessTypeUI(data) {
-    // Detect if this is a hotel based on menu categories or URL
-    const isHotel = Object.keys(data.menu || {}).some(category => 
-        category.toLowerCase().includes('room service') || 
-        category.toLowerCase().includes('hotel')
-    ) || window.location.pathname.includes('hotel');
+    // Detect if this is a hotel based on business_type field
+    const isHotel = data.business_type === 'hotel';
     
     if (isHotel) {
         // Update labels for hotel context
@@ -671,7 +668,8 @@ function updateBusinessTypeUI(data) {
         const codeLabel = document.getElementById('code-label');
         
         if (locationHeader) {
-            locationHeader.innerHTML = `🏨 Room <span id="table-number">${tableNumber}</span>`;
+            const roomPrefix = data.room_prefix ? data.room_prefix + ' ' : '';
+            locationHeader.innerHTML = `🏨 ${roomPrefix}Room <span id="table-number">${tableNumber}</span>`;
         }
         if (welcomeMessage) {
             welcomeMessage.textContent = 'Welcome! Browse our room service menu and place your order';
@@ -681,7 +679,8 @@ function updateBusinessTypeUI(data) {
         }
         
         // Update page title
-        document.title = `Hotel Room Service - Room ${tableNumber}`;
+        const roomPrefix = data.room_prefix ? data.room_prefix + ' ' : '';
+        document.title = `Hotel Room Service - ${roomPrefix}Room ${tableNumber}`;
     }
 }
 

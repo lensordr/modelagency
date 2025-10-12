@@ -206,6 +206,90 @@ section {
     margin: 0 auto;
 }
 
+/* Business Types */
+.business-types {
+    background: white;
+}
+
+.business-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 40px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.business-card {
+    background: #f8f9fa;
+    padding: 40px 30px;
+    border-radius: 12px;
+    text-align: center;
+    border: 2px solid transparent;
+    transition: all 0.3s;
+}
+
+.business-card:hover {
+    border-color: #007bff;
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+}
+
+.business-icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+}
+
+.business-card h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.business-card p {
+    color: #666;
+    margin-bottom: 25px;
+    line-height: 1.6;
+}
+
+.business-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.btn-business {
+    background: #007bff;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.btn-business:hover {
+    background: #0056b3;
+    transform: translateY(-2px);
+}
+
+.btn-demo-small {
+    background: transparent;
+    color: #007bff;
+    padding: 8px 16px;
+    border: 1px solid #007bff;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: all 0.3s;
+}
+
+.btn-demo-small:hover {
+    background: #007bff;
+    color: white;
+}
+
 /* Features */
 .features {
     background: #f8f9fa;
@@ -248,10 +332,29 @@ section {
 }
 
 /* Demo */
+.demo-section {
+    margin-bottom: 50px;
+}
+
+.demo-section h3 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 30px;
+    text-align: center;
+    color: #333;
+}
+
 .demo-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 30px;
+}
+
+.demo-card h4 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #333;
 }
 
 .demo-card {
@@ -314,12 +417,31 @@ section {
     background: #f8f9fa;
 }
 
+.pricing-section {
+    margin-bottom: 60px;
+}
+
+.pricing-section h3 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 30px;
+    text-align: center;
+    color: #333;
+}
+
 .pricing-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 30px;
-    max-width: 1000px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 25px;
+    max-width: 900px;
     margin: 0 auto;
+}
+
+.pricing-card h4 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: 15px;
+    color: #333;
 }
 
 .pricing-card {
@@ -612,8 +734,13 @@ section {
     }
     
     .features-grid,
-    .demo-grid {
+    .demo-grid,
+    .business-grid {
         grid-template-columns: 1fr;
+    }
+    
+    .business-card {
+        min-width: auto;
     }
     
     .contact-content {
