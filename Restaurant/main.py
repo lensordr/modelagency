@@ -67,7 +67,7 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/", response_class=HTMLResponse)
 async def website_home():
     try:
-        web_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "web"))
+        web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
         with open(os.path.join(web_dir, "index.html"), "r") as f:
             content = f.read()
         return HTMLResponse(content=content)
@@ -211,7 +211,7 @@ app.add_middleware(TenantMiddleware)
 # Mount static files and templates
 static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
-web_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "web"))
+web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 print(f"Web directory path: {web_dir}")
 print(f"Web directory exists: {os.path.exists(web_dir)}")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
