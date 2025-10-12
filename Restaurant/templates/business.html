@@ -156,11 +156,14 @@
                 <div class="menu-items-section">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <h3>🍴 Menu Items</h3>
-                        <select id="view-language" onchange="loadMenuItems()" style="padding: 8px; border: 2px solid #e2e8f0; border-radius: 6px;">
-                            <option value="en">🇺🇸 English</option>
-                            <option value="es">🇪🇸 Spanish</option>
-                            <option value="fr">🇫🇷 French</option>
-                        </select>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="menu-search" placeholder="Search menu items..." style="padding: 8px; border: 2px solid #e2e8f0; border-radius: 6px; width: 200px;" oninput="filterMenuItems()">
+                            <select id="view-language" onchange="loadMenuItems()" style="padding: 8px; border: 2px solid #e2e8f0; border-radius: 6px;">
+                                <option value="en">🇺🇸 English</option>
+                                <option value="es">🇪🇸 Spanish</option>
+                                <option value="fr">🇫🇷 French</option>
+                            </select>
+                        </div>
                     </div>
                     
                     <div style="background: #f0fff4; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 2px solid #68d391;">
@@ -170,6 +173,12 @@
                             <input type="number" id="new-item-price" placeholder="Price" step="0.01" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                             <input type="text" id="new-item-ingredients" placeholder="Ingredients" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                             <input type="text" id="new-item-category" placeholder="Category" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="new-item-kitchen" checked style="transform: scale(1.2);">
+                                <span>Needs Kitchen Preparation</span>
+                            </label>
                         </div>
                         <button onclick="addMenuItem()" style="background: #38a169; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px;">Add Item</button>
                     </div>

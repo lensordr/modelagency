@@ -1681,6 +1681,7 @@ async def add_menu_item(
     price: float = Form(...),
     category: str = Form(...),
     language: str = Form('en'),
+    needs_kitchen: bool = Form(True),
     db: Session = Depends(get_db)
 ):
     try:
@@ -1692,6 +1693,7 @@ async def add_menu_item(
             price=price,
             category=category,
             language=language,
+            needs_kitchen=needs_kitchen,
             active=True
         )
         db.add(item)

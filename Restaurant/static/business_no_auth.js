@@ -472,6 +472,7 @@ async function addMenuItem() {
     const ingredients = document.getElementById('new-item-ingredients').value.trim();
     const category = document.getElementById('new-item-category').value.trim();
     const language = document.getElementById('view-language').value;
+    const needsKitchen = document.getElementById('new-item-kitchen').checked;
     
     if (!name || !price || !category) {
         showMessage('Please fill in name, price, and category', 'error');
@@ -485,6 +486,7 @@ async function addMenuItem() {
         formData.append('ingredients', ingredients);
         formData.append('category', category);
         formData.append('language', language);
+        formData.append('needs_kitchen', needsKitchen);
         
         const response = await fetch('/business/menu/add', {
             method: 'POST',
@@ -499,7 +501,10 @@ async function addMenuItem() {
             document.getElementById('new-item-price').value = '';
             document.getElementById('new-item-ingredients').value = '';
             document.getElementById('new-item-category').value = '';
-            loadMenuItems();
+            document.getElementById('new-item-kitchen').checked = true;
+            // Clear search and reload
+            document.getElementById('menu-search').value = '';
+            setTimeout(() => loadMenuItems(), 500);
         } else {
             showMessage(data.detail || 'Error adding item', 'error');
         }
@@ -1856,6 +1861,21 @@ async function processInstantCheckout() {
 window.addToInstantOrder = addToInstantOrder;
 window.changeInstantQty = changeInstantQty;
 window.processInstantCheckout = processInstantCheckout;
+
+function filterMenuItems() {
+    const searchTerm = document.getElementById('menu-search').value.toLowerCase();
+    const menuRows = document.querySelectorAll('#menu-items-list > div');
+    
+    menuRows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        
+        if (text.includes(searchTerm)) {
+            row.style.display = 'flex';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
 
 function openBarOrdersPopup() {
     const currentPath = window.location.pathname;
