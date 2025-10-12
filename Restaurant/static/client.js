@@ -661,12 +661,13 @@ function updateBusinessTypeUI(data) {
     // Detect if this is a hotel based on business_type field
     const isHotel = data.business_type === 'hotel';
     
+    const locationHeader = document.getElementById('location-header');
+    const welcomeMessage = document.getElementById('welcome-message');
+    const codeLabel = document.getElementById('code-label');
+    const pageTitle = document.getElementById('page-title');
+    
     if (isHotel) {
         // Update labels for hotel context
-        const locationHeader = document.getElementById('location-header');
-        const welcomeMessage = document.getElementById('welcome-message');
-        const codeLabel = document.getElementById('code-label');
-        
         if (locationHeader) {
             const roomPrefix = data.room_prefix ? data.room_prefix + ' ' : '';
             locationHeader.innerHTML = `🏨 ${roomPrefix}Room <span id="table-number">${tableNumber}</span>`;
@@ -677,10 +678,24 @@ function updateBusinessTypeUI(data) {
         if (codeLabel) {
             codeLabel.textContent = 'Enter 3-digit room code:';
         }
-        
-        // Update page title
-        const roomPrefix = data.room_prefix ? data.room_prefix + ' ' : '';
-        document.title = `Hotel Room Service - ${roomPrefix}Room ${tableNumber}`;
+        if (pageTitle) {
+            const roomPrefix = data.room_prefix ? data.room_prefix + ' ' : '';
+            pageTitle.textContent = `Hotel Room Service - ${roomPrefix}Room ${tableNumber}`;
+        }
+    } else {
+        // Update labels for restaurant context
+        if (locationHeader) {
+            locationHeader.innerHTML = `📍 Table <span id="table-number">${tableNumber}</span>`;
+        }
+        if (welcomeMessage) {
+            welcomeMessage.textContent = 'Welcome! Browse our menu and place your order';
+        }
+        if (codeLabel) {
+            codeLabel.textContent = 'Enter 3-digit table code:';
+        }
+        if (pageTitle) {
+            pageTitle.textContent = `Restaurant Menu - Table ${tableNumber}`;
+        }
     }
 }
 

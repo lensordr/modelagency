@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Restaurant Menu - Table {{ table_number }}</title>
+    <title id="page-title">Menu - Location {{ table_number }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
             <h1>🍽️ {{ restaurant_name }}</h1>
         </div>
         <div id="table-info">
-            <h2 id="location-header">📍 Table <span id="table-number">{{ table_number or 'Not specified' }}</span></h2>
+            <h2 id="location-header">📍 Location <span id="table-number">{{ table_number or 'Not specified' }}</span></h2>
             <p style="color: #718096; margin-top: 0.5rem;" id="welcome-message">Welcome! Browse our menu and place your order</p>
             <div class="language-selector" style="margin-top: 1rem;">
                 <button onclick="changeLanguage('en')" class="lang-btn">🇺🇸 English</button>
