@@ -44,7 +44,7 @@ async function loadMenu() {
     try {
         const urlParams = new URLSearchParams(window.location.search);
         const language = urlParams.get('lang') || 'en';
-        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.split('/table/')[0] : '';
         const response = await fetch(`${baseUrl}/client/menu?table=${tableNumber}&lang=${language}`);
         const data = await response.json();
         
@@ -420,7 +420,7 @@ async function placeOrder(event) {
 
 async function loadExistingOrder() {
     try {
-        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.split('/table/')[0] : '';
         const response = await fetch(`${baseUrl}/client/order_details/${tableNumber}`);
         const data = await response.json();
         
@@ -536,7 +536,7 @@ async function requestCheckout(method) {
         formData.append('checkout_method', method);
         formData.append('tip_amount', selectedTipAmount);
         
-        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.split('/table/')[0] : '';
         const response = await fetch(`${baseUrl}/client/checkout`, {
             method: 'POST',
             body: formData
@@ -577,7 +577,7 @@ let lastOrderHash = '';
 
 async function checkTableStatus() {
     try {
-        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.split('/table/')[0] : '';
         const response = await fetch(`${baseUrl}/client/order_details/${tableNumber}`);
         const data = await response.json();
         
@@ -606,7 +606,7 @@ async function deleteOrderItem(orderItemId) {
     }
     
     try {
-        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.split('/table/')[0] : '';
         const response = await fetch(`${baseUrl}/client/order_item/${orderItemId}`, {
             method: 'DELETE'
         });
@@ -628,7 +628,7 @@ async function deleteOrderItem(orderItemId) {
 }
 
 function downloadTicket() {
-    const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
+    const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.split('/table/')[0] : '';
     window.open(`${baseUrl}/client/simple-receipt/${tableNumber}`, '_blank');
 }
 
