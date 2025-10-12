@@ -251,11 +251,11 @@ async def signup_page(request: Request):
 
 @app.get("/signup-hotel", response_class=HTMLResponse)
 async def signup_hotel_page(request: Request):
-    try:
-        return templates.TemplateResponse("signup_hotel.html", {"request": request})
-    except Exception as e:
-        print(f"Hotel signup error: {e}")
-        return HTMLResponse(f"<h1>Hotel Signup - Coming Soon</h1><p>Error: {str(e)}</p><a href='/'>Back to Home</a>")
+    # Fallback to regular signup with hotel pre-selected
+    return templates.TemplateResponse("signup.html", {
+        "request": request,
+        "hotel_mode": True
+    })
 
 @app.post("/check-username")
 async def check_username(request: Request, db: Session = Depends(get_db)):
