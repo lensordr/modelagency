@@ -33,7 +33,7 @@
         
         <nav class="dashboard-nav">
             <button onclick="showSection('live-orders')" class="nav-btn active" id="live-orders-btn">🔴 Live Orders</button>
-            <button onclick="openInstantOrderPopup()" class="nav-btn" id="instant-order-btn">🍺 Bar Orders</button>
+            <button onclick="openBarOrdersPopup()" class="nav-btn" id="bar-orders-popup-btn">🍺 Bar Orders</button>
             <button onclick="openKitchen()" class="nav-btn" id="kitchen-btn">👨🍳 Kitchen</button>
             <button onclick="showSection('waiters-new')" class="nav-btn" id="waiters-new-btn">👨🍳 Waiters</button>
             <button onclick="showSection('analytics')" class="nav-btn" id="analytics-btn">📊 Analytics</button>
@@ -200,12 +200,6 @@
                 
                 <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                     <input type="text" id="instant-search" placeholder="Search menu items..." style="width: 100%; padding: 12px; font-size: 16px; border: 2px solid #ddd; border-radius: 6px; margin-bottom: 10px;">
-                    <div>
-                        <label><input type="radio" name="instant-category" value="all" checked> All</label>
-                        <label><input type="radio" name="instant-category" value="Drinks"> Drinks</label>
-                        <label><input type="radio" name="instant-category" value="Food"> Food</label>
-                        <label><input type="radio" name="instant-category" value="Appetizers"> Appetizers</label>
-                    </div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 300px; gap: 20px;">

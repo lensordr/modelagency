@@ -1662,18 +1662,23 @@ async function loadInstantOrderMenu() {
     try {
         console.log('Loading instant order menu...');
         const response = await fetch('/business/menu');
+        console.log('Menu API response status:', response.status);
+        console.log('Menu API URL:', response.url);
         const data = await response.json();
         console.log('Menu data:', data);
         
         // Convert categorized menu to flat array
         const activeItems = [];
+        let totalItems = 0;
         Object.entries(data).forEach(([category, items]) => {
             items.forEach(item => {
+                totalItems++;
                 if (item.is_active) {
                     activeItems.push({...item, category});
                 }
             });
         });
+        console.log('Total items:', totalItems, 'Active items:', activeItems.length);
         
         console.log('Active items:', activeItems.length);
         displayInstantMenu(activeItems);
@@ -1708,17 +1713,24 @@ function displayInstantMenu(items) {
     }
     
     console.log('Creating HTML for', items.length, 'items');
-    const html = items.map(item => `
-        <div onclick="addToInstantOrder(${item.id})" style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#007bff'; this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='#ddd'; this.style.transform='translateY(0)'">
+    grid.innerHTML = '';
+    items.forEach(item => {
+        const itemDiv = document.createElement('div');
+        itemDiv.onclick = () => addToInstantOrder(item.id);
+        itemDiv.style.cssText = 'background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s;';
+        itemDiv.onmouseover = () => { itemDiv.style.borderColor = '#007bff'; itemDiv.style.transform = 'translateY(-2px)'; };
+        itemDiv.onmouseout = () => { itemDiv.style.borderColor = '#ddd'; itemDiv.style.transform = 'translateY(0)'; };
+        
+        itemDiv.innerHTML = `
             <div style="color: #666; font-size: 12px; text-transform: uppercase;">${item.category}</div>
             <div style="font-weight: bold; margin: 5px 0;">${item.name}</div>
             <div style="color: #28a745; font-size: 18px; font-weight: bold;">€${item.price.toFixed(2)}</div>
-        </div>
-    `).join('');
+        `;
+        
+        grid.appendChild(itemDiv);
+    });
     
-    console.log('Setting grid HTML, length:', html.length);
-    grid.innerHTML = html;
-    console.log('Grid HTML set successfully');
+    console.log('Menu items displayed successfully');
 }
 
 function filterInstantMenu(allItems, searchTerm) {
@@ -1844,6 +1856,31 @@ async function processInstantCheckout() {
 window.addToInstantOrder = addToInstantOrder;
 window.changeInstantQty = changeInstantQty;
 window.processInstantCheckout = processInstantCheckout;
+
+function openBarOrdersPopup() {
+    const currentPath = window.location.pathname;
+    let instantOrderUrl = '/business/instant-order';
+    
+    if (currentPath.includes('/r/')) {
+        const pathParts = currentPath.split('/');
+        const subdomain = pathParts[2];
+        instantOrderUrl = `/r/${subdomain}/business/instant-order`;
+    }
+    
+    // Check if mobile device
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    
+    if (isMobile) {
+        // On mobile, open in same tab
+        window.location.href = instantOrderUrl;
+    } else {
+        // On desktop, open popup
+        const popup = window.open(instantOrderUrl, 'BarOrders', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+        if (!popup) {
+            alert('Please allow popups for this site');
+        }
+    }
+}
 
 function showReadyBanner(readyTables) {
     const existingBanner = document.getElementById('ready-banner');
