@@ -250,15 +250,37 @@
             }
         }
         
-        // Plan selection
+        // Plan selection with table limit validation
         document.querySelectorAll('.plan-option').forEach(option => {
             option.addEventListener('click', () => {
                 document.querySelectorAll('.plan-option').forEach(o => o.classList.remove('selected'));
                 option.classList.add('selected');
                 document.getElementById('plan').value = option.dataset.plan;
-                console.log('Selected plan:', option.dataset.plan); // Debug log
+                updateTableLimits(option.dataset.plan);
+                console.log('Selected plan:', option.dataset.plan);
             });
         });
+        
+        function updateTableLimits(plan) {
+            const tableInput = document.getElementById('table_count');
+            const helpText = document.getElementById('table_count_help');
+            
+            if (plan === 'trial') {
+                tableInput.max = 20;
+                helpText.textContent = 'Trial: Maximum 20 tables';
+                if (parseInt(tableInput.value) > 20) tableInput.value = 20;
+            } else if (plan === 'basic') {
+                tableInput.max = 20;
+                helpText.textContent = 'Basic: Maximum 20 tables';
+                if (parseInt(tableInput.value) > 20) tableInput.value = 20;
+            } else {
+                tableInput.max = 100;
+                helpText.textContent = 'Professional: Up to 100 tables';
+            }
+        }
+        
+        // Initialize limits on page load
+        updateTableLimits('trial');
 
         // Clear error when user types in password field
         document.getElementById('password').addEventListener('input', function() {
@@ -321,6 +343,17 @@
         // Form submission
         document.getElementById('signupForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            // Validate table count against plan limits
+            const plan = document.getElementById('plan').value;
+            const tableCount = parseInt(document.getElementById('table_count').value);
+            
+            if ((plan === 'trial' || plan === 'basic') && tableCount > 20) {
+                const errorDiv = document.getElementById('password-error');
+                errorDiv.textContent = `${plan === 'trial' ? 'Trial' : 'Basic'} plan allows maximum 20 tables. Please select Professional plan for more tables.`;
+                errorDiv.style.display = 'block';
+                return;
+            }
             
             const formData = new FormData(e.target);
             console.log('Form data plan:', formData.get('plan')); // Debug log

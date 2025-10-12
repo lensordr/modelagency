@@ -199,14 +199,36 @@
     </div>
 
     <script>
-        // Plan selection
+        // Plan selection with room limit validation
         document.querySelectorAll('.plan-option').forEach(option => {
             option.addEventListener('click', () => {
                 document.querySelectorAll('.plan-option').forEach(o => o.classList.remove('selected'));
                 option.classList.add('selected');
                 document.getElementById('plan').value = option.dataset.plan;
+                updateRoomLimits(option.dataset.plan);
             });
         });
+        
+        function updateRoomLimits(plan) {
+            const roomInput = document.getElementById('table_count');
+            const helpText = roomInput.nextElementSibling;
+            
+            if (plan === 'trial') {
+                roomInput.max = 50;
+                helpText.textContent = 'Trial: Maximum 50 rooms';
+                if (parseInt(roomInput.value) > 50) roomInput.value = 50;
+            } else if (plan === 'basic') {
+                roomInput.max = 50;
+                helpText.textContent = 'Basic: Maximum 50 rooms';
+                if (parseInt(roomInput.value) > 50) roomInput.value = 50;
+            } else {
+                roomInput.max = 500;
+                helpText.textContent = 'Professional: Up to 500 rooms';
+            }
+        }
+        
+        // Initialize limits on page load
+        updateRoomLimits('trial');
 
         // Clear error when user types in password field
         document.getElementById('password').addEventListener('input', function() {
@@ -219,6 +241,17 @@
         // Form submission
         document.getElementById('signupForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            // Validate room count against plan limits
+            const plan = document.getElementById('plan').value;
+            const roomCount = parseInt(document.getElementById('table_count').value);
+            
+            if ((plan === 'trial' || plan === 'basic') && roomCount > 50) {
+                const errorDiv = document.getElementById('password-error');
+                errorDiv.textContent = `${plan === 'trial' ? 'Trial' : 'Basic'} plan allows maximum 50 rooms. Please select Professional plan for more rooms.`;
+                errorDiv.style.display = 'block';
+                return;
+            }
             
             const formData = new FormData(e.target);
             
