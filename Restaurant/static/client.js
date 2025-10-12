@@ -44,7 +44,7 @@ async function loadMenu() {
     try {
         const urlParams = new URLSearchParams(window.location.search);
         const language = urlParams.get('lang') || 'en';
-        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/client', '') : '';
+        const baseUrl = window.location.pathname.includes('/r/') ? window.location.pathname.replace('/table/' + tableNumber, '') : '';
         const response = await fetch(`${baseUrl}/client/menu?table=${tableNumber}&lang=${language}`);
         const data = await response.json();
         
