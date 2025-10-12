@@ -48,7 +48,7 @@
 <body>
     <div class="language-container">
         <h1>🍽️ {{ restaurant_name }}</h1>
-        <p class="subtitle">📍 Table {{ table_number }}</p>
+        <p class="subtitle" id="location-subtitle">📍 Location {{ table_number }}</p>
         <h2>Select Language / Seleccionar Idioma</h2>
         
         {% for lang in available_languages %}
@@ -63,11 +63,34 @@
     </div>
 
     <script>
+        // Update UI for hotel context
+        async function updateLocationLabel() {
+            try {
+                const tableNumber = window.location.pathname.split('/').pop();
+                const baseUrl = window.location.pathname.replace('/table/' + tableNumber, '');
+                const response = await fetch(`${baseUrl}/client/menu?table=${tableNumber}&lang=en`);
+                const data = await response.json();
+                
+                if (data.business_type === 'hotel') {
+                    const subtitle = document.getElementById('location-subtitle');
+                    const roomPrefix = data.room_prefix ? data.room_prefix + ' ' : '';
+                    if (subtitle) {
+                        subtitle.innerHTML = `🏨 ${roomPrefix}Room ${tableNumber}`;
+                    }
+                }
+            } catch (error) {
+                console.log('Could not update location label');
+            }
+        }
+        
         function selectLanguage(lang) {
             const tableNumber = window.location.pathname.split('/').pop();
             const baseUrl = window.location.pathname.replace('/table/' + tableNumber, '');
-            window.location.href = `${baseUrl}/client?table=${tableNumber}&lang=${lang}`;
+            window.location.href = `${baseUrl}/table/${tableNumber}?lang=${lang}`;
         }
+        
+        // Update location label when page loads
+        document.addEventListener('DOMContentLoaded', updateLocationLabel);
     </script>
 </body>
 </html>
