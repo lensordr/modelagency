@@ -22,7 +22,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         
         # Skip for setup routes and global pages
         if (request.url.path.startswith("/setup") or 
-            request.url.path in ["/onboarding", "/onboard", "/admin", "/signup"] or
+            request.url.path in ["/onboarding", "/onboard", "/admin", "/signup", "/signup-hotel"] or
             request.url.path.startswith("/admin/")):
             return await call_next(request)
         
