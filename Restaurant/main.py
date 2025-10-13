@@ -2761,6 +2761,7 @@ async def instant_checkout(
     request: Request,
     items: str = Form(...),
     total: str = Form(...),
+    waiter_id: int = Form(...),
     db: Session = Depends(get_db)
 ):
     try:
@@ -2770,6 +2771,19 @@ async def instant_checkout(
         import json
         order_items = json.loads(items)
         total_amount = float(total)
+        
+        # Validate waiter exists
+        waiter = db.query(Waiter).filter(
+            Waiter.id == waiter_id,
+            Waiter.restaurant_id == restaurant_id,
+            Waiter.active == True
+        ).first()
+        
+        if not waiter:
+            return {
+                "success": False,
+                "error": "Invalid waiter selected"
+            }
         
         # Create analytics records for instant orders
         from models import AnalyticsRecord
@@ -2782,7 +2796,7 @@ async def instant_checkout(
             ).first()
             
             if menu_item:
-                # Create analytics record for each item
+                # Create analytics record for each item with waiter
                 analytics_record = AnalyticsRecord(
                     restaurant_id=restaurant_id,
                     item_name=menu_item.name,
@@ -2793,7 +2807,7 @@ async def instant_checkout(
                     total_price=menu_item.price * item_data['qty'],
                     tip_amount=0,
                     checkout_date=datetime.utcnow(),
-                    waiter_id=None  # No waiter for instant orders
+                    waiter_id=waiter_id  # Track waiter for analytics
                 )
                 db.add(analytics_record)
         
@@ -2802,7 +2816,8 @@ async def instant_checkout(
         return {
             "success": True,
             "message": "Instant order completed",
-            "total": total_amount
+            "total": total_amount,
+            "waiter": waiter.name
         }
         
     except Exception as e:

@@ -107,6 +107,21 @@
             background: #ccc;
             cursor: not-allowed;
         }
+        .waiter-selection {
+            margin: 15px 0;
+        }
+        .waiter-selection label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .waiter-selection select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
         .main-content {
             display: grid;
             grid-template-columns: 1fr 300px;
@@ -178,6 +193,12 @@
                 <div id="orderItems">
                     <p>No items selected</p>
                 </div>
+                <div class="waiter-selection">
+                    <label for="waiterSelect"><strong>Select Waiter:</strong></label>
+                    <select id="waiterSelect" required>
+                        <option value="">Choose waiter...</option>
+                    </select>
+                </div>
                 <div class="total-section">
                     <strong>Total: €<span id="totalAmount">0.00</span></strong>
                 </div>
@@ -192,6 +213,42 @@
         let menuItems = [];
         let orderItems = {};
         let total = 0;
+        let waiters = [];
+
+        // Load waiters
+        async function loadWaiters() {
+            try {
+                const currentPath = window.location.pathname;
+                let waitersUrl = '/business/waiters';
+                if (currentPath.includes('/r/')) {
+                    const pathParts = currentPath.split('/');
+                    const subdomain = pathParts[2];
+                    waitersUrl = `/r/${subdomain}/business/waiters`;
+                }
+                
+                const response = await fetch(waitersUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                waiters = data.waiters || [];
+                
+                const waiterSelect = document.getElementById('waiterSelect');
+                waiterSelect.innerHTML = '<option value="">Choose waiter...</option>';
+                
+                waiters.forEach(waiter => {
+                    const option = document.createElement('option');
+                    option.value = waiter.id;
+                    option.textContent = waiter.name;
+                    waiterSelect.appendChild(option);
+                });
+                
+                console.log('Loaded waiters:', waiters.length);
+            } catch (error) {
+                console.error('Error loading waiters:', error);
+            }
+        }
 
         // Load menu items
         async function loadMenu() {
@@ -276,6 +333,7 @@
             const container = document.getElementById('orderItems');
             const totalEl = document.getElementById('totalAmount');
             const checkoutBtn = document.getElementById('checkoutBtn');
+            const waiterSelect = document.getElementById('waiterSelect');
 
             if (Object.keys(orderItems).length === 0) {
                 container.innerHTML = '<p>No items selected</p>';
@@ -300,7 +358,9 @@
                         </div>
                     `;
                 }).join('');
-                checkoutBtn.disabled = false;
+                
+                // Enable checkout only if items exist AND waiter is selected
+                checkoutBtn.disabled = !waiterSelect.value;
             }
 
             totalEl.textContent = total.toFixed(2);
@@ -320,6 +380,12 @@
         // Instant checkout
         async function instantCheckout() {
             if (Object.keys(orderItems).length === 0) return;
+            
+            const waiterSelect = document.getElementById('waiterSelect');
+            if (!waiterSelect.value) {
+                alert('Please select a waiter before checkout');
+                return;
+            }
 
             const checkoutBtn = document.getElementById('checkoutBtn');
             checkoutBtn.disabled = true;
@@ -334,6 +400,7 @@
                 const formData = new FormData();
                 formData.append('items', JSON.stringify(orderData));
                 formData.append('total', total.toFixed(2));
+                formData.append('waiter_id', waiterSelect.value);
 
                 const response = await fetch('/business/instant-checkout', {
                     method: 'POST',
@@ -343,9 +410,10 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(`Order completed! Total: €${total.toFixed(2)}`);
+                    alert(`Order completed by ${result.waiter}! Total: €${total.toFixed(2)}`);
                     // Reset order
                     orderItems = {};
+                    waiterSelect.value = '';
                     updateOrderSummary();
                 } else {
                     alert('Error processing order: ' + result.error);
@@ -365,8 +433,13 @@
         });
 
         document.getElementById('checkoutBtn').addEventListener('click', instantCheckout);
+        
+        document.getElementById('waiterSelect').addEventListener('change', () => {
+            updateOrderSummary(); // Re-check if checkout should be enabled
+        });
 
         // Initialize
+        loadWaiters();
         loadMenu();
     </script>
 </body>
