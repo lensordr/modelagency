@@ -237,7 +237,12 @@
             const username = urlParams.get('username');
             const tableCount = urlParams.get('table_count');
             
-            if (email) document.getElementById('email').value = email;
+            if (email) {
+                document.getElementById('email').value = email;
+            } else {
+                // For upgrades without email, use a placeholder
+                document.getElementById('email').value = 'upgrade@' + (subdomain || 'restaurant') + '.local';
+            }
             if (restaurantName) document.getElementById('restaurant_name').value = restaurantName;
             if (username) document.getElementById('username').value = username;
             if (tableCount) document.getElementById('table_count').value = tableCount;
@@ -374,6 +379,17 @@
                 
                 const result = await response.json();
                 console.log('Server response:', result); // Debug log
+                console.log('Response status:', response.status);
+                
+                if (response.status === 422) {
+                    console.error('Validation error:', result);
+                    const errorDiv = document.getElementById('password-error');
+                    if (errorDiv) {
+                        errorDiv.textContent = 'Validation error: ' + (result.detail?.[0]?.msg || 'Please check all required fields');
+                        errorDiv.style.display = 'block';
+                    }
+                    return;
+                }
                 
                 if (result.success) {
                     if (result.trial) {
