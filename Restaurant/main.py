@@ -262,6 +262,15 @@ async def get_manifest(request: Request):
             print(f"Manifest: Setting start_url to {start_url} from {url_to_check}")
         except Exception as e:
             print(f"Manifest error: {e}")
+    
+    # Also check if manifest is requested from /r/ path directly
+    if request.url.path == "/manifest.json" and '/r/' in str(request.url):
+        try:
+            url_parts = str(request.url).split('/r/')
+            subdomain_part = url_parts[1].split('/')[0]
+            start_url = f"/r/{subdomain_part}/business/login"
+            print(f"Manifest: Direct request, setting start_url to {start_url}")
+        except:
             pass
     
     manifest = {
