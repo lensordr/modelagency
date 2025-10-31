@@ -6,12 +6,7 @@
     if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
         // Get the restaurant from URL parameters (set when PWA is installed)
         const urlParams = new URLSearchParams(window.location.search);
-        let restaurantSubdomain = urlParams.get('restaurant');
-        
-        // Fallback to localStorage if no URL param
-        if (!restaurantSubdomain) {
-            restaurantSubdomain = localStorage.getItem('pwa_restaurant');
-        }
+        const restaurantSubdomain = urlParams.get('restaurant');
         
         if (restaurantSubdomain && restaurantSubdomain !== 'null') {
             // Redirect to the specific restaurant login
