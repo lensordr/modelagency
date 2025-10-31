@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TableLink PWA Test</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="TableLink PWA Test Page">
+    <meta name="theme-color" content="#007bff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="TableLink Test">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+    
+    <!-- PWA Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/icon-96x96.png">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .test-section {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+        }
+        
+        .test-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .test-item:last-child {
+            border-bottom: none;
+        }
+        
+        .status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .status.pass {
+            background: #28a745;
+            color: white;
+        }
+        
+        .status.fail {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .status.pending {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: #0056b3;
+            transform: translateY(-2px);
+        }
+        
+        .actions {
+            text-align: center;
+            margin-top: 2rem;
+        }
+        
+        #log {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.875rem;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 TableLink PWA Test</h1>
+        
+        <div class="test-section">
+            <h3>PWA Features Status</h3>
+            <div class="test-item">
+                <span>Service Worker Registration</span>
+                <span class="status pending" id="sw-status">Testing...</span>
+            </div>
+            <div class="test-item">
+                <span>Manifest File</span>
+                <span class="status pending" id="manifest-status">Testing...</span>
+            </div>
+            <div class="test-item">
+                <span>Install Prompt Available</span>
+                <span class="status pending" id="install-status">Testing...</span>
+            </div>
+            <div class="test-item">
+                <span>Offline Support</span>
+                <span class="status pending" id="offline-status">Testing...</span>
+            </div>
+            <div class="test-item">
+                <span>Push Notifications</span>
+                <span class="status pending" id="notification-status">Testing...</span>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Device Information</h3>
+            <div class="test-item">
+                <span>User Agent</span>
+                <span id="user-agent"></span>
+            </div>
+            <div class="test-item">
+                <span>Display Mode</span>
+                <span id="display-mode"></span>
+            </div>
+            <div class="test-item">
+                <span>Online Status</span>
+                <span id="online-status"></span>
+            </div>
+            <div class="test-item">
+                <span>Screen Size</span>
+                <span id="screen-size"></span>
+            </div>
+        </div>
+        
+        <div class="actions">
+            <button onclick="runTests()">🔄 Run Tests</button>
+            <button onclick="testOffline()">📡 Test Offline</button>
+            <button onclick="requestNotification()">🔔 Test Notifications</button>
+            <button onclick="clearCache()">🗑️ Clear Cache</button>
+        </div>
+        
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('log');
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `[${timestamp}] ${message}<br>`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(elementId, status, message = '') {
+            const element = document.getElementById(elementId);
+            element.className = `status ${status}`;
+            element.textContent = status === 'pass' ? '✅ Pass' : status === 'fail' ? '❌ Fail' : '⏳ Testing...';
+            if (message) {
+                element.title = message;
+            }
+        }
+        
+        async function runTests() {
+            log('Starting PWA tests...');
+            
+            // Test Service Worker
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registration = await navigator.serviceWorker.register('/static/sw.js');
+                    updateStatus('sw-status', 'pass');
+                    log('✅ Service Worker registered successfully');
+                } catch (error) {
+                    updateStatus('sw-status', 'fail', error.message);
+                    log('❌ Service Worker registration failed: ' + error.message);
+                }
+            } else {
+                updateStatus('sw-status', 'fail', 'Service Worker not supported');
+                log('❌ Service Worker not supported');
+            }
+            
+            // Test Manifest
+            try {
+                const response = await fetch('/static/manifest.json');
+                if (response.ok) {
+                    const manifest = await response.json();
+                    updateStatus('manifest-status', 'pass');
+                    log('✅ Manifest loaded: ' + manifest.name);
+                } else {
+                    updateStatus('manifest-status', 'fail', 'Manifest not found');
+                    log('❌ Manifest not found');
+                }
+            } catch (error) {
+                updateStatus('manifest-status', 'fail', error.message);
+                log('❌ Manifest error: ' + error.message);
+            }
+            
+            // Test Install Prompt
+            if (window.pwaInstaller && window.pwaInstaller.deferredPrompt) {
+                updateStatus('install-status', 'pass');
+                log('✅ Install prompt available');
+            } else {
+                updateStatus('install-status', 'fail', 'Install prompt not available');
+                log('❌ Install prompt not available (may already be installed)');
+            }
+            
+            // Test Offline Support
+            if ('serviceWorker' in navigator && 'caches' in window) {
+                updateStatus('offline-status', 'pass');
+                log('✅ Offline support available');
+            } else {
+                updateStatus('offline-status', 'fail', 'Cache API not supported');
+                log('❌ Offline support not available');
+            }
+            
+            // Test Notifications
+            if ('Notification' in window) {
+                const permission = Notification.permission;
+                if (permission === 'granted') {
+                    updateStatus('notification-status', 'pass');
+                    log('✅ Notifications granted');
+                } else if (permission === 'denied') {
+                    updateStatus('notification-status', 'fail', 'Notifications denied');
+                    log('❌ Notifications denied');
+                } else {
+                    updateStatus('notification-status', 'pending');
+                    log('⏳ Notifications permission not requested');
+                }
+            } else {
+                updateStatus('notification-status', 'fail', 'Notifications not supported');
+                log('❌ Notifications not supported');
+            }
+            
+            log('Tests completed!');
+        }
+        
+        async function testOffline() {
+            log('Testing offline functionality...');
+            try {
+                // Try to fetch a cached resource
+                const response = await fetch('/static/style.css');
+                if (response.ok) {
+                    log('✅ Cached resource accessible');
+                } else {
+                    log('❌ Cached resource not accessible');
+                }
+            } catch (error) {
+                log('❌ Offline test failed: ' + error.message);
+            }
+        }
+        
+        async function requestNotification() {
+            if ('Notification' in window) {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    new Notification('TableLink PWA Test', {
+                        body: 'Notifications are working!',
+                        icon: '/static/icons/icon-96x96.png'
+                    });
+                    updateStatus('notification-status', 'pass');
+                    log('✅ Test notification sent');
+                } else {
+                    updateStatus('notification-status', 'fail');
+                    log('❌ Notification permission denied');
+                }
+            }
+        }
+        
+        async function clearCache() {
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                await Promise.all(cacheNames.map(name => caches.delete(name)));
+                log('✅ Cache cleared');
+            }
+        }
+        
+        // Initialize device info
+        function initDeviceInfo() {
+            document.getElementById('user-agent').textContent = navigator.userAgent.substring(0, 50) + '...';
+            document.getElementById('display-mode').textContent = window.matchMedia('(display-mode: standalone)').matches ? 'Standalone (PWA)' : 'Browser';
+            document.getElementById('online-status').textContent = navigator.onLine ? 'Online' : 'Offline';
+            document.getElementById('screen-size').textContent = `${screen.width}x${screen.height}`;
+        }
+        
+        // Auto-run tests on load
+        document.addEventListener('DOMContentLoaded', () => {
+            initDeviceInfo();
+            setTimeout(runTests, 1000);
+        });
+        
+        // Update online status
+        window.addEventListener('online', () => {
+            document.getElementById('online-status').textContent = 'Online';
+            log('📶 Connection restored');
+        });
+        
+        window.addEventListener('offline', () => {
+            document.getElementById('online-status').textContent = 'Offline';
+            log('📡 Connection lost');
+        });
+    </script>
+    
+    <script src="/static/pwa-install.js"></script>
+</body>
+</html>

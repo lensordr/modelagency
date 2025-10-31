@@ -1651,3 +1651,164 @@ button:disabled {
 .lang-btn:hover {
     background: #0056b3;
 }
+
+/* PWA Specific Styles */
+.pwa-install-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 25px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+    z-index: 1000;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    display: none;
+}
+
+.pwa-install-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(0,123,255,0.4);
+}
+
+.pwa-install-btn:active {
+    transform: scale(0.95);
+}
+
+/* Offline indicator */
+.offline-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #ffc107 0%, #ff8f00 100%);
+    color: #212529;
+    padding: 10px 20px;
+    text-align: center;
+    z-index: 1003;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+}
+
+/* PWA status bar adjustments for iOS */
+@media (display-mode: standalone) {
+    body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    .container {
+        padding-top: calc(2rem + env(safe-area-inset-top));
+    }
+    
+    /* Hide install button when in standalone mode */
+    .pwa-install-btn {
+        display: none !important;
+    }
+}
+
+/* Enhanced mobile experience for PWA */
+@media (max-width: 768px) and (display-mode: standalone) {
+    .container {
+        padding: 1rem 0.5rem;
+    }
+    
+    .dashboard-nav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        margin-bottom: 1rem;
+    }
+    
+    .modal-content {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+        margin: 0;
+    }
+}
+
+/* Loading states for offline functionality */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(5px);
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #e2e8f0;
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Sync status indicator */
+.sync-status {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    background: rgba(40, 167, 69, 0.9);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 1001;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+    transition: all 0.3s ease;
+}
+
+.sync-status.syncing {
+    background: rgba(255, 193, 7, 0.9);
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+}
+
+.sync-status.error {
+    background: rgba(220, 53, 69, 0.9);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+/* Enhanced touch targets for mobile */
+@media (max-width: 768px) {
+    .quantity-controls button {
+        width: 44px;
+        height: 44px;
+        font-size: 18px;
+    }
+    
+    .tip-btn {
+        min-height: 44px;
+        font-size: 16px;
+    }
+    
+    .checkout-btn {
+        min-height: 48px;
+        font-size: 16px;
+    }
+    
+    .nav-btn {
+        min-height: 44px;
+        padding: 0.75rem 1rem;
+    }
+}

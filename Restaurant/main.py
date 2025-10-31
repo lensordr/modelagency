@@ -235,6 +235,39 @@ async def robots():
 async def apple_touch_icon():
     return JSONResponse({"message": "No apple touch icon"}, status_code=204)
 
+# PWA Routes
+@app.get("/manifest.json")
+async def get_manifest():
+    """Serve PWA manifest"""
+    try:
+        manifest_path = os.path.join(static_dir, "manifest.json")
+        with open(manifest_path, "r") as f:
+            manifest_content = f.read()
+        return Response(content=manifest_content, media_type="application/json")
+    except FileNotFoundError:
+        return JSONResponse({"error": "Manifest not found"}, status_code=404)
+
+@app.get("/sw.js")
+async def get_service_worker():
+    """Serve service worker"""
+    try:
+        sw_path = os.path.join(static_dir, "sw.js")
+        with open(sw_path, "r") as f:
+            sw_content = f.read()
+        return Response(content=sw_content, media_type="application/javascript")
+    except FileNotFoundError:
+        return JSONResponse({"error": "Service worker not found"}, status_code=404)
+
+@app.get("/offline.html", response_class=HTMLResponse)
+async def offline_page(request: Request):
+    """Serve offline page for PWA"""
+    return templates.TemplateResponse("offline.html", {"request": request})
+
+@app.get("/pwa-test", response_class=HTMLResponse)
+async def pwa_test_page(request: Request):
+    """PWA test page for debugging and verification"""
+    return templates.TemplateResponse("pwa-test.html", {"request": request})
+
 def get_restaurant_name():
     try:
         restaurant = get_current_restaurant()
