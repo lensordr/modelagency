@@ -279,6 +279,7 @@ async def process_signup(
     upgrade: str = Form("false"),
     business_type: str = Form("restaurant"),
     room_prefix: str = Form(""),
+    subdomain: str = Form(None),
     db: Session = Depends(get_db)
 ):
     try:
@@ -321,10 +322,10 @@ async def process_signup(
                 Restaurant.active == True
             ).first()
             
-            # Fallback: try to find by restaurant name if email lookup fails
-            if not existing_restaurant:
+            # Fallback: try to find by subdomain parameter
+            if not existing_restaurant and subdomain:
                 existing_restaurant = db.query(Restaurant).filter(
-                    Restaurant.name == restaurant_name,
+                    Restaurant.subdomain == subdomain,
                     Restaurant.active == True
                 ).first()
             

@@ -118,6 +118,7 @@
         
         <form id="signupForm">
             <input type="hidden" id="upgrade" name="upgrade" value="false">
+            <input type="hidden" id="subdomain" name="subdomain" value="">
             <div class="form-group">
                 <label for="restaurant_name">Restaurant Name</label>
                 <input type="text" id="restaurant_name" name="restaurant_name" autocomplete="organization" required>
@@ -203,6 +204,12 @@
             // Set upgrade flag
             document.getElementById('upgrade').value = 'true';
             console.log('Upgrade flag set to true');
+            
+            // Set subdomain from URL parameters
+            if (subdomain) {
+                document.getElementById('subdomain').value = subdomain;
+                console.log('Subdomain set to:', subdomain);
+            }
             
             // Hide trial option for upgrades
             const trialOption = document.querySelector('[data-plan="trial"]');
