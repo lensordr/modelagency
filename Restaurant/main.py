@@ -63,6 +63,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Initialize templates early
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
+templates = Jinja2Templates(directory=templates_dir)
+
 # PWA Test Route (before middleware to avoid tenant validation)
 @app.get("/pwa-test", response_class=HTMLResponse)
 async def pwa_test_page(request: Request):
@@ -217,9 +222,7 @@ def auto_create_restaurant_from_payment(db, email, restaurant_name, username, pa
 # Add tenant middleware
 app.add_middleware(TenantMiddleware)
 
-# Mount static files and templates
-static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
-templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
+# Mount static files and web directory
 web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 print(f"Web directory path: {web_dir}")
 print(f"Web directory exists: {os.path.exists(web_dir)}")
@@ -229,7 +232,6 @@ if os.path.exists(web_dir):
     print("Web directory mounted successfully")
 else:
     print("Web directory not found!")
-templates = Jinja2Templates(directory=templates_dir)
 
 # Add routes to prevent HTTP warnings
 @app.get("/favicon.ico")
