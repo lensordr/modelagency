@@ -14,7 +14,7 @@
     <meta name="msapplication-TileColor" content="#007bff">
     
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/manifest.json" id="pwa-manifest">
     
     <!-- PWA Icons -->
     <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/icon-96x96.png">
@@ -331,10 +331,14 @@
             localStorage.setItem('restaurant', subdomain);
             
             // Update manifest start_url for this specific restaurant
-            const manifestLink = document.querySelector('link[rel="manifest"]');
+            const manifestLink = document.getElementById('pwa-manifest');
             if (manifestLink) {
                 manifestLink.href = `/manifest.json?restaurant=${subdomain}`;
+                console.log('Updated manifest for restaurant:', subdomain);
             }
+        } else {
+            // Remove restaurant parameter if not on restaurant-specific URL
+            localStorage.removeItem('restaurant');
         }
     </script>
 </body>
