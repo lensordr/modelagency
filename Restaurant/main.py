@@ -245,15 +245,38 @@ async def apple_touch_icon():
 
 # PWA Routes
 @app.get("/manifest.json")
-async def get_manifest():
-    """Serve PWA manifest"""
-    try:
-        manifest_path = os.path.join(static_dir, "manifest.json")
-        with open(manifest_path, "r") as f:
-            manifest_content = f.read()
-        return Response(content=manifest_content, media_type="application/json")
-    except FileNotFoundError:
-        return JSONResponse({"error": "Manifest not found"}, status_code=404)
+async def get_manifest(request: Request):
+    """Serve dynamic PWA manifest"""
+    # Get current path to determine start URL
+    referer = request.headers.get('referer', '')
+    start_url = "/business/login"
+    
+    # If accessed from restaurant subdomain, preserve the path
+    if '/r/' in referer:
+        try:
+            parts = referer.split('/r/')
+            subdomain_part = parts[1].split('/')[0]
+            start_url = f"/r/{subdomain_part}/business/login"
+        except:
+            pass
+    
+    manifest = {
+        "name": "TableLink - Restaurant Management",
+        "short_name": "TableLink",
+        "description": "QR code ordering and restaurant management system",
+        "start_url": start_url,
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#007bff",
+        "orientation": "portrait-primary",
+        "scope": "/",
+        "icons": [
+            {"src": "/static/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png"}
+        ]
+    }
+    
+    return JSONResponse(manifest)
 
 @app.get("/sw.js")
 async def get_service_worker():
