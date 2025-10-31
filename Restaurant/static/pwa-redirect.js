@@ -2,31 +2,33 @@
 // Detects which restaurant the PWA was installed from and redirects accordingly
 
 (function() {
-    console.log('PWA Redirect: Starting check');
-    console.log('Display mode standalone:', window.matchMedia('(display-mode: standalone)').matches);
-    console.log('Navigator standalone:', window.navigator.standalone);
-    console.log('Current URL:', window.location.href);
+    // Show debug info on screen for mobile testing
+    function showDebug(message) {
+        const debug = document.createElement('div');
+        debug.style.cssText = 'position:fixed;top:0;left:0;right:0;background:red;color:white;padding:10px;z-index:9999;font-size:12px;';
+        debug.textContent = message;
+        document.body.appendChild(debug);
+        setTimeout(() => debug.remove(), 3000);
+    }
+    
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    const urlParams = new URLSearchParams(window.location.search);
+    const restaurantSubdomain = urlParams.get('restaurant');
+    
+    showDebug(`PWA: standalone=${isStandalone}, restaurant=${restaurantSubdomain}`);
     
     // Check if this is a PWA launch (standalone mode)
-    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+    if (isStandalone) {
         // Clear old localStorage to avoid conflicts
         localStorage.removeItem('pwa_restaurant');
         
-        // Get the restaurant from URL parameters (set when PWA is installed)
-        const urlParams = new URLSearchParams(window.location.search);
-        const restaurantSubdomain = urlParams.get('restaurant');
-        
-        console.log('PWA Redirect: Restaurant from URL:', restaurantSubdomain);
-        
         if (restaurantSubdomain && restaurantSubdomain !== 'null') {
             const redirectUrl = `/r/${restaurantSubdomain}/business/login`;
-            console.log('PWA Redirect: Redirecting to:', redirectUrl);
-            window.location.href = redirectUrl;
+            showDebug(`Redirecting to: ${redirectUrl}`);
+            setTimeout(() => window.location.href = redirectUrl, 1000);
         } else {
-            console.log('PWA Redirect: No restaurant param, using fallback');
-            window.location.href = '/r/test-restaurant/business/login';
+            showDebug('No restaurant param, using fallback');
+            setTimeout(() => window.location.href = '/r/test-restaurant/business/login', 1000);
         }
-    } else {
-        console.log('PWA Redirect: Not in PWA mode, skipping redirect');
     }
 })();
