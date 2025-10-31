@@ -321,6 +321,13 @@ async def process_signup(
                 Restaurant.active == True
             ).first()
             
+            # Fallback: try to find by subdomain if email lookup fails
+            if not existing_restaurant and subdomain:
+                existing_restaurant = db.query(Restaurant).filter(
+                    Restaurant.subdomain == subdomain,
+                    Restaurant.active == True
+                ).first()
+            
             if not existing_restaurant:
                 return {"success": False, "error": "Restaurant not found for upgrade"}
             
