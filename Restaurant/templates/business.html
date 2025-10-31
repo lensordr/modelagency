@@ -324,11 +324,17 @@
     <script src="/static/business_no_auth.js?v=20"></script>
     <script src="/static/pwa-install.js"></script>
     <script>
-        // Store restaurant subdomain for PWA
+        // Store restaurant subdomain for PWA and update manifest
         const currentPath = window.location.pathname;
         if (currentPath.includes('/r/')) {
             const subdomain = currentPath.split('/r/')[1].split('/')[0];
             localStorage.setItem('pwa_restaurant', subdomain);
+            
+            // Update manifest start_url for this specific restaurant
+            const manifestLink = document.querySelector('link[rel="manifest"]');
+            if (manifestLink) {
+                manifestLink.href = `/static/manifest.json?restaurant=${subdomain}`;
+            }
         }
     </script>
 </body>
