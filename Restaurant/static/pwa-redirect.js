@@ -13,7 +13,7 @@
     
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     const urlParams = new URLSearchParams(window.location.search);
-    const restaurantSubdomain = urlParams.get('restaurant');
+    const restaurantSubdomain = urlParams.get('pwa_restaurant');
     
     showDebug(`PWA: standalone=${isStandalone}, restaurant=${restaurantSubdomain}`);
     

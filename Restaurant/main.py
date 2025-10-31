@@ -257,10 +257,10 @@ async def get_manifest(request: Request):
     if restaurant_param:
         # Dynamic manifest for specific restaurant
         manifest = {
-            "name": "TableLink - Restaurant Management",
-            "short_name": "TableLink",
+            "name": f"TableLink - {restaurant_param.title()}",
+            "short_name": f"TL-{restaurant_param}",
             "description": "QR code ordering and restaurant management system",
-            "start_url": f"/?restaurant={restaurant_param}",
+            "start_url": f"/?pwa_restaurant={restaurant_param}",
             "display": "standalone",
             "background_color": "#ffffff",
             "theme_color": "#007bff",
