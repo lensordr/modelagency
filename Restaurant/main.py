@@ -375,10 +375,11 @@ async def process_signup(
         else:
             # Paid plans - redirect to Square
             if plan == "basic":
-                checkout_url = "https://square.link/u/IP8KYRbl"
+                checkout_url = "https://square.link/u/afXq8Dnl"  # €49 basic
             else:
-                checkout_url = "https://square.link/u/Tf8mr4CA"
+                checkout_url = "https://square.link/u/4AiXGpLe"  # €55 professional
             
+            print(f"Redirecting to Square: plan={plan}, url={checkout_url}")
             return {"success": True, "checkout_url": checkout_url}
         
     except Exception as e:
