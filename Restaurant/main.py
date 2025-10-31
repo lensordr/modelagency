@@ -205,6 +205,12 @@ def auto_create_restaurant_from_payment(db, email, restaurant_name, username, pa
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
+# PWA Test Route (before middleware to avoid tenant validation)
+@app.get("/pwa-test", response_class=HTMLResponse)
+async def pwa_test_page(request: Request):
+    """PWA test page for debugging and verification"""
+    return templates.TemplateResponse("pwa-test.html", {"request": request})
+
 # Add tenant middleware
 app.add_middleware(TenantMiddleware)
 
@@ -262,11 +268,6 @@ async def get_service_worker():
 async def offline_page(request: Request):
     """Serve offline page for PWA"""
     return templates.TemplateResponse("offline.html", {"request": request})
-
-@app.get("/pwa-test", response_class=HTMLResponse)
-async def pwa_test_page(request: Request):
-    """PWA test page for debugging and verification"""
-    return templates.TemplateResponse("pwa-test.html", {"request": request})
 
 def get_restaurant_name():
     try:
