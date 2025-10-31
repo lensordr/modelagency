@@ -25,7 +25,7 @@
             <div class="trial-content" style="display: flex; justify-content: space-between; align-items: center;">
                 <span id="trialMessage"></span>
                 <div class="trial-actions">
-                    <a href="#" onclick="upgradeNow()" class="upgrade-btn" style="background: white; color: #d97706; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-weight: 600;">Upgrade Now</a>
+                    <a href="#" onclick="upgradeNow(); return false;" class="upgrade-btn" style="background: white; color: #d97706; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-weight: 600;">Upgrade Now</a>
                     <button onclick="dismissTrial()" class="dismiss-btn" style="background: transparent; color: white; border: 1px solid white; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Dismiss</button>
                 </div>
             </div>
@@ -263,15 +263,21 @@
         }
         
         async function upgradeNow() {
+            console.log('Upgrade button clicked');
             // Get current restaurant info and redirect to signup with pre-filled data
             const currentPath = window.location.pathname;
+            console.log('Current path:', currentPath);
+            
             if (currentPath.includes('/r/')) {
                 const subdomain = currentPath.split('/r/')[1].split('/')[0];
+                console.log('Extracted subdomain:', subdomain);
                 
                 // Get restaurant details for pre-filling
                 try {
                     const response = await fetch('/business/restaurant-info');
                     const data = await response.json();
+                    console.log('Restaurant info:', data);
+                    
                     const params = new URLSearchParams({
                         upgrade: 'true',
                         subdomain: subdomain,
@@ -280,12 +286,18 @@
                         username: data.admin_username || 'admin',
                         table_count: data.table_count || 10
                     });
-                    window.location.href = `/signup?${params.toString()}`;
+                    const signupUrl = `/signup?${params.toString()}`;
+                    console.log('Redirecting to:', signupUrl);
+                    window.location.href = signupUrl;
                 } catch (error) {
+                    console.error('Error fetching restaurant info:', error);
                     // Fallback without pre-filled email
-                    window.location.href = `/signup?upgrade=true&subdomain=${subdomain}`;
+                    const fallbackUrl = `/signup?upgrade=true&subdomain=${subdomain}`;
+                    console.log('Fallback redirect to:', fallbackUrl);
+                    window.location.href = fallbackUrl;
                 }
             } else {
+                console.log('No subdomain found, redirecting to basic signup');
                 window.location.href = '/signup?upgrade=true';
             }
         }
