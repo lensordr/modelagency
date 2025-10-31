@@ -328,7 +328,7 @@
         const currentPath = window.location.pathname;
         if (currentPath.includes('/r/')) {
             const subdomain = currentPath.split('/r/')[1].split('/')[0];
-            localStorage.setItem('pwa_restaurant', subdomain);
+            localStorage.setItem('restaurant', subdomain);
             
             // Update manifest start_url for this specific restaurant
             const manifestLink = document.querySelector('link[rel="manifest"]');

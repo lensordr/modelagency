@@ -13,7 +13,7 @@
     
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     const urlParams = new URLSearchParams(window.location.search);
-    const restaurantSubdomain = urlParams.get('pwa_restaurant');
+    const restaurantSubdomain = urlParams.get('restaurant');
     
     showDebug(`PWA: standalone=${isStandalone}, restaurant=${restaurantSubdomain}`);
     
@@ -21,6 +21,7 @@
     if (isStandalone) {
         // Clear old localStorage to avoid conflicts
         localStorage.removeItem('pwa_restaurant');
+        localStorage.removeItem('restaurant');
         
         if (restaurantSubdomain && restaurantSubdomain !== 'null') {
             const redirectUrl = `/r/${restaurantSubdomain}/business/login`;
