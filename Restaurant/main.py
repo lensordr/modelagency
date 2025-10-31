@@ -67,7 +67,10 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/pwa-test", response_class=HTMLResponse)
 async def pwa_test_page(request: Request):
     """PWA test page for debugging and verification"""
-    return templates.TemplateResponse("pwa-test.html", {"request": request})
+    try:
+        return templates.TemplateResponse("pwa-test.html", {"request": request})
+    except Exception as e:
+        return HTMLResponse(f"<h1>PWA Test Error</h1><p>{str(e)}</p>")
 
 # Website route (before middleware to avoid restaurant context)
 @app.get("/", response_class=HTMLResponse)
