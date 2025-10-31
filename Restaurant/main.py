@@ -321,10 +321,10 @@ async def process_signup(
                 Restaurant.active == True
             ).first()
             
-            # Fallback: try to find by subdomain if email lookup fails
-            if not existing_restaurant and subdomain:
+            # Fallback: try to find by restaurant name if email lookup fails
+            if not existing_restaurant:
                 existing_restaurant = db.query(Restaurant).filter(
-                    Restaurant.subdomain == subdomain,
+                    Restaurant.name == restaurant_name,
                     Restaurant.active == True
                 ).first()
             
