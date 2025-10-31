@@ -81,9 +81,14 @@ async def website_home():
         web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
         with open(os.path.join(web_dir, "index.html"), "r") as f:
             content = f.read()
+        
+        # Add PWA redirect script to homepage
+        pwa_script = '<script src="/static/pwa-redirect.js"></script>'
+        content = content.replace('</body>', f'{pwa_script}</body>')
+        
         return HTMLResponse(content=content)
     except FileNotFoundError:
-        return HTMLResponse("<h1>TableLink - Website Loading...</h1>")
+        return HTMLResponse("<h1>TableLink - Website Loading...</h1><script src='/static/pwa-redirect.js'></script>")
 
 # Square Webhooks (before middleware to avoid restaurant validation)
 @app.post("/webhooks/square")
@@ -1403,11 +1408,19 @@ async def business_dashboard_authenticated(request: Request, db: Session = Depen
                     "restaurant_name": restaurant.name
                 })
         
-        return templates.TemplateResponse("business.html", {
+        # Store restaurant info for PWA
+        response = templates.TemplateResponse("business.html", {
             "request": request, 
             "user": {"username": "admin", "role": "admin"},
             "restaurant_name": restaurant.name if restaurant else "Restaurant"
         })
+        
+        # Add script to store restaurant subdomain for PWA
+        if restaurant:
+            script = f'<script>localStorage.setItem("pwa_restaurant", "{restaurant.subdomain}");</script>'
+            # This will be handled by the template
+        
+        return response
     except Exception as e:
         print(f"Dashboard error: {e}")
         return templates.TemplateResponse("business.html", {

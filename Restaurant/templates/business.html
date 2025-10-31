@@ -323,5 +323,13 @@
     </script>
     <script src="/static/business_no_auth.js?v=20"></script>
     <script src="/static/pwa-install.js"></script>
+    <script>
+        // Store restaurant subdomain for PWA
+        const currentPath = window.location.pathname;
+        if (currentPath.includes('/r/')) {
+            const subdomain = currentPath.split('/r/')[1].split('/')[0];
+            localStorage.setItem('pwa_restaurant', subdomain);
+        }
+    </script>
 </body>
 </html>
