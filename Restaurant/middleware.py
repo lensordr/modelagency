@@ -17,7 +17,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             request.url.path.startswith("/debug/") or
             request.url.path.startswith("/web/") or
             request.url.path.startswith("/webhooks/") or
-            request.url.path in ["/", "/favicon.ico", "/robots.txt", "/apple-touch-icon.png", "/test"]):
+            request.url.path in ["/", "/favicon.ico", "/robots.txt", "/apple-touch-icon.png", "/test", "/pwa-test"]):
             return await call_next(request)
         
         # Skip for setup routes and global pages
