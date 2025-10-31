@@ -247,31 +247,18 @@ async def apple_touch_icon():
 @app.get("/manifest.json")
 async def get_manifest(request: Request):
     """Serve dynamic PWA manifest"""
-    # Get current path to determine start URL
-    current_url = str(request.url)
-    referer = request.headers.get('referer', '')
     start_url = "/business/login"
     
-    # Check both current URL and referer for restaurant path
-    url_to_check = referer if referer else current_url
-    if '/r/' in url_to_check:
-        try:
-            parts = url_to_check.split('/r/')
-            subdomain_part = parts[1].split('/')[0]
-            start_url = f"/r/{subdomain_part}/business/login"
-            print(f"Manifest: Setting start_url to {start_url} from {url_to_check}")
-        except Exception as e:
-            print(f"Manifest error: {e}")
-    
-    # Also check if manifest is requested from /r/ path directly
-    if request.url.path == "/manifest.json" and '/r/' in str(request.url):
-        try:
-            url_parts = str(request.url).split('/r/')
-            subdomain_part = url_parts[1].split('/')[0]
-            start_url = f"/r/{subdomain_part}/business/login"
-            print(f"Manifest: Direct request, setting start_url to {start_url}")
-        except:
-            pass
+    try:
+        # Check referer for restaurant path
+        referer = request.headers.get('referer', '')
+        if '/r/' in referer:
+            parts = referer.split('/r/')
+            if len(parts) > 1:
+                subdomain_part = parts[1].split('/')[0]
+                start_url = f"/r/{subdomain_part}/business/login"
+    except:
+        pass
     
     manifest = {
         "name": "TableLink - Restaurant Management",
