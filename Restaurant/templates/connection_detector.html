@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connecting to {{ restaurant_name }}...</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 2rem; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; 
+                  border-radius: 50%; width: 40px; height: 40px; 
+                  animation: spin 2s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <h2>🔍 Connecting to {{ restaurant_name }}</h2>
+    <div class="spinner"></div>
+    <p id="status">Detecting best connection...</p>
+    
+    <script>
+        const restaurantSubdomain = '{{ subdomain }}';
+        const tableNumber = {{ table_number }};
+        
+        async function detectConnection() {
+            const status = document.getElementById('status');
+            
+            // Try internet connection first
+            try {
+                status.textContent = 'Trying internet connection...';
+                const response = await fetch(`https://tablelink.space/r/${restaurantSubdomain}/client/menu?table=${tableNumber}&lang=en`, 
+                    { timeout: 3000 });
+                if (response.ok) {
+                    window.location.href = `https://tablelink.space/r/${restaurantSubdomain}/table/${tableNumber}`;
+                    return;
+                }
+            } catch (e) {
+                console.log('Internet connection failed, trying local...');
+            }
+            
+            // Get customer's network info and scan range
+            const customerIP = await getCustomerIP();
+            const localIPs = generateIPRange(customerIP);
+            
+            console.log('Customer network:', customerIP);
+            console.log('Scanning IPs:', localIPs);
+            
+            status.textContent = 'Trying local network...';
+            
+            for (const ip of localIPs) {
+                try {
+                    const localUrl = `http://${ip}:8000/r/${restaurantSubdomain}/client/menu?table=${tableNumber}&lang=en`;
+                    const response = await fetch(localUrl, { timeout: 2000 });
+                    if (response.ok) {
+                        window.location.href = `http://${ip}:8000/r/${restaurantSubdomain}/table/${tableNumber}`;
+                        return;
+                    }
+                } catch (e) {
+                    // Continue trying
+                }
+            }
+            
+            // Manual IP entry fallback
+            status.innerHTML = `
+                <p>❌ Could not auto-detect connection</p>
+                <p>📱 Ask staff for local network details</p>
+                <input type="text" id="manualIP" placeholder="Enter local IP (e.g., 192.168.1.100)" style="padding: 10px; width: 250px;">
+                <button onclick="tryManualIP()" style="padding: 10px 20px; margin-left: 10px;">Connect</button>
+            `;
+        }
+        
+        async function getCustomerIP() {
+            try {
+                // Use WebRTC to get local IP
+                return new Promise((resolve) => {
+                    const pc = new RTCPeerConnection({iceServers: []});
+                    pc.createDataChannel('');
+                    pc.createOffer().then(offer => pc.setLocalDescription(offer));
+                    pc.onicecandidate = (ice) => {
+                        if (ice && ice.candidate && ice.candidate.candidate) {
+                            const ip = ice.candidate.candidate.match(/([0-9]{1,3}(\.[0-9]{1,3}){3})/)[0];
+                            pc.close();
+                            resolve(ip);
+                        }
+                    };
+                });
+            } catch (e) {
+                return '192.168.1.100'; // fallback
+            }
+        }
+        
+        function generateIPRange(customerIP) {
+            if (!customerIP) return ['192.168.1.100', '192.168.0.100'];
+            
+            const parts = customerIP.split('.');
+            const baseNetwork = `${parts[0]}.${parts[1]}.${parts[2]}`;
+            
+            // Scan common server IPs in same network
+            return [
+                `${baseNetwork}.1`,     // Router
+                `${baseNetwork}.100`,   // Common server IP
+                `${baseNetwork}.10`,    // Another common IP
+                `${baseNetwork}.200`,   // High range
+                customerIP              // Customer's own IP (if server on same device)
+            ];
+        }
+        
+        function tryManualIP() {
+            const ip = document.getElementById('manualIP').value;
+            if (ip) {
+                window.location.href = `http://${ip}:8000/r/${restaurantSubdomain}/table/${tableNumber}`;
+            }
+        }
+        
+        // Start detection
+        detectConnection();
+    </script>
+</body>
+</html>

@@ -779,6 +779,21 @@ async def client_page(request: Request, table: int = None):
         "restaurant_name": restaurant_name
     })
 
+@app.get("/connect/{subdomain}/table/{table_number}", response_class=HTMLResponse)
+async def connection_detector(request: Request, subdomain: str, table_number: int, local_ip: str = None, db: Session = Depends(get_db)):
+    """Smart connection detector - tries internet first, then local IPs"""
+    restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+    
+    return templates.TemplateResponse("connection_detector.html", {
+        "request": request,
+        "restaurant_name": restaurant.name,
+        "subdomain": subdomain,
+        "table_number": table_number,
+        "local_ip_hint": local_ip
+    })
+
 @app.get("/table/{table_number}", response_class=HTMLResponse)
 async def table_page(request: Request, table_number: int, lang: str = None, db: Session = Depends(get_db)):
     restaurant_id = getattr(request.state, 'restaurant_id', 1)
@@ -1496,9 +1511,9 @@ async def generate_qr_codes(request: Request, db: Session = Depends(get_db)):
     
     qr_data = []
     for table in tables:
-        # Generate the customer URL for each table
+        # Generate smart connection URL for each table
         if restaurant:
-            table_url = f"https://tablelink.space/r/{restaurant.subdomain}/table/{table.table_number}"
+            table_url = f"https://tablelink.space/connect/{restaurant.subdomain}/table/{table.table_number}"
         else:
             table_url = f"https://tablelink.space/table/{table.table_number}"
         

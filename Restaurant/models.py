@@ -155,7 +155,14 @@ if DATABASE_URL:
     # Production (Heroku) - Fix postgres:// to postgresql://
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=15,          # Keep 15 connections ready
+        max_overflow=25,       # Allow 25 more connections when needed
+        pool_timeout=30,       # Wait 30 seconds for connection
+        pool_recycle=3600,     # Refresh connections every hour
+        pool_pre_ping=True     # Verify connections before use
+    )
 else:
     # Development (local)
     DATABASE_URL = os.getenv("LOCAL_DATABASE_URL", "sqlite:///./database.db")
