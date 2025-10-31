@@ -248,16 +248,20 @@ async def apple_touch_icon():
 async def get_manifest(request: Request):
     """Serve dynamic PWA manifest"""
     # Get current path to determine start URL
+    current_url = str(request.url)
     referer = request.headers.get('referer', '')
     start_url = "/business/login"
     
-    # If accessed from restaurant subdomain, preserve the path
-    if '/r/' in referer:
+    # Check both current URL and referer for restaurant path
+    url_to_check = referer if referer else current_url
+    if '/r/' in url_to_check:
         try:
-            parts = referer.split('/r/')
+            parts = url_to_check.split('/r/')
             subdomain_part = parts[1].split('/')[0]
             start_url = f"/r/{subdomain_part}/business/login"
-        except:
+            print(f"Manifest: Setting start_url to {start_url} from {url_to_check}")
+        except Exception as e:
+            print(f"Manifest error: {e}")
             pass
     
     manifest = {
