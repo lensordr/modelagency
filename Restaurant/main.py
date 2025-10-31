@@ -72,7 +72,7 @@ templates = Jinja2Templates(directory=templates_dir)
 @app.get("/pwa-test", response_class=HTMLResponse)
 async def pwa_test_page(request: Request):
     """PWA test page for debugging and verification"""
-    return HTMLResponse("<h1>PWA Test Working</h1><p>This is a simple test page.</p>")
+    return templates.TemplateResponse("pwa-test.html", {"request": request})
 
 # Website route (before middleware to avoid restaurant context)
 @app.get("/", response_class=HTMLResponse)
