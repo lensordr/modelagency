@@ -68,14 +68,11 @@ static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
 templates = Jinja2Templates(directory=templates_dir)
 
-# PWA Test Route (before middleware to avoid tenant validation)
+# PWA Test Route (simple HTML response)
 @app.get("/pwa-test", response_class=HTMLResponse)
 async def pwa_test_page(request: Request):
     """PWA test page for debugging and verification"""
-    try:
-        return templates.TemplateResponse("pwa-test.html", {"request": request})
-    except Exception as e:
-        return HTMLResponse(f"<h1>PWA Test Error</h1><p>{str(e)}</p>")
+    return HTMLResponse("<h1>PWA Test Working</h1><p>This is a simple test page.</p>")
 
 # Website route (before middleware to avoid restaurant context)
 @app.get("/", response_class=HTMLResponse)
