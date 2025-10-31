@@ -2,7 +2,7 @@
   "name": "TableLink - Restaurant Management",
   "short_name": "TableLink",
   "description": "QR code ordering and restaurant management system",
-  "start_url": "/business/login",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#007bff",
