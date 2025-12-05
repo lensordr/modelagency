@@ -49,29 +49,38 @@ async def startup_event():
     print("🚀 Elite Models Agency started successfully")
 
 def init_sample_data(db: Session):
-    # Create sample agency
-    agency = Agency(
-        name="Elite Models Barcelona",
-        subdomain="elite",
-        description="Premier modeling agency in Barcelona specializing in fashion and commercial modeling.",
-        phone="+34 93 123 4567",
-        email="info@elitemodels.es",
-        address="Passeig de Gràcia 123, Barcelona, Spain"
-    )
-    db.add(agency)
-    db.flush()
-    
-    # Create admin user
-    from passlib.context import CryptContext
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    
-    admin = User(
-        agency_id=agency.id,
-        username="admin",
-        password_hash=pwd_context.hash("admin123"[:72]),
-        role="admin"
-    )
-    db.add(admin)
+    try:
+        # Create sample agency
+        agency = Agency(
+            name="Elite Models Barcelona",
+            subdomain="elite",
+            description="Premier modeling agency in Barcelona specializing in fashion and commercial modeling.",
+            phone="+34 93 123 4567",
+            email="info@elitemodels.es",
+            address="Passeig de Gràcia 123, Barcelona, Spain"
+        )
+        db.add(agency)
+        db.flush()
+        
+        # Create admin user with safe password handling
+        from passlib.context import CryptContext
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
+        password = "admin123"
+        if len(password.encode('utf-8')) > 72:
+            password = password.encode('utf-8')[:72].decode('utf-8')
+        
+        admin = User(
+            agency_id=agency.id,
+            username="admin",
+            password_hash=pwd_context.hash(password),
+            role="admin"
+        )
+        db.add(admin)
+    except Exception as e:
+        print(f"Error creating admin user: {e}")
+        # Skip admin creation if it fails
+        pass
     
     # Create cities
     cities_data = [
@@ -361,7 +370,12 @@ async def admin_login(
     
     user = db.query(User).filter(User.username == username).first()
     
-    if user and pwd_context.verify(password[:72], user.password_hash):
+    # Safe password verification
+    safe_password = password
+    if len(password.encode('utf-8')) > 72:
+        safe_password = password.encode('utf-8')[:72].decode('utf-8')
+    
+    if user and pwd_context.verify(safe_password, user.password_hash):
         # In a real app, you'd create a JWT token here
         response = RedirectResponse(url="/admin/dashboard", status_code=302)
         response.set_cookie("admin_logged_in", "true")
