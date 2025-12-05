@@ -377,23 +377,21 @@ async def admin_login(
             # Create admin user if it doesn't exist
             agency = db.query(Agency).first()
             if agency:
-                # Use bytes directly for password hashing
-                password_bytes = "admin123".encode('utf-8')[:72]
+                # Use simple password to avoid bcrypt issues
+                simple_password = "admin"
                 
                 user = User(
                     agency_id=agency.id,
                     username="admin",
-                    password_hash=pwd_context.hash(password_bytes),
+                    password_hash=pwd_context.hash(simple_password),
                     role="admin"
                 )
                 db.add(user)
                 db.commit()
         
         if user:
-            # Safe password verification - truncate to 72 bytes
-            password_bytes = password.encode('utf-8')[:72]
-            
-            if pwd_context.verify(password_bytes, user.password_hash):
+            # Simple password verification
+            if pwd_context.verify(password, user.password_hash):
                 response = RedirectResponse(url="/admin/dashboard", status_code=302)
                 response.set_cookie("admin_logged_in", "true")
                 return response
