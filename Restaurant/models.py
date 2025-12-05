@@ -119,14 +119,15 @@ class AnalyticsRecord(Base):
 
 # Database setup
 import os
-from dotenv import load_dotenv
 
-# Load environment variables from .env.local if it exists
-if os.path.exists('.env.local'):
-    load_dotenv('.env.local')
+# Use PostgreSQL on Heroku, SQLite locally
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Use SQLite for development
-DATABASE_URL = "sqlite:///./agency.db"
+if not DATABASE_URL:
+    DATABASE_URL = "sqlite:///./agency.db"
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -11,6 +11,7 @@ import shutil
 from datetime import datetime
 
 from models import create_tables, get_db, Agency, User, Model, City, Booking
+import os
 
 app = FastAPI(title="Elite Models Barcelona")
 
@@ -550,4 +551,5 @@ async def get_booking_details(booking_id: int, db: Session = Depends(get_db)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
