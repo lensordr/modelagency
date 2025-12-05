@@ -68,7 +68,7 @@ def init_sample_data(db: Session):
     admin = User(
         agency_id=agency.id,
         username="admin",
-        password_hash=pwd_context.hash("admin123"),
+        password_hash=pwd_context.hash("admin123"[:72]),
         role="admin"
     )
     db.add(admin)
@@ -361,7 +361,7 @@ async def admin_login(
     
     user = db.query(User).filter(User.username == username).first()
     
-    if user and pwd_context.verify(password, user.password_hash):
+    if user and pwd_context.verify(password[:72], user.password_hash):
         # In a real app, you'd create a JWT token here
         response = RedirectResponse(url="/admin/dashboard", status_code=302)
         response.set_cookie("admin_logged_in", "true")
