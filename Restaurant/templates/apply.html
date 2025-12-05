@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Become a Model - Elite Models Barcelona{% endblock %}
+
+{% block content %}
+<div class="container" style="margin-top: 100px;">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <h1 class="section-title">Become a Model</h1>
+            <p class="text-center text-muted mb-5">Join our prestigious agency and start your modeling career with us.</p>
+            
+            <div class="filter-section">
+                <form id="applicationForm" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="name" class="form-label">Full Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="age" class="form-label">Age *</label>
+                            <input type="number" class="form-control" id="age" name="age" min="18" max="50" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="height" class="form-label">Height (cm) *</label>
+                            <input type="number" class="form-control" id="height" name="height" min="150" max="200" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="city_id" class="form-label">Preferred City *</label>
+                            <select class="form-control" id="city_id" name="city_id" required>
+                                <option value="">Select a city</option>
+                                {% for city in cities %}
+                                <option value="{{ city.id }}">{{ city.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="hair_color" class="form-label">Hair Color *</label>
+                            <select class="form-control" id="hair_color" name="hair_color" required>
+                                <option value="">Select hair color</option>
+                                <option value="Blonde">Blonde</option>
+                                <option value="Brunette">Brunette</option>
+                                <option value="Black">Black</option>
+                                <option value="Red">Red</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="eye_color" class="form-label">Eye Color *</label>
+                            <select class="form-control" id="eye_color" name="eye_color" required>
+                                <option value="">Select eye color</option>
+                                <option value="Blue">Blue</option>
+                                <option value="Brown">Brown</option>
+                                <option value="Green">Green</option>
+                                <option value="Hazel">Hazel</option>
+                                <option value="Gray">Gray</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bio" class="form-label">Bio / Experience</label>
+                        <textarea class="form-control" id="bio" name="bio" rows="4" 
+                                  placeholder="Tell us about yourself, your experience, interests, and why you want to be a model..."></textarea>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="photos" class="form-label">Photos * (3-5 photos required)</label>
+                        <input type="file" class="form-control" id="photos" name="photos" multiple accept="image/*" required>
+                        <div class="form-text text-muted">
+                            Please upload high-quality photos including: headshot, full body, and profile shots. 
+                            Maximum 5MB per photo. Accepted formats: JPG, PNG.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="terms" required>
+                            <label class="form-check-label" for="terms">
+                                I agree to the <a href="#" class="text-warning">Terms and Conditions</a> and 
+                                <a href="#" class="text-warning">Privacy Policy</a> *
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-luxury btn-lg">
+                            <i class="fas fa-paper-plane me-2"></i>Submit Application
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Requirements Section -->
+    <div class="row mt-5">
+        <div class="col-lg-12">
+            <h2 class="section-title">Requirements</h2>
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="city-card">
+                        <i class="fas fa-user-check fa-2x text-warning mb-3"></i>
+                        <h4>Age & Experience</h4>
+                        <p class="text-muted">18+ years old. No prior experience required, but passion for modeling is essential.</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="city-card">
+                        <i class="fas fa-ruler-vertical fa-2x text-warning mb-3"></i>
+                        <h4>Physical Requirements</h4>
+                        <p class="text-muted">Minimum height varies by category. Healthy lifestyle and professional appearance.</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="city-card">
+                        <i class="fas fa-camera fa-2x text-warning mb-3"></i>
+                        <h4>Portfolio</h4>
+                        <p class="text-muted">High-quality photos showcasing different angles and expressions. Professional shots preferred.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="background-color: var(--secondary-dark); color: var(--text-light);">
+            <div class="modal-header" style="border-bottom: 1px solid #444;">
+                <h5 class="modal-title">Application Submitted</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                <h4>Thank You!</h4>
+                <p>Your application has been submitted successfully. Our team will review it and contact you within 5-7 business days.</p>
+                <p class="text-muted">Please check your email for confirmation and next steps.</p>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid #444;">
+                <button type="button" class="btn btn-luxury" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('applicationForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const submitBtn = this.querySelector('button[type="submit"]');
+    
+    // Validate photos
+    const photos = document.getElementById('photos').files;
+    if (photos.length < 3) {
+        alert('Please upload at least 3 photos.');
+        return;
+    }
+    
+    if (photos.length > 5) {
+        alert('Please upload maximum 5 photos.');
+        return;
+    }
+    
+    // Check file sizes
+    for (let photo of photos) {
+        if (photo.size > 5 * 1024 * 1024) { // 5MB
+            alert(`Photo "${photo.name}" is too large. Maximum size is 5MB.`);
+            return;
+        }
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+    
+    try {
+        const response = await fetch('/apply', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            new bootstrap.Modal(document.getElementById('successModal')).show();
+            this.reset();
+        } else {
+            alert(result.message);
+        }
+    } catch (error) {
+        alert('Error submitting application. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Submit Application';
+    }
+});
+
+// Photo preview functionality
+document.getElementById('photos').addEventListener('change', function(e) {
+    const files = e.target.files;
+    const fileText = document.querySelector('.form-text');
+    
+    if (files.length > 0) {
+        fileText.innerHTML = `${files.length} photo(s) selected. Maximum 5MB per photo.`;
+        
+        if (files.length < 3) {
+            fileText.innerHTML += ' <span class="text-warning">Please select at least 3 photos.</span>';
+        } else if (files.length > 5) {
+            fileText.innerHTML += ' <span class="text-danger">Maximum 5 photos allowed.</span>';
+        }
+    }
+});
+</script>
+{% endblock %}

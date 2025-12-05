@@ -1,3664 +1,553 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
-from typing import List
-import sys
+from sqlalchemy import func
+from typing import List, Optional
 import os
 import json
-import hashlib
-import hmac
-from datetime import date, timedelta
-from middleware import TenantMiddleware
-from tenant import get_current_restaurant_id, get_current_restaurant, requires_plan
-from models import Restaurant, User, Table
+import shutil
+from datetime import datetime
 
-# Add current directory to Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from models import create_tables, get_db, Agency, User, Model, City, Booking
 
-try:
-    from models import create_tables, get_db, MenuItem, Order, OrderItem, Table, Waiter, User  # type: ignore
-    from crud import (  # type: ignore
-        init_sample_data, get_table_by_number, get_active_menu_items, get_menu_items_by_category,
-        create_order, update_table_status, get_all_tables, get_order_details,
-        finish_order, toggle_menu_item_active, create_menu_item, get_active_order_by_table, add_items_to_order,
-        get_sales_by_table_and_period, get_total_sales_summary, get_all_waiters, create_waiter, delete_waiter, finish_order_with_waiter,
-        get_sales_by_waiter_and_period, get_detailed_sales_data, partial_checkout_order, get_order_split_details
-    )
-    from auth import authenticate_user, create_access_token, get_current_user, require_admin  # type: ignore
-except ImportError as e:
-    print(f"Import error: {e}")
-    raise
+app = FastAPI(title="Elite Models Barcelona")
 
-# Initialize sample data
-from contextlib import asynccontextmanager
-try:
-    from setup import is_setup_complete, apply_setup, get_setup_config  # type: ignore
-except ImportError as e:
-    print(f"Setup import error: {e}")
-    raise
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    try:
-        create_tables()
-        
-        # Only initialize if database is empty
-        db = next(get_db())
-        restaurant_count = db.query(Restaurant).count()
-        if restaurant_count == 0:
-            init_sample_data(db)
-        db.close()
-    except Exception as e:
-        if "too many connections" in str(e):
-            print("Database connection limit reached, skipping initialization")
-        else:
-            print(f"Startup error: {e}")
-    
-    print("🚀 TableLink started successfully")
-    yield
-
-app = FastAPI(lifespan=lifespan)
-
-# Initialize templates early
-static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+# Initialize templates and static files
 templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 templates = Jinja2Templates(directory=templates_dir)
 
-# PWA Test Route (simple HTML response)
-@app.get("/pwa-test", response_class=HTMLResponse)
-async def pwa_test_page(request: Request):
-    """PWA test page for debugging and verification"""
-    return templates.TemplateResponse("pwa-test.html", {"request": request})
-
-# Website route (before middleware to avoid restaurant context)
-@app.get("/", response_class=HTMLResponse)
-async def website_home():
+# Add custom filter for JSON parsing
+import json
+def from_json_filter(value):
     try:
-        web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
-        with open(os.path.join(web_dir, "index.html"), "r") as f:
-            content = f.read()
-        
-        # Add PWA redirect script to homepage
-        pwa_script = '<script src="/static/pwa-redirect.js"></script>'
-        content = content.replace('</body>', f'{pwa_script}</body>')
-        
-        return HTMLResponse(content=content)
-    except FileNotFoundError:
-        return HTMLResponse("<h1>TableLink - Website Loading...</h1><script src='/static/pwa-redirect.js'></script>")
-
-# Square Webhooks (before middleware to avoid restaurant validation)
-@app.post("/webhooks/square")
-async def square_webhook(request: Request, db: Session = Depends(get_db)):
-    try:
-        body = await request.body()
-        data = json.loads(body)
-        event_type = data.get("type")
-        
-        print(f"Square webhook received: {event_type}")
-        
-        if event_type == "payment.created":
-            payment_data = data.get("data", {}).get("object", {})
-            
-            # Get customer email
-            customer_email = payment_data.get("buyer_email_address")
-            
-            # Determine plan from amount
-            amount_money = payment_data.get("amount_money", {})
-            amount = amount_money.get("amount", 0) / 100
-            
-            if amount == 49:
-                plan_type = "basic"
-            elif amount == 79:
-                plan_type = "professional"
-            else:
-                return {"status": "unknown_amount"}
-            
-            # Check if this is an upgrade (existing restaurant) or new signup
-            existing_restaurant = db.query(Restaurant).filter(
-                Restaurant.admin_email == customer_email,
-                Restaurant.active == True
-            ).first()
-            
-            if existing_restaurant:
-                # This is an upgrade - update existing restaurant
-                existing_restaurant.plan_type = plan_type
-                existing_restaurant.subscription_status = "active"
-                existing_restaurant.trial_ends_at = None
-                db.commit()
-                
-                result = {
-                    'success': True,
-                    'upgraded': True,
-                    'restaurant_id': existing_restaurant.id,
-                    'subdomain': existing_restaurant.subdomain,
-                    'plan_type': plan_type
-                }
-            else:
-                # This is a new signup - create restaurant
-                signup_data = get_signup_data(customer_email)
-                if not signup_data:
-                    return {"status": "signup_data_not_found"}
-                
-                result = auto_create_restaurant_from_payment(
-                    db, 
-                    signup_data["email"],
-                    signup_data["restaurant_name"],
-                    signup_data["username"],
-                    signup_data["password"],
-                    signup_data["table_count"],
-                    plan_type,
-                    signup_data.get("business_type", "restaurant"),
-                    signup_data.get("room_prefix", "")
-                )
-                
-                # Clean up temporary data
-                cleanup_signup_data(customer_email)
-            
-            return {"status": "success", "restaurant_created": result}
-            
-        return {"status": "event_ignored"}
-            
-    except Exception as e:
-        print(f"Webhook error: {e}")
-        return {"status": "error", "message": str(e)}
-
-def get_signup_data(email):
-    try:
-        import json
-        import os
-        filename = f"/tmp/signup_{email.replace('@', '_').replace('.', '_')}.json"
-        if os.path.exists(filename):
-            with open(filename, "r") as f:
-                return json.load(f)
-        return None
+        return json.loads(value) if value else []
     except:
-        return None
+        return []
 
-def cleanup_signup_data(email):
-    try:
-        import os
-        filename = f"/tmp/signup_{email.replace('@', '_').replace('.', '_')}.json"
-        if os.path.exists(filename):
-            os.remove(filename)
-    except:
-        pass
+templates.env.filters['from_json'] = from_json_filter
 
-def auto_create_restaurant_from_payment(db, email, restaurant_name, username, password, table_count, plan_type, business_type="restaurant", room_prefix=""):
-    try:
-        # Generate subdomain from restaurant name
-        subdomain = restaurant_name.lower().replace(' ', '-').replace('.', '').replace('_', '')[:20]
-        
-        from onboarding import create_new_restaurant
-        
-        result = create_new_restaurant(
-            db=db,
-            restaurant_name=restaurant_name,
-            admin_email=email,
-            admin_username=username,
-            admin_password=password,
-            table_count=table_count,
-            plan_type=plan_type,
-            business_type=business_type,
-            room_prefix=room_prefix
-        )
-        
-        if result['success']:
-            # Store admin email in restaurant record
-            restaurant = db.query(Restaurant).filter(Restaurant.id == result['restaurant_id']).first()
-            if restaurant:
-                restaurant.admin_email = email
-                db.commit()
-            
-            print(f"Restaurant created: https://tablelink.space/r/{result['subdomain']}/business/login")
-            print(f"Username: {username}, Password: {password}")
-        
-        return result
-        
-    except Exception as e:
-        return {'success': False, 'error': str(e)}
+# Create uploads directory for model photos
+uploads_dir = os.path.join(static_dir, "uploads")
+os.makedirs(uploads_dir, exist_ok=True)
 
-# Add tenant middleware
-app.add_middleware(TenantMiddleware)
-
-# Mount static files and web directory
-web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
-print(f"Web directory path: {web_dir}")
-print(f"Web directory exists: {os.path.exists(web_dir)}")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
-if os.path.exists(web_dir):
-    app.mount("/web", StaticFiles(directory=web_dir, html=True), name="web")
-    print("Web directory mounted successfully")
-else:
-    print("Web directory not found!")
 
-# Add routes to prevent HTTP warnings
-@app.get("/favicon.ico")
-async def favicon():
-    return JSONResponse({"message": "No favicon"}, status_code=204)
-
-@app.get("/robots.txt")
-async def robots():
-    return JSONResponse({"message": "No robots.txt"}, status_code=204)
-
-@app.get("/apple-touch-icon.png")
-async def apple_touch_icon():
-    return JSONResponse({"message": "No apple touch icon"}, status_code=204)
-
-# PWA Routes
-@app.get("/manifest.json")
-async def get_manifest(request: Request):
-    """Serve dynamic PWA manifest"""
-    restaurant_param = request.query_params.get('restaurant')
+# Initialize database on startup
+@app.on_event("startup")
+async def startup_event():
+    create_tables()
     
-    if restaurant_param:
-        # Dynamic manifest for specific restaurant
-        manifest = {
-            "name": f"TableLink - {restaurant_param.title()}",
-            "short_name": f"TL-{restaurant_param}",
-            "description": "QR code ordering and restaurant management system",
-            "start_url": f"/?restaurant={restaurant_param}",
-            "display": "standalone",
-            "background_color": "#ffffff",
-            "theme_color": "#007bff",
-            "orientation": "portrait-primary",
-            "scope": "/",
-            "icons": [
-                {"src": "/static/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png"},
-                {"src": "/static/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png"}
-            ]
-        }
-        return JSONResponse(manifest)
-    else:
-        # Static manifest fallback
-        try:
-            manifest_path = os.path.join(static_dir, "manifest.json")
-            with open(manifest_path, "r") as f:
-                manifest_content = f.read()
-            return Response(content=manifest_content, media_type="application/json")
-        except FileNotFoundError:
-            return JSONResponse({"error": "Manifest not found"}, status_code=404)
+    # Create sample data if database is empty
+    db = next(get_db())
+    if db.query(Agency).count() == 0:
+        init_sample_data(db)
+    db.close()
+    print("🚀 Elite Models Agency started successfully")
 
-@app.get("/sw.js")
-async def get_service_worker():
-    """Serve service worker"""
-    try:
-        sw_path = os.path.join(static_dir, "sw.js")
-        with open(sw_path, "r") as f:
-            sw_content = f.read()
-        return Response(content=sw_content, media_type="application/javascript")
-    except FileNotFoundError:
-        return JSONResponse({"error": "Service worker not found"}, status_code=404)
+def init_sample_data(db: Session):
+    # Create sample agency
+    agency = Agency(
+        name="Elite Models Barcelona",
+        subdomain="elite",
+        description="Premier modeling agency in Barcelona specializing in fashion and commercial modeling.",
+        phone="+34 93 123 4567",
+        email="info@elitemodels.es",
+        address="Passeig de Gràcia 123, Barcelona, Spain"
+    )
+    db.add(agency)
+    db.flush()
+    
+    # Create admin user
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    
+    admin = User(
+        agency_id=agency.id,
+        username="admin",
+        password_hash=pwd_context.hash("admin123"),
+        role="admin"
+    )
+    db.add(admin)
+    
+    # Create cities
+    cities_data = [
+        {"name": "Barcelona", "country": "Spain"},
+        {"name": "Madrid", "country": "Spain"},
+        {"name": "Valencia", "country": "Spain"},
+        {"name": "Sevilla", "country": "Spain"}
+    ]
+    
+    for city_data in cities_data:
+        city = City(
+            agency_id=agency.id,
+            name=city_data["name"],
+            country=city_data["country"]
+        )
+        db.add(city)
+    
+    db.commit()
 
-@app.get("/offline.html", response_class=HTMLResponse)
-async def offline_page(request: Request):
-    """Serve offline page for PWA"""
-    return templates.TemplateResponse("offline.html", {"request": request})
+# Routes
 
-def get_restaurant_name():
-    try:
-        restaurant = get_current_restaurant()
-        return restaurant.name
-    except:
-        config = get_setup_config()
-        return config.get('restaurant_name', 'TablePulse Restaurant')
-
-# Setup routes
-# Signup routes
-@app.get("/signup", response_class=HTMLResponse)
-async def signup_page(request: Request):
-    return templates.TemplateResponse("signup.html", {"request": request})
-
-@app.get("/signup-hotel", response_class=HTMLResponse)
-async def signup_hotel_page(request: Request):
-    return templates.TemplateResponse("signup_hotel.html", {
-        "request": request
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request, db: Session = Depends(get_db)):
+    agency = db.query(Agency).first()
+    models = db.query(Model).filter(
+        Model.status == "approved",
+        Model.available == True
+    ).limit(6).all()
+    
+    return templates.TemplateResponse("home.html", {
+        "request": request,
+        "agency": agency,
+        "featured_models": models
     })
 
-@app.post("/check-username")
-async def check_username(request: Request, db: Session = Depends(get_db)):
-    data = await request.json()
-    username = data.get('username', '').strip()
+@app.get("/models", response_class=HTMLResponse)
+async def models_page(
+    request: Request, 
+    city: Optional[str] = None,
+    age_min: Optional[int] = None,
+    age_max: Optional[int] = None,
+    height_min: Optional[int] = None,
+    hair_color: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Model).filter(
+        Model.status == "approved",
+        Model.available == True
+    )
     
-    if len(username) < 3:
-        return {"available": False, "message": "Username too short"}
+    if city:
+        query = query.join(City).filter(City.name == city)
+    if age_min:
+        query = query.filter(Model.age >= age_min)
+    if age_max:
+        query = query.filter(Model.age <= age_max)
+    if height_min:
+        query = query.filter(Model.height >= height_min)
+    if hair_color:
+        query = query.filter(Model.hair_color == hair_color)
     
-    existing_user = db.query(User).filter(User.username == username).first()
-    print(f"Username check: '{username}' -> {'EXISTS' if existing_user else 'AVAILABLE'}")
+    models = query.all()
+    cities = db.query(City).filter(City.active == True).all()
     
-    return {"available": existing_user is None}
+    return templates.TemplateResponse("models.html", {
+        "request": request,
+        "models": models,
+        "cities": cities,
+        "filters": {
+            "city": city,
+            "age_min": age_min,
+            "age_max": age_max,
+            "height_min": height_min,
+            "hair_color": hair_color
+        }
+    })
 
-@app.post("/signup")
-async def process_signup(
-    restaurant_name: str = Form(...),
+@app.get("/model/{model_id}", response_class=HTMLResponse)
+async def model_profile(request: Request, model_id: int, db: Session = Depends(get_db)):
+    model = db.query(Model).filter(
+        Model.id == model_id,
+        Model.status == "approved"
+    ).first()
+    
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    return templates.TemplateResponse("model_profile.html", {
+        "request": request,
+        "model": model
+    })
+
+@app.get("/cities", response_class=HTMLResponse)
+async def cities_page(request: Request, db: Session = Depends(get_db)):
+    cities = db.query(City).filter(City.active == True).all()
+    
+    # Get model count per city
+    city_stats = []
+    for city in cities:
+        model_count = db.query(Model).filter(
+            Model.city_id == city.id,
+            Model.status == "approved",
+            Model.available == True
+        ).count()
+        city_stats.append({
+            "city": city,
+            "model_count": model_count
+        })
+    
+    return templates.TemplateResponse("cities.html", {
+        "request": request,
+        "city_stats": city_stats
+    })
+
+@app.get("/city/{city_name}", response_class=HTMLResponse)
+async def city_models(request: Request, city_name: str, db: Session = Depends(get_db)):
+    city = db.query(City).filter(City.name == city_name).first()
+    if not city:
+        raise HTTPException(status_code=404, detail="City not found")
+    
+    models = db.query(Model).filter(
+        Model.city_id == city.id,
+        Model.status == "approved",
+        Model.available == True
+    ).all()
+    
+    return templates.TemplateResponse("city_models.html", {
+        "request": request,
+        "city": city,
+        "models": models
+    })
+
+@app.get("/about", response_class=HTMLResponse)
+async def about_page(request: Request, db: Session = Depends(get_db)):
+    agency = db.query(Agency).first()
+    return templates.TemplateResponse("about.html", {
+        "request": request,
+        "agency": agency
+    })
+
+@app.get("/contact", response_class=HTMLResponse)
+async def contact_page(request: Request, db: Session = Depends(get_db)):
+    agency = db.query(Agency).first()
+    return templates.TemplateResponse("contact.html", {
+        "request": request,
+        "agency": agency
+    })
+
+@app.post("/contact")
+async def submit_contact(
+    name: str = Form(...),
     email: str = Form(...),
-    plan: str = Form(...),
-    table_count: int = Form(...),
-    username: str = Form(...),
-    password: str = Form(...),
-    upgrade: str = Form("false"),
-    business_type: str = Form("restaurant"),
-    room_prefix: str = Form(""),
-    subdomain: str = Form(None),
+    phone: str = Form(""),
+    message: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    # Here you would typically send an email or save to database
+    # For now, just return success
+    return JSONResponse({
+        "success": True,
+        "message": "Thank you for your message. We will contact you soon."
+    })
+
+@app.get("/apply", response_class=HTMLResponse)
+async def apply_page(request: Request, db: Session = Depends(get_db)):
+    cities = db.query(City).filter(City.active == True).all()
+    return templates.TemplateResponse("apply.html", {
+        "request": request,
+        "cities": cities
+    })
+
+@app.post("/apply")
+async def submit_application(
+    name: str = Form(...),
+    age: int = Form(...),
+    height: int = Form(...),
+    hair_color: str = Form(...),
+    eye_color: str = Form(...),
+    city_id: int = Form(...),
+    bio: str = Form(""),
+    photos: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
     try:
-        print(f"Signup request: plan={plan}, email={email}, restaurant_name={restaurant_name}")
-        
-        # Store signup data temporarily
-        signup_data = {
-            "restaurant_name": restaurant_name,
-            "email": email,
-            "plan": plan,
-            "table_count": table_count,
-            "username": username,
-            "password": password,
-            "business_type": business_type,
-            "room_prefix": room_prefix
-        }
-        
-        # Store in session or temporary table (simplified: use email as key)
-        import json
-        with open(f"/tmp/signup_{email.replace('@', '_').replace('.', '_')}.json", "w") as f:
-            json.dump(signup_data, f)
-        
-        # Check if this is an upgrade
-        is_upgrade = upgrade == 'true'
-        # Debug logging removed
-        
-        # Check for unique username only for new signups (not upgrades)
-        if not is_upgrade:
-            existing_user = db.query(User).filter(User.username == username).first()
-            if existing_user:
-                return {"success": False, "error": "Username already exists. Please choose a different username."}
-        
-        if is_upgrade:
-            # Verify current password for upgrades
-            from auth import verify_password
-            
-            # Find existing restaurant by email
-            existing_restaurant = db.query(Restaurant).filter(
-                Restaurant.admin_email == email,
-                Restaurant.active == True
-            ).first()
-            
-            # Fallback: try to find by subdomain parameter
-            if not existing_restaurant and subdomain:
-                existing_restaurant = db.query(Restaurant).filter(
-                    Restaurant.subdomain == subdomain,
-                    Restaurant.active == True
-                ).first()
-            
-            if not existing_restaurant:
-                return {"success": False, "error": "Restaurant not found for upgrade"}
-            
-            # Find admin user
-            admin_user = db.query(User).filter(
-                User.restaurant_id == existing_restaurant.id,
-                User.role == 'admin'
-            ).first()
-            
-            if not admin_user or not verify_password(password, admin_user.password_hash):
-                return {"success": False, "error": "Invalid current password"}
-            
-            # Store upgrade data for Square webhook
-            signup_data["upgrade"] = True
-            signup_data["restaurant_id"] = existing_restaurant.id
-        
-        # Handle free trial vs paid plans
-        print(f"Checking plan type: '{plan}' == 'trial' ? {plan == 'trial'}")
-        if plan == "trial":
-            # Create restaurant immediately for free trial
-            from onboarding import create_new_restaurant
-            from datetime import datetime, timedelta
-            
-            result = create_new_restaurant(
-                db=db,
-                restaurant_name=restaurant_name,
-                admin_email=email,
-                admin_username=username,
-                admin_password=password,
-                table_count=table_count,
-                plan_type="trial",
-                business_type=business_type,
-                room_prefix=room_prefix
-            )
-            
-            if result['success']:
-                # Set trial end date and admin email
-                restaurant = db.query(Restaurant).filter(Restaurant.id == result['restaurant_id']).first()
-                restaurant.trial_ends_at = datetime.utcnow() + timedelta(days=15)
-                restaurant.admin_email = email
-                db.commit()
+        # Save uploaded photos
+        photo_urls = []
+        for photo in photos:
+            if photo.filename:
+                # Generate unique filename
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{timestamp}_{photo.filename}"
+                file_path = os.path.join(uploads_dir, filename)
                 
-                return {
-                    "success": True, 
-                    "trial": True,
-                    "login_url": result['login_url'],
-                    "username": username,
-                    "password": password
-                }
-            else:
-                return {"success": False, "error": result['error']}
-        else:
-            # Paid plans - redirect to Square
-            if plan == "basic":
-                checkout_url = "https://square.link/u/afXq8Dnl"  # €49 basic
-            else:
-                checkout_url = "https://square.link/u/4AiXGpLe"  # €55 professional
-            
-            print(f"Redirecting to Square: plan={plan}, url={checkout_url}")
-            return {"success": True, "checkout_url": checkout_url}
+                with open(file_path, "wb") as buffer:
+                    shutil.copyfileobj(photo.file, buffer)
+                
+                photo_urls.append(f"/static/uploads/{filename}")
+        
+        # Create model application
+        agency = db.query(Agency).first()
+        model = Model(
+            agency_id=agency.id,
+            city_id=city_id,
+            name=name,
+            age=age,
+            height=height,
+            hair_color=hair_color,
+            eye_color=eye_color,
+            bio=bio,
+            photos=json.dumps(photo_urls),
+            status="pending"
+        )
+        
+        db.add(model)
+        db.commit()
+        
+        return JSONResponse({
+            "success": True,
+            "message": "Application submitted successfully! We will review it and contact you soon."
+        })
         
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return JSONResponse({
+            "success": False,
+            "message": f"Error submitting application: {str(e)}"
+        })
 
-def generate_secure_password():
-    import secrets
-    import string
-    return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
+@app.post("/book/{model_id}")
+async def book_model(
+    model_id: int,
+    client_name: str = Form(...),
+    client_email: str = Form(...),
+    client_phone: str = Form(""),
+    event_date: str = Form(...),
+    event_type: str = Form(...),
+    message: str = Form(""),
+    db: Session = Depends(get_db)
+):
+    try:
+        model = db.query(Model).filter(Model.id == model_id).first()
+        if not model:
+            raise HTTPException(status_code=404, detail="Model not found")
+        
+        # Parse event date
+        event_datetime = datetime.strptime(event_date, "%Y-%m-%d")
+        
+        booking = Booking(
+            agency_id=model.agency_id,
+            model_id=model_id,
+            client_name=client_name,
+            client_email=client_email,
+            client_phone=client_phone,
+            event_date=event_datetime,
+            event_type=event_type,
+            message=message
+        )
+        
+        db.add(booking)
+        db.commit()
+        
+        return JSONResponse({
+            "success": True,
+            "message": "Booking request submitted successfully! We will contact you via WhatsApp or email within 24 hours to confirm details and discuss your requirements."
+        })
+        
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "message": f"Error submitting booking: {str(e)}"
+        })
 
-@app.get("/setup", response_class=HTMLResponse)
-async def setup_page(request: Request):
-    if is_setup_complete():
-        return templates.TemplateResponse("setup_complete.html", {"request": request})
-    return templates.TemplateResponse("setup.html", {"request": request})
-
-# Admin/Onboarding routes
-# Simple token storage
-ADMIN_TOKEN = "tablelink_admin_2025"
-
-def check_admin_auth(request: Request):
-    # Check for token in cookie or header
-    token = request.cookies.get('admin_token') or request.headers.get('X-Admin-Token')
-    return token == ADMIN_TOKEN
-
+# Admin routes
 @app.get("/admin/login", response_class=HTMLResponse)
 async def admin_login_page(request: Request):
-    return templates.TemplateResponse("admin_login.html", {"request": request})
+    return templates.TemplateResponse("admin_login.html", {
+        "request": request
+    })
 
 @app.post("/admin/login")
 async def admin_login(
     username: str = Form(...),
-    password: str = Form(...)
+    password: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-    if username == 'tablelink' and password == 'tablelink2025!':
-        from fastapi.responses import RedirectResponse
-        response = RedirectResponse(url="/admin", status_code=302)
-        response.set_cookie("admin_token", ADMIN_TOKEN, max_age=86400)
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    
+    user = db.query(User).filter(User.username == username).first()
+    
+    if user and pwd_context.verify(password, user.password_hash):
+        # In a real app, you'd create a JWT token here
+        response = RedirectResponse(url="/admin/dashboard", status_code=302)
+        response.set_cookie("admin_logged_in", "true")
         return response
     else:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        return templates.TemplateResponse("admin_login.html", {
+            "request": request,
+            "error": "Invalid credentials"
+        })
+
+@app.get("/admin/dashboard", response_class=HTMLResponse)
+async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
+    # Simple auth check
+    if not request.cookies.get("admin_logged_in"):
+        return RedirectResponse(url="/admin/login")
+    
+    stats = {
+        "total_models": db.query(Model).count(),
+        "approved_models": db.query(Model).filter(Model.status == "approved").count(),
+        "pending_models": db.query(Model).filter(Model.status == "pending").count(),
+        "total_bookings": db.query(Booking).count(),
+        "pending_bookings": db.query(Booking).filter(Booking.status == "pending").count()
+    }
+    
+    recent_applications = db.query(Model).filter(
+        Model.status == "pending"
+    ).order_by(Model.created_at.desc()).limit(5).all()
+    
+    recent_bookings = db.query(Booking).order_by(
+        Booking.created_at.desc()
+    ).limit(5).all()
+    
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "stats": stats,
+        "recent_applications": recent_applications,
+        "recent_bookings": recent_bookings
+    })
 
 @app.get("/admin/logout")
-async def admin_logout(request: Request):
-    from fastapi.responses import RedirectResponse
+async def admin_logout():
     response = RedirectResponse(url="/admin/login", status_code=302)
-    response.delete_cookie("admin_token")
+    response.delete_cookie("admin_logged_in")
     return response
 
-@app.get("/admin", response_class=HTMLResponse)
-async def admin_dashboard(request: Request):
-    if not check_admin_auth(request):
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url="/admin/login", status_code=302)
-    return templates.TemplateResponse("admin_dashboard.html", {"request": request})
+@app.post("/admin/models/{model_id}/approve")
+async def approve_model(model_id: int, db: Session = Depends(get_db)):
+    model = db.query(Model).filter(Model.id == model_id).first()
+    if model:
+        model.status = "approved"
+        db.commit()
+    return JSONResponse({"success": True})
 
-@app.get("/onboard", response_class=HTMLResponse)
-async def onboarding_page(request: Request):
-    return templates.TemplateResponse("onboarding.html", {"request": request})
+@app.post("/admin/models/{model_id}/reject")
+async def reject_model(model_id: int, db: Session = Depends(get_db)):
+    model = db.query(Model).filter(Model.id == model_id).first()
+    if model:
+        model.status = "rejected"
+        db.commit()
+    return JSONResponse({"success": True})
 
-@app.get("/onboarding", response_class=HTMLResponse)
-async def onboarding_page_alt(request: Request):
-    return templates.TemplateResponse("onboarding.html", {"request": request})
+@app.post("/admin/bookings/{booking_id}/confirm")
+async def confirm_booking(booking_id: int, db: Session = Depends(get_db)):
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if booking:
+        booking.status = "confirmed"
+        db.commit()
+    return JSONResponse({"success": True})
 
-@app.post("/onboard")
-async def create_restaurant(
-    restaurant_name: str = Form(...),
-    admin_email: str = Form(...),
-    admin_username: str = Form(...),
-    admin_password: str = Form(...),
-    table_count: int = Form(...),
-    plan_type: str = Form("trial"),
-    business_type: str = Form("restaurant"),
-    room_prefix: str = Form(""),
-    menu_file: UploadFile = File(None),
+@app.get("/admin/models", response_class=HTMLResponse)
+async def admin_models_page(request: Request, db: Session = Depends(get_db)):
+    if not request.cookies.get("admin_logged_in"):
+        return RedirectResponse(url="/admin/login")
+    
+    models = db.query(Model).order_by(Model.created_at.desc()).all()
+    cities = db.query(City).filter(City.active == True).all()
+    
+    return templates.TemplateResponse("admin_models.html", {
+        "request": request,
+        "models": models,
+        "cities": cities
+    })
+
+@app.post("/admin/models/add")
+async def add_model_admin(
+    name: str = Form(...),
+    age: int = Form(...),
+    height: int = Form(...),
+    hair_color: str = Form(...),
+    eye_color: str = Form(...),
+    city_id: int = Form(...),
+    bio: str = Form(""),
+    status: str = Form("approved"),
+    photos: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
     try:
-        from onboarding import create_new_restaurant
+        # Save uploaded photos
+        photo_urls = []
+        for photo in photos:
+            if photo.filename:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{timestamp}_{photo.filename}"
+                file_path = os.path.join(uploads_dir, filename)
+                
+                with open(file_path, "wb") as buffer:
+                    shutil.copyfileobj(photo.file, buffer)
+                
+                photo_urls.append(f"/static/uploads/{filename}")
         
-        if table_count < 1 or table_count > 100:
-            return JSONResponse({
-                "success": False,
-                "error": "Table count must be between 1 and 100"
-            }, status_code=400)
-        
-        menu_content = None
-        if menu_file and menu_file.filename:
-            menu_content = await menu_file.read()
-        
-        result = create_new_restaurant(
-            db=db,
-            restaurant_name=restaurant_name,
-            admin_email=admin_email,
-            admin_username=admin_username,
-            admin_password=admin_password,
-            table_count=table_count,
-            plan_type=plan_type,
-            menu_file_content=menu_content,
-            business_type=business_type,
-            room_prefix=room_prefix
+        # Create model
+        agency = db.query(Agency).first()
+        model = Model(
+            agency_id=agency.id,
+            city_id=city_id,
+            name=name,
+            age=age,
+            height=height,
+            hair_color=hair_color,
+            eye_color=eye_color,
+            bio=bio,
+            photos=json.dumps(photo_urls),
+            status=status,
+            available=True
         )
         
-        if result['success']:
-            return JSONResponse({
-                "success": True,
-                "message": "Restaurant created successfully!",
-                "restaurant_name": restaurant_name,
-                "subdomain": result['subdomain'],
-                "login_url": result['login_url'],
-                "admin_username": result['admin_username'],
-                "admin_password": result['admin_password']
-            })
-        else:
-            return JSONResponse({
-                "success": False,
-                "error": result['error']
-            }, status_code=400)
-            
+        db.add(model)
+        db.commit()
+        
+        return JSONResponse({
+            "success": True,
+            "message": "Model added successfully!"
+        })
+        
     except Exception as e:
         return JSONResponse({
             "success": False,
-            "error": str(e)
-        }, status_code=500)
-
-@app.get("/admin/stats")
-async def admin_stats(request: Request, db: Session = Depends(get_db)):
-    if not check_admin_auth(request):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
-    total_restaurants = db.query(func.count(Restaurant.id)).scalar() or 0
-    active_restaurants = db.query(func.count(Restaurant.id)).filter(Restaurant.active == True).scalar() or 0
-    
-    return {
-        "total_restaurants": total_restaurants,
-        "active_restaurants": active_restaurants
-    }
-
-@app.get("/admin/restaurants")
-async def list_restaurants(request: Request, db: Session = Depends(get_db)):
-    if not check_admin_auth(request):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    from models import AnalyticsRecord, Table
-    
-    restaurants = db.query(Restaurant).all()
-    restaurant_data = []
-    
-    for r in restaurants:
-        total_orders = db.query(func.count(func.distinct(AnalyticsRecord.item_name))).filter(
-            AnalyticsRecord.restaurant_id == r.id
-        ).scalar() or 0
-        
-        total_revenue = db.query(func.sum(AnalyticsRecord.total_price)).filter(
-            AnalyticsRecord.restaurant_id == r.id
-        ).scalar() or 0
-        
-        table_count = db.query(func.count(Table.id)).filter(
-            Table.restaurant_id == r.id
-        ).scalar() or 0
-        
-        # Get admin credentials
-        admin_user = db.query(User).filter(
-            User.restaurant_id == r.id,
-            User.role == 'admin'
-        ).first()
-        
-        restaurant_data.append({
-            "id": r.id,
-            "name": r.name,
-            "subdomain": r.subdomain,
-            "plan_type": r.plan_type,
-            "table_count": table_count,
-            "active": r.active,
-            "created_at": r.created_at.strftime("%Y-%m-%d") if r.created_at else "",
-            "total_orders": total_orders,
-            "total_revenue": float(total_revenue),
-            "login_url": f"https://tablelink.space/r/{r.subdomain}/business/login",
-            "admin_username": admin_user.username if admin_user else "N/A"
+            "message": f"Error adding model: {str(e)}"
         })
-    
-    return {"restaurants": restaurant_data}
 
-@app.post("/admin/restaurants/{restaurant_id}/toggle")
-async def toggle_restaurant_status(request: Request, restaurant_id: int, db: Session = Depends(get_db)):
-    if not check_admin_auth(request):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    if not restaurant:
-        raise HTTPException(status_code=404, detail="Restaurant not found")
-    
-    restaurant.active = not restaurant.active
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Restaurant {'enabled' if restaurant.active else 'disabled'}",
-        "active": restaurant.active
-    }
-
-@app.post("/admin/restaurants/{restaurant_id}/plan")
-async def update_restaurant_plan(
-    request: Request,
-    restaurant_id: int,
-    plan_type: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    if not check_admin_auth(request):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    if plan_type not in ['trial', 'basic', 'professional']:
-        raise HTTPException(status_code=400, detail="Invalid plan type")
-    
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    if not restaurant:
-        raise HTTPException(status_code=404, detail="Restaurant not found")
-    
-    restaurant.plan_type = plan_type
-    
-    # Set trial end date for new trials
-    if plan_type == "trial":
-        from datetime import datetime, timedelta
-        restaurant.trial_ends_at = datetime.utcnow() + timedelta(days=15)
-    else:
-        restaurant.trial_ends_at = None
-    
-    # Reactivate if upgrading from expired trial
-    if plan_type in ['basic', 'professional']:
-        restaurant.active = True
-        restaurant.subscription_status = "active"
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Plan updated to {plan_type}",
-        "plan_type": plan_type
-    }
-
-@app.get("/admin/subscriptions", response_class=HTMLResponse)
-async def admin_subscriptions(request: Request, db: Session = Depends(get_db)):
-    if not check_admin_auth(request):
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url="/admin/login", status_code=302)
-    return templates.TemplateResponse("admin_subscriptions.html", {"request": request})
-
-@app.post("/admin/restaurants/{restaurant_id}/change-plan")
-async def change_restaurant_plan(
-    request: Request,
-    restaurant_id: int,
-    new_plan: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    if not check_admin_auth(request):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    if not restaurant:
-        raise HTTPException(status_code=404, detail="Restaurant not found")
-    
-    old_plan = restaurant.plan_type
-    restaurant.plan_type = new_plan
-    
-    if new_plan in ['basic', 'professional']:
-        restaurant.subscription_status = "active"
-        restaurant.trial_ends_at = None
-    elif new_plan == "trial":
-        from datetime import datetime, timedelta
-        restaurant.trial_ends_at = datetime.utcnow() + timedelta(days=15)
-        restaurant.subscription_status = "trial"
-    
-    db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Plan changed from {old_plan} to {new_plan}",
-        "old_plan": old_plan,
-        "new_plan": new_plan
-    }
-
-@app.post("/admin/restaurants/{restaurant_id}/reset-password")
-async def reset_restaurant_password(
-    request: Request,
-    restaurant_id: int,
-    new_password: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    if not check_admin_auth(request):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    from auth import get_password_hash
-    
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    if not restaurant:
-        raise HTTPException(status_code=404, detail="Restaurant not found")
-    
-    admin_user = db.query(User).filter(
-        User.restaurant_id == restaurant_id,
-        User.role == 'admin'
-    ).first()
-    
-    if not admin_user:
-        raise HTTPException(status_code=404, detail="Admin user not found")
-    
-    print(f"Resetting password for user {admin_user.username} in restaurant {restaurant_id}")
-    admin_user.password_hash = get_password_hash(new_password)
-    db.commit()
-    db.refresh(admin_user)
-    print(f"Password updated successfully. New hash: {admin_user.password_hash[:20]}...")
-    
-    return {
-        "success": True,
-        "message": "Password reset successfully",
-        "new_password": new_password
-    }
-
-@app.delete("/admin/restaurants/{restaurant_id}")
-async def delete_restaurant(request: Request, restaurant_id: int, db: Session = Depends(get_db)):
-    if not check_admin_auth(request):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    from models import AnalyticsRecord, OrderItem, Order, MenuItem, Waiter, Table, User
-    
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    if not restaurant:
-        return JSONResponse({"success": False, "error": "Restaurant not found"}, status_code=404)
-    
-    if restaurant_id == 1 or restaurant.subdomain == 'demo':
-        return JSONResponse({"success": False, "error": "Cannot delete demo restaurant"}, status_code=400)
-    
-    try:
-        # Delete in correct order
-        db.query(AnalyticsRecord).filter(AnalyticsRecord.restaurant_id == restaurant_id).delete()
-        
-        order_ids = db.query(Order.id).filter(Order.restaurant_id == restaurant_id).subquery()
-        db.query(OrderItem).filter(OrderItem.order_id.in_(order_ids)).delete(synchronize_session=False)
-        
-        db.query(Order).filter(Order.restaurant_id == restaurant_id).delete()
-        db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
-        db.query(Waiter).filter(Waiter.restaurant_id == restaurant_id).delete()
-        db.query(Table).filter(Table.restaurant_id == restaurant_id).delete()
-        db.query(User).filter(User.restaurant_id == restaurant_id).delete()
-        
-        db.delete(restaurant)
+@app.delete("/admin/models/{model_id}/delete")
+async def delete_model_admin(model_id: int, db: Session = Depends(get_db)):
+    model = db.query(Model).filter(Model.id == model_id).first()
+    if model:
+        db.delete(model)
         db.commit()
-        
-        return JSONResponse({"success": True, "message": f"Restaurant '{restaurant.name}' deleted successfully"})
-        
-    except Exception as e:
-        db.rollback()
-        return JSONResponse({"success": False, "error": f"Failed to delete: {str(e)}"}, status_code=500)
+    return JSONResponse({"success": True})
 
-@app.post("/setup")
-async def complete_setup(
-    restaurant_name: str = Form(...),
-    admin_username: str = Form(...),
-    admin_password: str = Form(...),
-    menu_file: UploadFile = File(None),
-    db: Session = Depends(get_db)
-):
-    try:
-        print(f"Setup request received: {restaurant_name}, {admin_username}")
-        
-        if is_setup_complete():
-            print("Setup already completed")
-            return JSONResponse({"error": "Setup already completed"}, status_code=400)
-        
-        config = {
-            'restaurant_name': restaurant_name,
-            'admin_username': admin_username,
-            'admin_password': admin_password
-        }
-        
-        if menu_file and menu_file.filename:
-            print(f"Menu file provided: {menu_file.filename}")
-            menu_content = await menu_file.read()
-            config['menu_file'] = menu_content
-            config['menu_filename'] = menu_file.filename
-        
-        print("Applying setup...")
-        apply_setup(config)
-        print("Initializing sample data...")
-        init_sample_data(db)
-        print("Setup completed successfully")
-        
-        return JSONResponse({"message": "Setup completed successfully!", "redirect": "/business/login"})
-    except Exception as e:
-        print(f"Setup error: {e}")
-        import traceback
-        traceback.print_exc()
-        return JSONResponse({"error": str(e)}, status_code=500)
-
-
-
-# Client routes
-@app.get("/client", response_class=HTMLResponse)
-async def client_page(request: Request, table: int = None):
-    restaurant_name = get_restaurant_name()
-    return templates.TemplateResponse("client.html", {
-        "request": request, 
-        "table_number": table,
-        "restaurant_name": restaurant_name
-    })
-
-@app.get("/connect/{subdomain}/table/{table_number}", response_class=HTMLResponse)
-async def connection_detector(request: Request, subdomain: str, table_number: int, local_ip: str = None, db: Session = Depends(get_db)):
-    """Smart connection detector - tries internet first, then local IPs"""
-    restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-    if not restaurant:
-        raise HTTPException(status_code=404, detail="Restaurant not found")
+@app.get("/admin/bookings", response_class=HTMLResponse)
+async def admin_bookings_page(request: Request, db: Session = Depends(get_db)):
+    if not request.cookies.get("admin_logged_in"):
+        return RedirectResponse(url="/admin/login")
     
-    return templates.TemplateResponse("connection_detector.html", {
+    bookings = db.query(Booking).order_by(Booking.created_at.desc()).all()
+    
+    return templates.TemplateResponse("admin_bookings.html", {
         "request": request,
-        "restaurant_name": restaurant.name,
-        "subdomain": subdomain,
-        "table_number": table_number,
-        "local_ip_hint": local_ip
+        "bookings": bookings
     })
 
-@app.get("/table/{table_number}", response_class=HTMLResponse)
-async def table_page(request: Request, table_number: int, lang: str = None, db: Session = Depends(get_db)):
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    
-    # Check available languages
-    available_languages = db.query(MenuItem.language).filter(
-        MenuItem.restaurant_id == restaurant_id,
-        MenuItem.active == True
-    ).distinct().all()
-    available_languages = [lang[0] for lang in available_languages if lang[0]]
-    
-    # If no language specified and multiple languages available, show language selection
-    if not lang and len(available_languages) > 1:
-        return templates.TemplateResponse("language_selection.html", {
-            "request": request,
-            "table_number": table_number,
-            "available_languages": available_languages,
-            "restaurant_name": get_restaurant_name()
-        })
-    
-    restaurant_name = get_restaurant_name()
-    return templates.TemplateResponse("client.html", {
-        "request": request, 
-        "table_number": table_number,
-        "restaurant_name": restaurant_name
-    })
-
-@app.get("/client/menu")
-async def get_menu(request: Request, table: int, lang: str = 'en', db: Session = Depends(get_db)):
-    # Get restaurant_id from request state
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    
-    # Force correct restaurant detection
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    print(f"Client menu API: Using restaurant_id={restaurant_id}, language={lang}")
-    
-    table_obj = get_table_by_number(db, table, restaurant_id)
-    if not table_obj:
-        raise HTTPException(status_code=404, detail="Table not found")
-    
-    # Get available languages
-    available_languages = db.query(MenuItem.language).filter(
-        MenuItem.restaurant_id == restaurant_id,
-        MenuItem.active == True
-    ).distinct().all()
-    available_languages = [lang_tuple[0] for lang_tuple in available_languages if lang_tuple[0]]
-    
-    # Get menu items for specific language
-    from crud import get_menu_items_by_category_and_language
-    categories = get_menu_items_by_category_and_language(db, restaurant_id, lang)
-    print(f"Client menu: Found {len(categories)} categories for restaurant {restaurant_id} in {lang}")
-    
-    menu_by_category = {}
-    for category, items in categories.items():
-        menu_by_category[category] = [
-            {
-                "id": item.id,
-                "name": item.name,
-                "ingredients": item.ingredients,
-                "price": item.price
-            }
-            for item in items
-        ]
-    
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    restaurant_name = restaurant.name if restaurant else "Restaurant"
-    
-    response = JSONResponse({
-        "table_number": table,
-        "table_code": table_obj.code,
-        "restaurant_name": restaurant_name,
-        "menu": menu_by_category,
-        "available_languages": available_languages,
-        "current_language": lang,
-        "business_type": getattr(restaurant, 'business_type', 'restaurant'),
-        "room_prefix": getattr(restaurant, 'room_prefix', '')
-    })
-    print(f"Client menu: Returning menu for {restaurant_name} with {sum(len(items) for items in menu_by_category.values())} items in {lang}")
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
-    return response
-
-@app.get("/client/order_details/{table_number}")
-async def get_client_order_details(request: Request, table_number: int, db: Session = Depends(get_db)):
-    # Get restaurant_id from request state
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    
-    # Force correct restaurant detection
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    details = get_order_details(db, table_number, restaurant_id)
-    table = get_table_by_number(db, table_number, restaurant_id)
-    
-    if not details:
-        return {"has_order": False}
-    
-    # Check if order was recently updated (for split bills)
-    recently_updated = False
-    if table and hasattr(table, 'last_updated'):
-        from datetime import datetime, timedelta
-        if table.last_updated and (datetime.utcnow() - table.last_updated) < timedelta(seconds=10):
-            recently_updated = True
-    
-    # Check refresh flag (don't auto-clear, only clear when business opens modal)
-    refresh_needed = getattr(table, 'ready_notification', False) if table else False
-    
-    return {
-        "has_order": True, 
-        "checkout_requested": table.checkout_requested if table else False,
-        "recently_updated": recently_updated,
-        "refresh_needed": refresh_needed,
-        **details
-    }
-
-@app.get("/client/ticket/{table_number}")
-async def download_ticket(
-    request: Request,
-    table_number: int,
-    db: Session = Depends(get_db)
-):
-    # Get restaurant_id from request state
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    # Get order details (including paid items for receipt)
-    order = get_active_order_by_table(db, table_number, restaurant_id)
-    table = get_table_by_number(db, table_number, restaurant_id)
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    
-    if not order or not table:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    # Build order details including ALL items (paid and unpaid) for receipt
-    order_details = {
-        'order_id': order.id,
-        'table_number': table_number,
-        'created_at': order.created_at,
-        'items': [],
-        'total': 0
-    }
-    
-    # Include ALL items for receipt (both paid and unpaid)
-    for order_item in order.order_items:
-        item_total = order_item.menu_item.price * order_item.qty
-        order_details['items'].append({
-            'id': order_item.id,
-            'name': order_item.menu_item.name,
-            'price': order_item.menu_item.price,
-            'qty': order_item.qty,
-            'total': item_total,
-            'customizations': order_item.customizations
-        })
-        order_details['total'] += item_total
-    
-    try:
-        from reportlab.lib.pagesizes import letter, A4
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import inch
-        from reportlab.lib import colors
-        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-        import io
-        from datetime import datetime
-        
-        # Create PDF in memory
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=(4*inch, 8*inch), topMargin=0.2*inch, bottomMargin=0.2*inch, leftMargin=0.2*inch, rightMargin=0.2*inch)
-        
-        # Styles
-        styles = getSampleStyleSheet()
-        title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=14, spaceAfter=12, alignment=TA_CENTER)
-        normal_style = ParagraphStyle('CustomNormal', parent=styles['Normal'], fontSize=9, spaceAfter=6)
-        small_style = ParagraphStyle('CustomSmall', parent=styles['Normal'], fontSize=8, spaceAfter=4)
-        
-        # Build content
-        story = []
-        
-        # Header
-        story.append(Paragraph(f"<b>{restaurant.name if restaurant else 'Restaurant'}</b>", title_style))
-        story.append(Paragraph("RECEIPT", ParagraphStyle('Receipt', parent=styles['Normal'], fontSize=12, alignment=TA_CENTER, spaceAfter=12)))
-        story.append(Spacer(1, 0.1*inch))
-        
-        # Order info
-        story.append(Paragraph(f"<b>Table:</b> {table_number}", normal_style))
-        story.append(Paragraph(f"<b>Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", normal_style))
-        story.append(Paragraph(f"<b>Order #:</b> {order_details['order_id']}", normal_style))
-        story.append(Spacer(1, 0.1*inch))
-        
-        # Separator line
-        story.append(Paragraph("─" * 30, small_style))
-        story.append(Spacer(1, 0.05*inch))
-        
-        # Items
-        for item in order_details['items']:
-            item_line = f"{item['name']} x{item['qty']}"
-            price_line = f"€{item['total']:.2f}"
-            
-            # Create table for item and price alignment
-            item_table = Table([[item_line, price_line]], colWidths=[2.5*inch, 1*inch])
-            item_table.setStyle(TableStyle([
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ]))
-            story.append(item_table)
-            
-            # Add customizations if any
-            if item.get('customizations'):
-                try:
-                    import json
-                    custom = json.loads(item['customizations'])
-                    custom_parts = []
-                    if custom.get('ingredients'):
-                        for ing, qty in custom['ingredients'].items():
-                            if qty == 0:
-                                custom_parts.append(f"No {ing}")
-                            elif qty > 1:
-                                custom_parts.append(f"Extra {ing}")
-                    if custom.get('extra'):
-                        custom_parts.append(f"Add: {', '.join(custom['extra'])}")
-                    
-                    if custom_parts:
-                        story.append(Paragraph(f"  <i>{' | '.join(custom_parts)}</i>", small_style))
-                except:
-                    pass
-        
-        story.append(Spacer(1, 0.1*inch))
-        story.append(Paragraph("─" * 30, small_style))
-        
-        # Totals
-        subtotal_table = Table([["Subtotal:", f"€{order_details['total']:.2f}"]], colWidths=[2.5*inch, 1*inch])
-        subtotal_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-        ]))
-        story.append(subtotal_table)
-        
-        if table.tip_amount and table.tip_amount > 0:
-            tip_table = Table([["Tip:", f"€{table.tip_amount:.2f}"]], colWidths=[2.5*inch, 1*inch])
-            tip_table.setStyle(TableStyle([
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-            ]))
-            story.append(tip_table)
-        
-        story.append(Paragraph("─" * 30, small_style))
-        
-        # Calculate IVA (21%) - IVA is already included in prices, just show breakdown
-        order_total = order_details['total']  # Order without tip
-        tip_amount = table.tip_amount or 0
-        products_plus_tip = order_total + tip_amount  # Products + tip
-        iva_amount = products_plus_tip * 0.21  # 21% of (products + tip)
-        subtotal_without_iva = products_plus_tip - iva_amount  # Should be €11.00 - €2.31 = €8.69
-        final_total = products_plus_tip  # Just products + tip (IVA already included in prices)
-        
-        # Show subtotal as (products+tip)-IVA
-        subtotal_iva_table = Table([["Subtotal (excl. IVA):", f"€{subtotal_without_iva:.2f}"]], colWidths=[2.5*inch, 1*inch])
-        subtotal_iva_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-        ]))
-        story.append(subtotal_iva_table)
-        
-        # IVA 21%
-        iva_table = Table([["IVA (21%):", f"€{iva_amount:.2f}"]], colWidths=[2.5*inch, 1*inch])
-        iva_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-        ]))
-        story.append(iva_table)
-        
-        story.append(Paragraph("─" * 30, small_style))
-        
-        # Total with proper formatting (no HTML tags)
-        total_table = Table([["TOTAL:", f"€{final_total:.2f}"]], colWidths=[2.5*inch, 1*inch])
-        total_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), 12),
-            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-        ]))
-        story.append(total_table)
-        
-        story.append(Spacer(1, 0.2*inch))
-        story.append(Paragraph("Thank you for dining with us!", ParagraphStyle('Thanks', parent=styles['Normal'], fontSize=10, alignment=TA_CENTER)))
-        
-        # Build PDF
-        doc.build(story)
-        buffer.seek(0)
-        
-        return StreamingResponse(
-            io.BytesIO(buffer.getvalue()),
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.pdf"}
-        )
-        
-    except ImportError:
-        # Fallback: return simple text receipt
-        receipt_text = f"""RECEIPT - {restaurant.name if restaurant else 'Restaurant'}
-
-Table: {table_number}
-Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-Order #: {order_details['order_id']}
-
---- ITEMS ---
-"""
-        for item in order_details['items']:
-            receipt_text += f"{item['name']} x{item['qty']} - €{item['total']:.2f}\n"
-        
-        order_total = order_details['total']
-        tip_amount = table.tip_amount or 0
-        products_plus_tip = order_total + tip_amount
-        iva_amount = products_plus_tip * 0.21
-        subtotal_without_iva = products_plus_tip - iva_amount
-        
-        receipt_text += f"""\n--- TOTALS ---
-Subtotal: €{order_total:.2f}
-Tip: €{tip_amount:.2f}
-Subtotal (excl. IVA): €{subtotal_without_iva:.2f}
-IVA (21%): €{iva_amount:.2f}
-TOTAL: €{products_plus_tip:.2f}
-
-Thank you for dining with us!"""
-        
-        return Response(
-            content=receipt_text,
-            media_type="text/plain",
-            headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.txt"}
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating receipt: {str(e)}")
-
-@app.post("/client/checkout")
-async def request_checkout(
-    request: Request,
-    table_number: int = Form(...),
-    checkout_method: str = Form(...),
-    tip_amount: float = Form(...),
-    db: Session = Depends(get_db)
-):
-    # Get restaurant_id from request state
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    table = get_table_by_number(db, table_number, restaurant_id)
-    if not table:
-        raise HTTPException(status_code=404, detail="Table not found")
-    
-    if table.status != 'occupied':
-        raise HTTPException(status_code=400, detail="No active order for this table")
-    
-    # Store checkout details in table
-    table.checkout_requested = True
-    table.checkout_method = checkout_method
-    table.tip_amount = float(tip_amount)
-    db.commit()
-    
-    print(f"Checkout requested for table {table_number}: {checkout_method}, tip: €{tip_amount}")
-    
-    return {"message": f"Checkout requested with {checkout_method} and €{tip_amount:.2f} tip"}
-
-@app.post("/client/order")
-async def place_order(
-    request: Request,
-    table_number: int = Form(...),
-    code: str = Form(...),
-    items: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    # Get restaurant_id from request state
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    
-    # Force correct restaurant detection
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    print(f"Client order API: Using restaurant_id={restaurant_id} for table {table_number}")
-    
-    table = get_table_by_number(db, table_number, restaurant_id)
-    if not table or table.code != code:
-        raise HTTPException(status_code=400, detail="Invalid table or code")
-    
-    import json
-    try:
-        order_items = json.loads(items)
-    except:
-        raise HTTPException(status_code=400, detail="Invalid items format")
-    
-    if table.checkout_requested:
-        raise HTTPException(status_code=400, detail="Cannot place orders after checkout has been requested. Please wait for staff assistance.")
-    
-    existing_order = get_active_order_by_table(db, table_number, restaurant_id)
-    
-    if existing_order:
-        add_items_to_order(db, existing_order.id, order_items)
-        table.has_extra_order = True
-        # Reset kitchen_completed so new items appear in kitchen
-        existing_order.kitchen_completed = False
+@app.post("/admin/bookings/{booking_id}/cancel")
+async def cancel_booking(booking_id: int, db: Session = Depends(get_db)):
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if booking:
+        booking.status = "cancelled"
         db.commit()
-        return {"message": "Items added to existing order", "order_id": existing_order.id}
-    else:
-        order = create_order(db, table_number, order_items, restaurant_id)
-        update_table_status(db, table_number, 'occupied', restaurant_id)
-        return {"message": "Order placed successfully", "order_id": order.id}
-
-# Authentication routes  
-@app.post("/auth/change-password")
-async def change_password(
-    request: Request,
-    username: str = Form(...),
-    new_password: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    try:
-        # Get restaurant from referer URL
-        referer = request.headers.get('referer', '')
-        restaurant = None
-        
-        if '/r/' in referer:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-        
-        if not restaurant:
-            raise HTTPException(status_code=400, detail="Restaurant not found")
-        
-        # Find user by username and restaurant
-        user = db.query(User).filter(
-            User.username == username,
-            User.restaurant_id == restaurant.id,
-            User.role == 'admin'
-        ).first()
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # Update password using existing hash function
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        user.password_hash = pwd_context.hash(new_password)
-        db.commit()
-        
-        return {"success": True, "message": "Password changed successfully"}
-    except Exception as e:
-        print(f"Change password error: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
-
-@app.post("/auth/login")
-async def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    try:
-        # Direct extraction from referer URL
-        referer = request.headers.get('referer', '')
-        restaurant_id = None
-        
-        if '/r/' in referer:
-            try:
-                subdomain = referer.split('/r/')[1].split('/')[0]
-                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-                if restaurant:
-                    restaurant_id = restaurant.id
-                    print(f"Found restaurant from referer: {subdomain} -> {restaurant_id}")
-            except Exception as e:
-                print(f"Error parsing referer: {e}")
-        
-        if not restaurant_id:
-            # Default to demo restaurant
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == 'demo').first()
-            restaurant_id = restaurant.id if restaurant else 1
-        
-        print(f"Login attempt: username={username}, restaurant_id={restaurant_id}")
-        
-        user = authenticate_user(db, username, password, restaurant_id)
-        if not user:
-            print(f"Authentication failed for {username} in restaurant {restaurant_id}")
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-        access_token = create_access_token(data={
-            "sub": user.username, 
-            "role": user.role,
-            "restaurant_id": restaurant_id
-        })
-        return {"access_token": access_token, "token_type": "bearer", "role": user.role}
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Login error: {e}")
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-@app.get("/auth/me")
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
-    return {"username": current_user.username, "role": current_user.role}
-
-# Business routes
-@app.get("/business/login", response_class=HTMLResponse)
-async def business_login_page(request: Request):
-    return templates.TemplateResponse("login.html", {
-        "request": request,
-        "restaurant_name": get_restaurant_name()
-    })
-
-
-
-@app.get("/test-login", response_class=HTMLResponse)
-async def test_login_page(request: Request):
-    with open("test_login.html", "r") as f:
-        return HTMLResponse(f.read())
-
-@app.get("/business", response_class=HTMLResponse)
-async def business_dashboard(request: Request):
-    # Redirect to login
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/business/login")
-
-@app.get("/business/dashboard", response_class=HTMLResponse)
-async def business_dashboard_authenticated(request: Request, db: Session = Depends(get_db)):
-    try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        referer = request.headers.get('referer', '')
-        if '/r/marios' in referer:
-            restaurant_id = 2
-        elif '/r/sushi' in referer:
-            restaurant_id = 3
-        
-        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-        
-        # Check for expired trials and auto-deactivate
-        if restaurant and restaurant.plan_type == "trial" and restaurant.trial_ends_at:
-            from datetime import datetime
-            if datetime.utcnow() > restaurant.trial_ends_at:
-                restaurant.active = False
-                restaurant.subscription_status = "expired"
-                db.commit()
-                return templates.TemplateResponse("trial_expired.html", {
-                    "request": request,
-                    "restaurant_name": restaurant.name
-                })
-        
-        # Store restaurant info for PWA
-        response = templates.TemplateResponse("business.html", {
-            "request": request, 
-            "user": {"username": "admin", "role": "admin"},
-            "restaurant_name": restaurant.name if restaurant else "Restaurant"
-        })
-        
-        # Add script to store restaurant subdomain for PWA
-        if restaurant:
-            script = f'<script>localStorage.setItem("pwa_restaurant", "{restaurant.subdomain}");</script>'
-            # This will be handled by the template
-        
-        return response
-    except Exception as e:
-        print(f"Dashboard error: {e}")
-        return templates.TemplateResponse("business.html", {
-            "request": request, 
-            "user": {"username": "admin", "role": "admin"},
-            "restaurant_name": "Restaurant"
-        })
-
-@app.get("/business/trial-status")
-async def get_trial_status(request: Request, db: Session = Depends(get_db)):
-    restaurant_id = getattr(request.state, 'restaurant_id', None)
-    
-    # Fallback: detect from referer for AJAX requests
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer and not restaurant_id:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-                print(f"Trial status: Detected restaurant_id={restaurant_id} from subdomain {subdomain}")
-        except:
-            pass
-    
-    if not restaurant_id:
-        print("Trial status: No restaurant_id found")
-        return {"show_warning": False, "days_left": 0, "expired": False}
-    
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    if not restaurant:
-        print(f"Trial status: Restaurant {restaurant_id} not found")
-        return {"show_warning": False, "days_left": 0, "expired": False}
-    
-    print(f"Trial status: Restaurant {restaurant.name}, plan={restaurant.plan_type}")
-    
-    if restaurant.plan_type != "trial":
-        return {"show_warning": False, "days_left": 0, "expired": False}
-    
-    if not restaurant.trial_ends_at:
-        print("Trial status: No trial_ends_at date")
-        return {"show_warning": False, "days_left": 0, "expired": False}
-    
-    from datetime import datetime
-    days_left = (restaurant.trial_ends_at - datetime.utcnow()).days
-    print(f"Trial status: {days_left} days left")
-    
-    return {
-        "show_warning": days_left <= 14,  # Show for all trial accounts
-        "days_left": max(0, days_left),
-        "expired": days_left < 0
-    }
-
-@app.get("/business/restaurant-info")
-async def get_restaurant_info(request: Request, db: Session = Depends(get_db)):
-    restaurant_id = getattr(request.state, 'restaurant_id', None)
-    
-    # Fallback: detect from URL path
-    url_path = str(request.url.path)
-    if '/r/' in url_path and not restaurant_id:
-        try:
-            subdomain = url_path.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-                print(f"Found restaurant via URL: {subdomain} -> {restaurant_id}")
-        except Exception as e:
-            print(f"URL parsing error: {e}")
-    
-    # Also try referer as backup
-    if not restaurant_id:
-        referer = request.headers.get('referer', '')
-        if '/r/' in referer:
-            try:
-                subdomain = referer.split('/r/')[1].split('/')[0]
-                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-                if restaurant:
-                    restaurant_id = restaurant.id
-                    print(f"Found restaurant via referer: {subdomain} -> {restaurant_id}")
-            except Exception as e:
-                print(f"Referer parsing error: {e}")
-    
-    if not restaurant_id:
-        return {"name": "", "admin_email": "", "business_type": "restaurant"}
-    
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    if not restaurant:
-        return {"name": "", "admin_email": "", "business_type": "restaurant"}
-    
-    try:
-        print(f"Getting info for restaurant_id: {restaurant_id}")
-        
-        # Get admin user info
-        admin_user = db.query(User).filter(
-            User.restaurant_id == restaurant_id,
-            User.role == 'admin'
-        ).first()
-        print(f"Admin user found: {admin_user.username if admin_user else 'None'}")
-        
-        # Get table count
-        table_count = db.query(func.count(Table.id)).filter(
-            Table.restaurant_id == restaurant_id
-        ).scalar() or 10
-        print(f"Table count: {table_count}")
-        
-        result = {
-            "name": restaurant.name,
-            "admin_email": restaurant.admin_email or "",
-            "admin_username": admin_user.username if admin_user else "admin",
-            "table_count": table_count,
-            "business_type": getattr(restaurant, 'business_type', 'restaurant')
-        }
-        print(f"Returning: {result}")
-        return result
-        
-    except Exception as e:
-        print(f"Restaurant info error: {e}")
-        import traceback
-        traceback.print_exc()
-        return {
-            "name": restaurant.name,
-            "admin_email": restaurant.admin_email or "",
-            "admin_username": "admin",
-            "table_count": 10,
-            "business_type": getattr(restaurant, 'business_type', 'restaurant')
-        }
-
-@app.get("/business/qr-codes")
-async def generate_qr_codes(request: Request, db: Session = Depends(get_db)):
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    
-    # Fallback: detect from referer for AJAX requests
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer and restaurant_id == 1:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-        except:
-            pass
-    
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    tables = db.query(Table).filter(Table.restaurant_id == restaurant_id).all()
-    
-    print(f"QR Codes API: restaurant_id={restaurant_id}, restaurant={restaurant.name if restaurant else 'None'}, tables_count={len(tables)}")
-    
-    qr_data = []
-    for table in tables:
-        # Generate smart connection URL for each table
-        if restaurant:
-            table_url = f"https://tablelink.space/connect/{restaurant.subdomain}/table/{table.table_number}"
-        else:
-            table_url = f"https://tablelink.space/table/{table.table_number}"
-        
-        qr_data.append({
-            "table_number": table.table_number,
-            "url": table_url,
-            "code": table.code
-        })
-    
-    print(f"QR Codes API: Generated {len(qr_data)} QR codes")
-    return {"qr_codes": qr_data}
-
-@app.get("/business/trial-status")
-async def get_trial_status(request: Request, db: Session = Depends(get_db)):
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    
-    # Fallback: detect from referer for AJAX requests
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer and restaurant_id == 1:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-        except:
-            pass
-    
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    
-    if not restaurant or restaurant.plan_type != "trial" or not restaurant.trial_ends_at:
-        return {"show_warning": False}
-    
-    from datetime import datetime
-    now = datetime.utcnow()
-    days_left = (restaurant.trial_ends_at - now).days
-    
-    return {
-        "show_warning": True,  # Always show for testing
-        "days_left": max(0, days_left),
-        "expired": days_left < 0
-    }
-
-@app.get("/business/tables")
-async def get_tables_status(request: Request, db: Session = Depends(get_db)):
-    try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        
-        # Fallback: detect from referer for AJAX requests
-        referer = request.headers.get('referer', '')
-        if '/r/' in referer and restaurant_id == 1:
-            try:
-                subdomain = referer.split('/r/')[1].split('/')[0]
-                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-                if restaurant:
-                    restaurant_id = restaurant.id
-                    print(f"Tables API: Detected restaurant_id={restaurant_id} from referer")
-            except:
-                pass
-        
-        print(f"Tables API: Using restaurant_id={restaurant_id}")
-        tables = get_all_tables(db, restaurant_id)
-        result = [{
-            "table_number": t.table_number, 
-            "status": t.status, 
-            "code": t.code, 
-            "checkout_requested": t.checkout_requested, 
-            "has_extra_order": t.has_extra_order,
-            "checkout_method": getattr(t, 'checkout_method', None),
-            "tip_amount": getattr(t, 'tip_amount', 0.0),
-            "ready_notification": getattr(t, 'ready_notification', False)
-        } for t in tables]
-        print(f"Tables API: Returning {len(result)} tables")
-        return JSONResponse(content=result)
-    except Exception as e:
-        print(f"Error getting tables: {e}")
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(content=[])
-
-@app.get("/business/order/{table_number}")
-async def get_business_order_details(request: Request, table_number: int, db: Session = Depends(get_db)):
-    try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        referer = request.headers.get('referer', '')
-        if '/r/marios' in referer:
-            restaurant_id = 2
-        elif '/r/sushi' in referer:
-            restaurant_id = 3
-        return get_order_details(db, table_number, restaurant_id)
-    except Exception as e:
-        print(f"Error getting order details: {e}")
-        return None
-
-@app.post("/business/finish_order")
-async def finish_table_order(
-    request: Request,
-    table_number: int = Form(...),
-    waiter_id: int = Form(None),
-    db: Session = Depends(get_db)
-):
-    try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        referer = request.headers.get('referer', '')
-        if '/r/marios' in referer:
-            restaurant_id = 2
-        elif '/r/sushi' in referer:
-            restaurant_id = 3
-        if waiter_id:
-            finish_order_with_waiter(db, table_number, waiter_id, restaurant_id)
-        else:
-            finish_order(db, table_number, restaurant_id)
-        return {"message": "Order finished successfully"}
-    except Exception as e:
-        print(f"Error finishing order: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/business/menu")
-async def get_business_menu(request: Request, lang: str = 'en', db: Session = Depends(get_db)):
-    try:
-        # Get restaurant_id from middleware
-        restaurant_id = getattr(request.state, 'restaurant_id', None)
-        
-        # Fallback: detect from referer for AJAX requests
-        referer = request.headers.get('referer', '')
-        if '/r/' in referer and not restaurant_id:
-            try:
-                subdomain = referer.split('/r/')[1].split('/')[0]
-                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-                if restaurant:
-                    restaurant_id = restaurant.id
-            except:
-                pass
-        
-        if not restaurant_id:
-            restaurant_id = 1  # fallback
-        
-        print(f"Business menu API: Using restaurant_id={restaurant_id}, language={lang}")
-        categories = get_menu_items_by_category(db, include_inactive=False, restaurant_id=restaurant_id, language=lang)
-        menu_by_category = {}
-        for category, items in categories.items():
-            menu_by_category[category] = [
-                {
-                    "id": item.id,
-                    "name": item.name,
-                    "ingredients": item.ingredients,
-                    "price": item.price,
-                    "is_active": item.active
-                }
-                for item in items
-            ]
-        return menu_by_category
-    except Exception as e:
-        print(f"Error getting menu: {e}")
-        return {}
-
-@app.post("/business/menu/toggle")
-async def toggle_menu_item(
-    item_id: int = Form(...),
-    db: Session = Depends(get_db)
-):
-    try:
-        restaurant_id = get_current_restaurant_id()
-        item = db.query(MenuItem).filter(
-            MenuItem.id == item_id,
-            MenuItem.restaurant_id == restaurant_id
-        ).first()
-        if not item:
-            raise HTTPException(status_code=404, detail="Menu item not found")
-        
-        item.active = not item.active
-        db.commit()
-        
-        return {"message": "Menu item status updated", "is_active": item.active}
-    except Exception as e:
-        print(f"Error toggling menu item: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/business/menu/delete/{item_id}")
-async def delete_menu_item(
-    item_id: int,
-    db: Session = Depends(get_db)
-):
-    try:
-        restaurant_id = get_current_restaurant_id()
-        item = db.query(MenuItem).filter(
-            MenuItem.id == item_id,
-            MenuItem.restaurant_id == restaurant_id
-        ).first()
-        
-        if not item:
-            raise HTTPException(status_code=404, detail="Menu item not found")
-        
-        db.delete(item)
-        db.commit()
-        return {"message": "Menu item deleted successfully"}
-    except Exception as e:
-        print(f"Error deleting menu item: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/business/menu/add")
-async def add_menu_item(
-    name: str = Form(...),
-    ingredients: str = Form(...),
-    price: float = Form(...),
-    category: str = Form(...),
-    language: str = Form('en'),
-    needs_kitchen: bool = Form(True),
-    db: Session = Depends(get_db)
-):
-    try:
-        restaurant_id = get_current_restaurant_id()
-        item = MenuItem(
-            restaurant_id=restaurant_id,
-            name=name,
-            ingredients=ingredients,
-            price=price,
-            category=category,
-            language=language,
-            needs_kitchen=needs_kitchen,
-            active=True
-        )
-        db.add(item)
-        db.commit()
-        return {"message": "Menu item added successfully"}
-    except Exception as e:
-        print(f"Error adding menu item: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/business/menu/delete/{item_id}")
-async def delete_menu_item(
-    item_id: int,
-    db: Session = Depends(get_db)
-):
-    try:
-        restaurant_id = get_current_restaurant_id()
-        item = db.query(MenuItem).filter(
-            MenuItem.id == item_id,
-            MenuItem.restaurant_id == restaurant_id
-        ).first()
-        
-        if not item:
-            raise HTTPException(status_code=404, detail="Menu item not found")
-        
-        db.delete(item)
-        db.commit()
-        return {"message": "Menu item deleted successfully"}
-    except Exception as e:
-        print(f"Error deleting menu item: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/test")
-async def test_route():
-    return {"message": "Server is working"}
-
-@app.get("/debug/restaurants")
-async def debug_restaurants(db: Session = Depends(get_db)):
-    restaurants = db.query(Restaurant).all()
-    return {
-        "restaurants": [
-            {
-                "id": r.id,
-                "name": r.name,
-                "subdomain": r.subdomain,
-                "active": r.active
-            }
-            for r in restaurants
-        ]
-    }
-
-@app.get("/debug/menu/{restaurant_id}")
-async def debug_menu(restaurant_id: int, db: Session = Depends(get_db)):
-    menu_items = db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).all()
-    return {
-        "restaurant_id": restaurant_id,
-        "menu_count": len(menu_items),
-        "items": [
-            {
-                "id": item.id,
-                "name": item.name,
-                "category": item.category,
-                "price": item.price,
-                "active": item.active
-            }
-            for item in menu_items
-        ]
-    }
-
-@app.get("/test-csv")
-async def test_csv():
-    import csv
-    import io
-    from fastapi.responses import StreamingResponse
-    
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Test', 'CSV', 'Download'])
-    writer.writerow(['This', 'is', 'working'])
-    output.seek(0)
-    
-    return StreamingResponse(
-        io.BytesIO(output.getvalue().encode('utf-8')),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=test.csv"}
-    )
-
-@app.post("/upload-menu")
-async def upload_menu_basic(
-    menu_file: UploadFile = File(...),
-    restaurant_id: int = 1,
-    db: Session = Depends(get_db)
-):
-    try:
-        if not menu_file.filename or not menu_file.filename.endswith(('.xlsx', '.xls')):
-            return {"error": "Please upload an Excel file (.xlsx or .xls)"}
-        
-        content = await menu_file.read()
-        
-        import openpyxl
-        import io
-        wb = openpyxl.load_workbook(io.BytesIO(content))
-        ws = wb.active
-        
-        # Clear existing items
-        db.query(MenuItem).filter(MenuItem.restaurant_id == restaurant_id).delete()
-        
-        count = 0
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            if row and len(row) >= 3 and row[0] and row[2]:
-                # Handle kitchen column (column 5) - YES/NO to boolean
-                needs_kitchen = True  # default
-                if len(row) > 4 and row[4]:
-                    kitchen_value = str(row[4]).strip().upper()
-                    needs_kitchen = kitchen_value in ['YES', 'Y', 'TRUE', '1', 'SI', 'S', 'SÍ', 'OUI', 'O', 'JA', 'J', 'SÌ', 'VERO', 'V']
-                    print(f"Kitchen upload: {row[0]} -> '{row[4]}' -> {needs_kitchen}")
-                
-                item = MenuItem(
-                    name=str(row[0]).strip(),
-                    ingredients=str(row[1] or '').strip(),
-                    price=float(row[2]),
-                    category=str(row[3] if len(row) > 3 and row[3] else 'Food').strip(),
-                    restaurant_id=restaurant_id,
-                    needs_kitchen=needs_kitchen,
-                    active=True
-                )
-                db.add(item)
-                count += 1
-        
-        db.commit()
-        return {"success": True, "items": count, "restaurant_id": restaurant_id}
-        
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e)}
-
-
-
-
-@app.get("/debug/live-restaurants")
-async def debug_live_restaurants(db: Session = Depends(get_db)):
-    from models import AnalyticsRecord
-    restaurants = db.query(Restaurant).all()
-    result = []
-    
-    for r in restaurants:
-        orders_count = db.query(func.count(Order.id)).filter(
-            Order.restaurant_id == r.id,
-            Order.status == 'finished'
-        ).scalar() or 0
-        
-        analytics_count = db.query(func.count(func.distinct(AnalyticsRecord.item_name))).filter(
-            AnalyticsRecord.restaurant_id == r.id
-        ).scalar() or 0
-        
-        result.append({
-            "id": r.id,
-            "name": r.name,
-            "subdomain": r.subdomain,
-            "active": r.active,
-            "orders_count": orders_count,
-            "analytics_count": analytics_count
-        })
-    
-    return {"restaurants": result}
-
-@app.get("/debug/orders-comparison/{restaurant_id}")
-async def debug_orders_comparison(restaurant_id: int, db: Session = Depends(get_db)):
-    from models import AnalyticsRecord
-    
-    # Count from Orders table (what admin dashboard shows)
-    orders_count = db.query(func.count(Order.id)).filter(
-        Order.restaurant_id == restaurant_id,
-        Order.status == 'finished'
-    ).scalar() or 0
-    
-    # Count from AnalyticsRecord table (what analytics shows)
-    analytics_count = db.query(func.count(func.distinct(AnalyticsRecord.item_name))).filter(
-        AnalyticsRecord.restaurant_id == restaurant_id
-    ).scalar() or 0
-    
-    # Get actual analytics records
-    analytics_records = db.query(AnalyticsRecord).filter(
-        AnalyticsRecord.restaurant_id == restaurant_id
-    ).all()
-    
-    # Get actual orders
-    orders = db.query(Order).filter(
-        Order.restaurant_id == restaurant_id,
-        Order.status == 'finished'
-    ).all()
-    
-    return {
-        "restaurant_id": restaurant_id,
-        "orders_table_count": orders_count,
-        "analytics_table_count": analytics_count,
-        "analytics_records_total": len(analytics_records),
-        "orders_details": [
-            {
-                "id": o.id,
-                "table_number": o.table.table_number if o.table else "N/A",
-                "created_at": o.created_at.isoformat(),
-                "waiter_id": o.waiter_id,
-                "status": o.status
-            }
-            for o in orders
-        ],
-        "analytics_records": [
-            {
-                "id": a.id,
-                "item_name": a.item_name,
-                "table_number": a.table_number,
-                "checkout_date": a.checkout_date.isoformat(),
-                "waiter_id": a.waiter_id,
-                "total_price": float(a.total_price)
-            }
-            for a in analytics_records
-        ]
-    }
-
-@app.post("/debug/fix-waiters/{restaurant_id}")
-async def fix_duplicate_waiters(restaurant_id: int, db: Session = Depends(get_db)):
-    try:
-        from models import Waiter
-        # Get all waiters for restaurant
-        waiters = db.query(Waiter).filter(Waiter.restaurant_id == restaurant_id).all()
-        
-        # Group by name
-        waiter_groups = {}
-        for waiter in waiters:
-            if waiter.name not in waiter_groups:
-                waiter_groups[waiter.name] = []
-            waiter_groups[waiter.name].append(waiter)
-        
-        # Remove duplicates (keep first, mark rest as inactive)
-        deactivated_count = 0
-        for waiter_name, waiter_list in waiter_groups.items():
-            if len(waiter_list) > 1:
-                for waiter in waiter_list[1:]:  # Keep first, deactivate rest
-                    waiter.active = False
-                    deactivated_count += 1
-        
-        db.commit()
-        return {"message": f"Deactivated {deactivated_count} duplicate waiters from restaurant {restaurant_id}"}
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e)}
-
-@app.post("/debug/fix-tables/{restaurant_id}")
-async def fix_duplicate_tables(restaurant_id: int, db: Session = Depends(get_db)):
-    from models import Table
-    
-    # Get all tables for restaurant
-    tables = db.query(Table).filter(Table.restaurant_id == restaurant_id).all()
-    
-    # Group by table_number
-    table_groups = {}
-    for table in tables:
-        if table.table_number not in table_groups:
-            table_groups[table.table_number] = []
-        table_groups[table.table_number].append(table)
-    
-    # Remove duplicates (keep first, delete rest)
-    deleted_count = 0
-    for table_number, table_list in table_groups.items():
-        if len(table_list) > 1:
-            for table in table_list[1:]:  # Keep first, delete rest
-                db.delete(table)
-                deleted_count += 1
-    
-    db.commit()
-    return {"message": f"Removed {deleted_count} duplicate tables"}
-
-
-@app.get("/admin/check-database")
-async def check_database_contents(request: Request, db: Session = Depends(get_db)):
-    if not check_admin_auth(request):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
-    users = db.query(User).all()
-    restaurants = db.query(Restaurant).all()
-    
-    user_data = []
-    for user in users:
-        restaurant = db.query(Restaurant).filter(Restaurant.id == user.restaurant_id).first()
-        user_data.append({
-            "username": user.username,
-            "restaurant_name": restaurant.name if restaurant else "DELETED",
-            "restaurant_active": restaurant.active if restaurant else False
-        })
-    
-    restaurant_data = []
-    for r in restaurants:
-        restaurant_data.append({
-            "name": r.name,
-            "subdomain": r.subdomain,
-            "active": r.active
-        })
-    
-    return {
-        "users": user_data,
-        "restaurants": restaurant_data,
-        "total_users": len(users),
-        "total_restaurants": len(restaurants)
-    }
-
-@app.post("/admin/clear-database")
-async def clear_database(request: Request, db: Session = Depends(get_db)):
-    if not check_admin_auth(request):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
-    try:
-        from models import AnalyticsRecord, OrderItem, Order, MenuItem, Waiter, Table, User, Restaurant
-        
-        # Delete all data in correct order to avoid FK constraints
-        print("Deleting analytics records...")
-        count = db.query(AnalyticsRecord).delete()
-        print(f"Deleted {count} analytics records")
-        
-        print("Deleting order items...")
-        count = db.query(OrderItem).delete()
-        print(f"Deleted {count} order items")
-        
-        print("Deleting orders...")
-        count = db.query(Order).delete()
-        print(f"Deleted {count} orders")
-        
-        print("Deleting menu items...")
-        count = db.query(MenuItem).delete()
-        print(f"Deleted {count} menu items")
-        
-        print("Deleting waiters...")
-        count = db.query(Waiter).delete()
-        print(f"Deleted {count} waiters")
-        
-        print("Deleting tables...")
-        count = db.query(Table).delete()
-        print(f"Deleted {count} tables")
-        
-        print("Deleting users...")
-        count = db.query(User).delete()
-        print(f"Deleted {count} users")
-        
-        print("Deleting restaurants...")
-        count = db.query(Restaurant).delete()
-        print(f"Deleted {count} restaurants")
-        
-        db.commit()
-        print("All data deleted successfully")
-        
-        # Verify deletion
-        remaining_users = db.query(User).count()
-        remaining_restaurants = db.query(Restaurant).count()
-        print(f"Verification: {remaining_users} users, {remaining_restaurants} restaurants remaining")
-        
-        # Reinitialize with sample data
-        from crud import init_sample_data
-        init_sample_data(db)
-        print("Sample data reinitialized successfully")
-        
-        return {"message": "Database cleared and reinitialized successfully"}
-    except Exception as e:
-        db.rollback()
-        return {"error": f"Failed to clear database: {str(e)}"}
-
-
-@app.post("/business/menu/upload")
-async def upload_menu_file(
-    request: Request, 
-    menu_file: UploadFile = File(...), 
-    language: str = Form('en'),
-    db: Session = Depends(get_db)
-):
-    # Use middleware-detected restaurant_id
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    print(f"UPLOAD: Using restaurant_id={restaurant_id}, language={language}")
-    
-    try:
-        content = await menu_file.read()
-        import openpyxl, io
-        wb = openpyxl.load_workbook(io.BytesIO(content))
-        ws = wb.active
-        
-        # Only deactivate existing items of the same language
-        db.query(MenuItem).filter(
-            MenuItem.restaurant_id == restaurant_id,
-            MenuItem.language == language
-        ).update({MenuItem.active: False})
-        
-        count = 0
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            if row and len(row) >= 3 and row[0] and row[2]:
-                name = str(row[0]).strip()
-                category = str(row[3] if len(row) > 3 and row[3] else 'Food').strip()
-                
-                # Handle kitchen column (column 5) - YES/NO to boolean  
-                needs_kitchen = True  # default
-                if len(row) > 4 and row[4]:
-                    kitchen_value = str(row[4]).strip().upper()
-                    needs_kitchen = kitchen_value in ['YES', 'Y', 'TRUE', '1', 'SI', 'S', 'SÍ', 'OUI', 'O', 'JA', 'J', 'SÌ', 'VERO', 'V']
-                    print(f"Kitchen upload: {name} -> '{row[4]}' -> {needs_kitchen}")
-                
-                # Check if item exists for this language AND category
-                existing = db.query(MenuItem).filter(
-                    MenuItem.restaurant_id == restaurant_id,
-                    MenuItem.name == name,
-                    MenuItem.category == category,
-                    MenuItem.language == language
-                ).first()
-                
-                if existing:
-                    # Update existing item
-                    existing.ingredients = str(row[1] or '').strip()
-                    existing.price = float(row[2])
-                    existing.category = category
-                    existing.needs_kitchen = needs_kitchen
-                    existing.active = True
-                else:
-                    # Add new item with language
-                    db.add(MenuItem(
-                        name=name,
-                        ingredients=str(row[1] or '').strip(), 
-                        price=float(row[2]),
-                        category=category,
-                        language=language,
-                        restaurant_id=restaurant_id,
-                        needs_kitchen=needs_kitchen,
-                        active=True
-                    ))
-                count += 1
-        db.commit()
-        return {"message": "Success", "items": count, "language": language, "restaurant_id": restaurant_id}
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e)}
-
-
-@app.get("/business/waiters")
-async def get_waiters_list(request: Request, db: Session = Depends(get_db)):
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    
-    # Fallback: detect from referer for AJAX requests
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer and restaurant_id == 1:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-                print(f"Waiters API: Detected restaurant_id={restaurant_id} from referer")
-        except:
-            pass
-    
-    print(f"Waiters API: Using restaurant_id={restaurant_id}")
-    waiters = get_all_waiters(db, restaurant_id)
-    return {"waiters": waiters}
-
-@app.post("/business/waiters/add")
-async def add_waiter(
-    name: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    create_waiter(db, name)
-    return {"message": "Waiter added successfully"}
-
-@app.delete("/business/waiters/{waiter_id}")
-async def remove_waiter(waiter_id: int, db: Session = Depends(get_db)):
-    delete_waiter(db, waiter_id)
-    return {"message": "Waiter removed successfully"}
-
-
-
-@app.post("/business/mark_viewed/{table_number}")
-async def mark_order_viewed(
-    request: Request,
-    table_number: int,
-    db: Session = Depends(get_db)
-):
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    table = get_table_by_number(db, table_number, restaurant_id)
-    if table:
-        table.has_extra_order = False
-        table.ready_notification = False  # Clear food ready alert when viewed
-        
-        # Clear is_new_extra flag from all order items for this table
-        active_order = get_active_order_by_table(db, table_number, restaurant_id)
-        if active_order:
-            db.query(OrderItem).filter(
-                OrderItem.order_id == active_order.id,
-                OrderItem.is_new_extra == True
-            ).update({OrderItem.is_new_extra: False})
-        
-        db.commit()
-    return {"message": "Order marked as viewed"}
-
-@app.get("/business/order_details/{table_number}")
-async def get_order_details_route(request: Request, table_number: int, db: Session = Depends(get_db)):
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    return get_order_details(db, table_number, restaurant_id)
-
-@app.delete("/client/order_item/{order_item_id}")
-async def delete_client_order_item(
-    request: Request,
-    order_item_id: int,
-    db: Session = Depends(get_db)
-):
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    from crud import delete_order_item
-    success = delete_order_item(db, order_item_id, restaurant_id)
-    if success:
-        return {"message": "Item removed from order"}
-    else:
-        raise HTTPException(status_code=404, detail="Order item not found")
-
-@app.delete("/business/order_item/{order_item_id}")
-async def delete_business_order_item(
-    request: Request,
-    order_item_id: int,
-    db: Session = Depends(get_db)
-):
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    from crud import delete_order_item
-    success = delete_order_item(db, order_item_id, restaurant_id)
-    if success:
-        return {"message": "Item removed from order"}
-    else:
-        raise HTTPException(status_code=404, detail="Order item not found")
-
-@app.delete("/business/cancel_order/{table_number}")
-async def cancel_table_order(
-    request: Request,
-    table_number: int,
-    db: Session = Depends(get_db)
-):
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    from crud import cancel_order
-    success = cancel_order(db, table_number, restaurant_id)
-    if success:
-        return {"message": "Order cancelled successfully"}
-    else:
-        raise HTTPException(status_code=404, detail="No active order found")
-
-@app.post("/business/checkout_table/{table_number}")
-async def checkout_table(
-    request: Request,
-    table_number: int,
-    waiter_id: int = Form(...),
-    db: Session = Depends(get_db)
-):
-    from models import AnalyticsRecord
-    from datetime import datetime
-    
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    # Get order details before finishing
-    order = get_active_order_by_table(db, table_number, restaurant_id)
-    table = get_table_by_number(db, table_number, restaurant_id)
-    
-    if order and table:
-        # Finish the order (this will handle analytics for unpaid items only)
-        finish_order_with_waiter(db, table_number, waiter_id, restaurant_id)
-        
-        print(f"Checkout completed for table {table_number} - analytics handled by finish_order_with_waiter")
-    
-    return {"message": "Table checkout completed successfully"}
-
-@app.get("/business/menu_items")
-async def get_menu_items_route(request: Request, db: Session = Depends(get_db)):
-    try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        print(f"Menu items API: Using restaurant_id={restaurant_id}")
-        categories = get_menu_items_by_category(db, include_inactive=True, restaurant_id=restaurant_id)
-        print(f"Found {len(categories)} categories for restaurant {restaurant_id}")
-        items = []
-        for category, category_items in categories.items():
-            print(f"Processing category {category} with {len(category_items)} items")
-            for item in category_items:
-                items.append({
-                    "id": item.id,
-                    "name": item.name,
-                    "ingredients": item.ingredients,
-                    "price": item.price,
-                    "active": item.active,
-                    "category": category
-                })
-        print(f"Returning {len(items)} total items for restaurant {restaurant_id}")
-        return {"items": items}
-    except Exception as e:
-        print(f"Error in menu_items_route: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/business/toggle_product/{item_id}")
-async def toggle_product_route(item_id: int, db: Session = Depends(get_db)):
-    toggle_menu_item_active(db, item_id)
-    return {"message": "Product status updated"}
-
-@app.post("/business/waiters")
-async def add_waiter_route(
-    name: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    create_waiter(db, name)
-    return {"message": "Waiter added successfully"}
-
-@app.get("/business/top-menu-items")
-async def get_top_menu_items(
-    request: Request,
-    period: str = "day",
-    target_date: str = None,
-    limit: int = 5,
-    waiter_id: int = None,
-    db: Session = Depends(get_db)
-):
-    from analytics_service import get_analytics_for_period
-    
-    # Get restaurant_id
-    restaurant_id = getattr(request.state, 'restaurant_id', None)
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-        except:
-            pass
-    
-    if not restaurant_id:
-        restaurant_id = 1  # fallback
-    
-    # Get the most recent date with data if no target_date provided
-    if target_date is None:
-        from models import AnalyticsRecord
-        latest_date = db.query(func.max(func.date(AnalyticsRecord.checkout_date))).filter(
-            AnalyticsRecord.restaurant_id == restaurant_id
-        ).scalar()
-        if latest_date:
-            target_date = str(latest_date)
-        else:
-            from datetime import date
-            target_date = date.today().isoformat()
-    
-    print(f"Top items API: period={period}, target_date={target_date}, limit={limit}, restaurant_id={restaurant_id}")
-    
-    # Use the same analytics service as the sales endpoint
-    analytics_data = get_analytics_for_period(db, target_date, period, waiter_id, restaurant_id)
-    
-    # Extract top items from analytics data
-    top_items = analytics_data.get('top_items', [])[:limit]
-    
-    result = {
-        'items': [
-            {
-                'name': item['name'],
-                'quantity': item['quantity_sold'],
-                'revenue': float(item['revenue'])
-            }
-            for item in top_items
-        ]
-    }
-    print(f"Returning: {result}")
-    return result
-
-@app.get("/business/sales")
-async def get_sales_route(
-    request: Request,
-    period: str = "day",
-    target_date: str = None,
-    waiter_id: int = None,
-    db: Session = Depends(get_db)
-):
-    from models import AnalyticsRecord
-    
-    restaurant_id = getattr(request.state, 'restaurant_id', None)
-    
-    # Always detect from referer for AJAX requests
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-                print(f"Sales API: Detected restaurant_id={restaurant_id} from referer subdomain {subdomain}")
-        except Exception as e:
-            print(f"Sales API: Error parsing referer: {e}")
-    
-    if not restaurant_id:
-        restaurant_id = 1  # fallback
-    
-    print(f"Sales API: Using restaurant_id={restaurant_id}")
-    
-    # Get the most recent date with data if no target_date provided
-    if target_date is None:
-        latest_date = db.query(func.max(func.date(AnalyticsRecord.checkout_date))).filter(
-            AnalyticsRecord.restaurant_id == restaurant_id
-        ).scalar()
-        if latest_date:
-            target_date = str(latest_date)
-        else:
-            from datetime import date
-            target_date = date.today().isoformat()
-    
-    from analytics_service import get_analytics_for_period
-    print(f"Sales API: period={period}, target_date={target_date}, waiter_id={waiter_id}, restaurant_id={restaurant_id}")
-    result = get_analytics_for_period(db, target_date, period, waiter_id, restaurant_id)
-    print(f"Sales API result for restaurant {restaurant_id}: {result['summary']}")
-    return {
-        'summary': result['summary'],
-        'table_sales': []
-    }
-
-@app.get("/business/sales/download/csv")
-async def download_sales_csv(
-    period: str = "day",
-    target_date: str = None,
-    waiter_id: int = None,
-    db: Session = Depends(get_db)
-):
-    import csv
-    import io
-    from fastapi.responses import StreamingResponse
-    
-    if target_date is None:
-        from datetime import date
-        target_date = date.today().isoformat()
-    
-    try:
-        data = get_detailed_sales_data(db, period, target_date, waiter_id)
-    except Exception as e:
-        print(f"Error getting sales data: {e}")
-        data = {'summary': {'total_orders': 0, 'total_sales': 0, 'total_tips': 0}, 'table_sales': []}
-    
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Write headers
-    writer.writerow(['Order ID', 'Table Number', 'Waiter', 'Sales', 'Tips', 'Date'])
-    
-    # Write data
-    if data.get('table_sales'):
-        for order in data['table_sales']:
-            writer.writerow([
-                order['order_id'],
-                order['table_number'],
-                order['waiter_name'],
-                f"€{order['total_sales']:.2f}",
-                f"€{order['total_tips']:.2f}",
-                order['created_at']
-            ])
-    else:
-        writer.writerow(['No sales data available for this period', '', '', '', '', ''])
-    
-    # Write summary
-    writer.writerow([])
-    writer.writerow(['SUMMARY'])
-    writer.writerow(['Total Orders', data['summary']['total_orders']])
-    writer.writerow(['Total Sales', f"€{data['summary']['total_sales']:.2f}"])
-    writer.writerow(['Total Tips', f"€{data['summary']['total_tips']:.2f}"])
-    
-    output.seek(0)
-    
-    return StreamingResponse(
-        io.BytesIO(output.getvalue().encode('utf-8')),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=sales_{period}_{target_date}.csv"}
-    )
-
-@app.get("/business/sales/download/excel")
-async def download_sales_excel(
-    period: str = "day",
-    target_date: str = None,
-    waiter_id: int = None,
-    db: Session = Depends(get_db)
-):
-    try:
-        import pandas as pd
-    except ImportError:
-        raise HTTPException(status_code=500, detail="Excel export not available")
-    import io
-    from fastapi.responses import StreamingResponse
-    
-    if target_date is None:
-        from datetime import date
-        target_date = date.today().isoformat()
-    
-    data = get_detailed_sales_data(db, period, target_date, waiter_id)
-    
-    # Create DataFrame
-    df = pd.DataFrame(data['table_sales'])
-    if not df.empty:
-        df = df[['order_id', 'table_number', 'waiter_name', 'total_sales', 'total_tips', 'created_at']]
-        df.columns = ['Order ID', 'Table Number', 'Waiter', 'Sales (€)', 'Tips (€)', 'Date']
-    
-    # Create Excel file in memory
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Sales Data', index=False)
-        
-        # Add summary sheet
-        summary_df = pd.DataFrame([
-            ['Total Orders', data['summary']['total_orders']],
-            ['Total Sales (€)', data['summary']['total_sales']],
-            ['Total Tips (€)', data['summary']['total_tips']]
-        ], columns=['Metric', 'Value'])
-        summary_df.to_excel(writer, sheet_name='Summary', index=False)
-    
-    output.seek(0)
-    
-    return StreamingResponse(
-        io.BytesIO(output.getvalue()),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename=sales_{period}_{target_date}.xlsx"}
-    )
-
-@app.get("/business/analytics/dashboard")
-async def get_analytics_dashboard(
-    request: Request,
-    target_date: str = None,
-    period: str = "day",
-    waiter_id: int = None,
-    db: Session = Depends(get_db)
-):
-    try:
-        # Get restaurant_id from request
-        restaurant_id = getattr(request.state, 'restaurant_id', None)
-        referer = request.headers.get('referer', '')
-        if '/r/' in referer:
-            try:
-                subdomain = referer.split('/r/')[1].split('/')[0]
-                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-                if restaurant:
-                    restaurant_id = restaurant.id
-                    print(f"Analytics dashboard: Detected restaurant_id={restaurant_id} from subdomain {subdomain}")
-            except Exception as e:
-                print(f"Analytics dashboard: Error parsing referer: {e}")
-        
-        if not restaurant_id:
-            restaurant_id = 1  # fallback
-        
-        # Check plan access
-        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-        if restaurant and restaurant.plan_type not in ["professional", "trial"]:
-            raise HTTPException(status_code=403, detail="Professional plan required for advanced analytics")
-        
-        from analytics_service import get_analytics_for_period
-        
-        if target_date is None:
-            from datetime import date
-            target_date = date.today().isoformat()
-        
-        print(f"Analytics dashboard: Using restaurant_id={restaurant_id}")
-        result = get_analytics_for_period(db, target_date, period, waiter_id, restaurant_id)
-        
-        # Limit response size to prevent Content-Length issues
-        limited_result = {
-            "summary": result.get('summary', {"total_orders": 0, "total_sales": 0, "total_tips": 0}),
-            "top_items": result.get('top_items', [])[:10],  # Limit to 10 items
-            "categories": result.get('categories', [])[:5],   # Limit to 5 categories
-            "trends": result.get('trends', [])[-7:],          # Last 7 days only
-            "waiters": result.get('waiters', [])[:10]         # Limit to 10 waiters
-        }
-        
-        return JSONResponse(content=limited_result)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_response = {
-            "summary": {"total_orders": 0, "total_sales": 0, "total_tips": 0},
-            "top_items": [],
-            "categories": [],
-            "trends": [],
-            "waiters": [],
-            "error": str(e)[:100]  # Limit error message length
-        }
-        return JSONResponse(content=error_response)
-
-@app.get("/business/analytics/top-items")
-async def get_top_items(
-    request: Request,
-    period: str = "day",
-    target_date: str = None,
-    limit: int = 10,
-    waiter_id: int = None,
-    db: Session = Depends(get_db)
-):
-    try:
-        # Get restaurant_id
-        restaurant_id = getattr(request.state, 'restaurant_id', None)
-        referer = request.headers.get('referer', '')
-        if '/r/' in referer:
-            try:
-                subdomain = referer.split('/r/')[1].split('/')[0]
-                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-                if restaurant:
-                    restaurant_id = restaurant.id
-            except:
-                pass
-        
-        if not restaurant_id:
-            restaurant_id = 1  # fallback
-        
-        from analytics_service import get_top_items_by_period
-        # Ensure limit doesn't exceed 50 to prevent large responses
-        safe_limit = min(limit, 50)
-        result = get_top_items_by_period(db, period, target_date, safe_limit, waiter_id, restaurant_id)
-        return JSONResponse(content=result)
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)[:100], "top_items": []})
-
-@app.get("/business/analytics/item-trends/{item_name}")
-async def get_item_trends(
-    request: Request,
-    item_name: str,
-    days: int = 30,
-    db: Session = Depends(get_db)
-):
-    # Get restaurant_id
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    if '/r/marios' in referer:
-        restaurant_id = 2
-    elif '/r/sushi' in referer:
-        restaurant_id = 3
-    
-    from analytics_service import get_item_performance_trends
-    return get_item_performance_trends(db, item_name, days, restaurant_id)
-
-@app.get("/business/analytics/categories")
-async def get_category_analytics(
-    request: Request,
-    period: str = "month",
-    target_date: str = None,
-    waiter_id: int = None,
-    db: Session = Depends(get_db)
-):
-    try:
-        # Get restaurant_id
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        referer = request.headers.get('referer', '')
-        if '/r/marios' in referer:
-            restaurant_id = 2
-        elif '/r/sushi' in referer:
-            restaurant_id = 3
-        
-        from analytics_service import get_category_comparison
-        result = get_category_comparison(db, period, target_date, waiter_id, restaurant_id)
-        # Limit categories to prevent large responses
-        if 'categories' in result:
-            result['categories'] = result['categories'][:20]
-        return JSONResponse(content=result)
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)[:100], "categories": []})
-
-@app.get("/api/analytics")
-async def get_analytics_api(
-    request: Request,
-    period: str = "day",
-    target_date: str = None,
-    waiter_id: int = None,
-    db: Session = Depends(get_db)
-):
-    try:
-        # Get restaurant_id from request state (set by middleware)
-        restaurant_id = getattr(request.state, 'restaurant_id', 51)  # Use test-restaurant
-        
-        from analytics_service import get_analytics_for_period
-        
-        if target_date is None:
-            from datetime import date
-            target_date = date.today().isoformat()
-        
-        print(f"Analytics API: Using restaurant_id={restaurant_id}, period={period}, target_date={target_date}")
-        result = get_analytics_for_period(db, target_date, period, waiter_id, restaurant_id)
-        print(f"Analytics API result: {result['summary']}")
-        
-        return JSONResponse(content=result)
-        
-    except Exception as e:
-        print(f"Analytics API error: {e}")
-        error_response = {
-            "summary": {"total_orders": 0, "total_sales": 0, "total_tips": 0},
-            "top_items": [],
-            "categories": [],
-            "trends": [],
-            "waiters": [],
-            "error": str(e)
-        }
-        return JSONResponse(content=error_response)
-
-@app.get("/business/kitchen", response_class=HTMLResponse)
-async def kitchen_display(request: Request):
-    return templates.TemplateResponse("kitchen.html", {"request": request})
-
-@app.get("/business/instant-order", response_class=HTMLResponse)
-async def instant_order_page(request: Request):
-    return templates.TemplateResponse("instant_order.html", {"request": request})
-
-@app.get("/instant-order", response_class=HTMLResponse)
-async def instant_order_page_alt(request: Request):
-    return templates.TemplateResponse("instant_order.html", {"request": request})
-
-@app.post("/business/instant-checkout")
-async def instant_checkout(
-    request: Request,
-    items: str = Form(...),
-    total: str = Form(...),
-    waiter_id: int = Form(...),
-    db: Session = Depends(get_db)
-):
-    try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        
-        # Parse items
-        import json
-        order_items = json.loads(items)
-        total_amount = float(total)
-        
-        # Validate waiter exists
-        waiter = db.query(Waiter).filter(
-            Waiter.id == waiter_id,
-            Waiter.restaurant_id == restaurant_id,
-            Waiter.active == True
-        ).first()
-        
-        if not waiter:
-            return {
-                "success": False,
-                "error": "Invalid waiter selected"
-            }
-        
-        # Create analytics records for instant orders
-        from models import AnalyticsRecord
-        from datetime import datetime
-        
-        for item_data in order_items:
-            menu_item = db.query(MenuItem).filter(
-                MenuItem.id == item_data['menu_item_id'],
-                MenuItem.restaurant_id == restaurant_id
-            ).first()
-            
-            if menu_item:
-                # Create analytics record for each item with waiter
-                analytics_record = AnalyticsRecord(
-                    restaurant_id=restaurant_id,
-                    item_name=menu_item.name,
-                    item_category=menu_item.category,
-                    table_number=0,  # Bar/instant order
-                    quantity=item_data['qty'],
-                    unit_price=menu_item.price,
-                    total_price=menu_item.price * item_data['qty'],
-                    tip_amount=0,
-                    checkout_date=datetime.utcnow(),
-                    waiter_id=waiter_id  # Track waiter for analytics
-                )
-                db.add(analytics_record)
-        
-        db.commit()
-        
-        return {
+    return JSONResponse({"success": True})
+
+@app.get("/admin/bookings/{booking_id}/details")
+async def get_booking_details(booking_id: int, db: Session = Depends(get_db)):
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if booking:
+        return JSONResponse({
             "success": True,
-            "message": "Instant order completed",
-            "total": total_amount,
-            "waiter": waiter.name
-        }
-        
-    except Exception as e:
-        db.rollback()
-        print(f"Instant checkout error: {e}")
-        return {
-            "success": False,
-            "error": str(e)
-        }
-
-@app.get("/business/kitchen/orders")
-async def get_kitchen_orders(request: Request, db: Session = Depends(get_db)):
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    
-    # Fallback: detect from referer for AJAX requests
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer and restaurant_id == 1:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-        except:
-            pass
-    
-    orders = db.query(Order).filter(
-        Order.restaurant_id == restaurant_id,
-        Order.status == 'active',
-        Order.kitchen_completed == False
-    ).all()
-    
-    kitchen_orders = []
-    for order in orders:
-        order_items = []
-        for item in order.order_items:
-            # Only show items that need kitchen preparation
-            if getattr(item.menu_item, 'needs_kitchen', True):
-                customizations = ''
-                if item.customizations:
-                    try:
-                        import json
-                        custom = json.loads(item.customizations)
-                        parts = []
-                        if custom.get('ingredients'):
-                            for ing, qty in custom['ingredients'].items():
-                                if qty == 0:
-                                    parts.append(f'No {ing}')
-                                elif qty > 1:
-                                    parts.append(f'Extra {ing}')
-                        if custom.get('extra'):
-                            extra_items = ', '.join(custom['extra'])
-                            parts.append(f'Add: {extra_items}')
-                        customizations = ' | '.join(parts)
-                    except:
-                        pass
-                
-                order_items.append({
-                    'name': item.menu_item.name,
-                    'qty': item.qty,
-                    'category': item.menu_item.category,
-                    'customizations': customizations,
-                    'is_new_extra': getattr(item, 'is_new_extra', False)
-                })
-        
-        if order_items:
-            kitchen_orders.append({
-                'id': order.id,
-                'table_number': order.table.table_number,
-                'created_at': order.created_at.isoformat(),
-                'items': order_items
-            })
-    
-    return kitchen_orders
-
-@app.post("/business/kitchen/ready/{order_id}")
-async def mark_kitchen_ready(request: Request, order_id: int, db: Session = Depends(get_db)):
-    try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        
-        order = db.query(Order).filter(
-            Order.id == order_id,
-            Order.restaurant_id == restaurant_id
-        ).first()
-        
-        if order and order.table:
-            # Mark order as kitchen completed and set ready notification
-            order.kitchen_completed = True
-            order.table.ready_notification = True
-            db.commit()
-            return {"message": "Food marked as ready - notification sent"}
-        
-        return {"error": "Order not found"}
-    except Exception as e:
-        print(f"Kitchen ready error: {e}")
-        return {"error": str(e)}
-
-@app.delete("/business/kitchen/delete/{order_id}")
-async def delete_kitchen_order(request: Request, order_id: int, db: Session = Depends(get_db)):
-    try:
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        
-        order = db.query(Order).filter(
-            Order.id == order_id,
-            Order.restaurant_id == restaurant_id
-        ).first()
-        
-        if order and order.table:
-            # Mark order as kitchen_completed to hide from kitchen display
-            setattr(order, 'kitchen_completed', True)
-            db.commit()
-            return {"message": "Order removed from kitchen"}
-        
-        return {"error": "Order not found"}
-    except Exception as e:
-        print(f"Kitchen delete error: {e}")
-        return {"error": str(e)}
-
-@app.get("/business/analytics")
-async def analytics_page(request: Request, db: Session = Depends(get_db)):
-    try:
-        # Get restaurant_id from request
-        restaurant_id = getattr(request.state, 'restaurant_id', 1)
-        referer = request.headers.get('referer', '')
-        if '/r/marios' in referer or '/r/marios' in str(request.url):
-            restaurant_id = 2
-        elif '/r/sushi' in referer or '/r/sushi' in str(request.url):
-            restaurant_id = 3
-        
-        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-        print(f"Analytics page: restaurant_id={restaurant_id}, plan={restaurant.plan_type if restaurant else 'unknown'}")
-        
-        # Check if restaurant has professional plan or is in trial
-        if not restaurant or restaurant.plan_type not in ["professional", "trial"]:
-            # Show upgrade page for basic plan
-            return templates.TemplateResponse("upgrade_required.html", {
-                "request": request,
-                "restaurant_name": restaurant.name if restaurant else "Restaurant",
-                "current_plan": restaurant.plan_type if restaurant else "basic"
-            })
-        
-        return templates.TemplateResponse("simple_analytics.html", {"request": request})
-    except Exception as e:
-        print(f"Analytics page error: {e}")
-        return templates.TemplateResponse("simple_analytics.html", {"request": request})
-
-@app.get("/business/analytics/export/csv")
-async def export_analytics_csv(
-    period: str = "month",
-    target_date: str = None,
-    db: Session = Depends(get_db)
-):
-    import csv
-    import io
-    from fastapi.responses import StreamingResponse
-    from analytics_service import get_top_items_by_period
-    
-    if target_date is None:
-        from datetime import date
-        target_date = date.today().isoformat()
-    
-    data = get_top_items_by_period(db, period, target_date, 50)
-    
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Write headers
-    writer.writerow(['Rank', 'Item Name', 'Category', 'Quantity Sold', 'Revenue', 'Orders', 'Avg Price', 'Avg Revenue/Order'])
-    
-    # Write data
-    for i, item in enumerate(data['top_items'], 1):
-        writer.writerow([
-            i,
-            item['name'],
-            item['category'],
-            item['quantity_sold'],
-            f"€{item['revenue']:.2f}",
-            item['orders_appeared_in'],
-            f"€{item['avg_price']:.2f}",
-            f"€{item['avg_revenue_per_order']:.2f}"
-        ])
-    
-    output.seek(0)
-    
-    return StreamingResponse(
-        io.BytesIO(output.getvalue().encode('utf-8')),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=top_items_{period}_{target_date}.csv"}
-    )
-
-@app.get("/debug/database")
-async def debug_database(request: Request, period: str = "day", db: Session = Depends(get_db)):
-    from models import AnalyticsRecord, Waiter
-    from datetime import date
-    
-    # Get restaurant_id like other endpoints
-    restaurant_id = getattr(request.state, 'restaurant_id', None)
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-        except:
-            pass
-    
-    print(f"Debug database: Using restaurant_id={restaurant_id}")
-    
-    today = date.today()
-    
-    # Calculate date range based on period
-    if period == "day":
-        start_date = today
-        end_date = today
-    elif period == "month":
-        start_date = today.replace(day=1)
-        if today.month == 12:
-            next_month = today.replace(year=today.year + 1, month=1)
-        else:
-            next_month = today.replace(month=today.month + 1)
-        end_date = next_month - timedelta(days=1)
-    else:
-        start_date = today
-        end_date = today
-    
-    # Get analytics records for the period and restaurant
-    records_query = db.query(AnalyticsRecord).filter(
-        func.date(AnalyticsRecord.checkout_date) >= start_date,
-        func.date(AnalyticsRecord.checkout_date) <= end_date
-    )
-    if restaurant_id:
-        records_query = records_query.filter(AnalyticsRecord.restaurant_id == restaurant_id)
-    records = records_query.all()
-    
-    print(f"Debug database: Found {len(records)} records for restaurant {restaurant_id}")
-    
-    # Get waiter names
-    waiters = {w.id: w.name for w in db.query(Waiter).all()}
-    
-    # Group by waiter
-    waiter_stats = {}
-    total_sales = 0
-    total_tips = 0
-    total_orders = len(records)
-    
-    for record in records:
-        waiter_name = waiters.get(record.waiter_id, f'Waiter {record.waiter_id}')
-        if waiter_name not in waiter_stats:
-            waiter_stats[waiter_name] = {'orders': 0, 'sales': 0, 'tips': 0}
-        
-        waiter_stats[waiter_name]['orders'] += 1
-        waiter_stats[waiter_name]['sales'] += record.total_price
-        waiter_stats[waiter_name]['tips'] += record.tip_amount
-        
-        total_sales += record.total_price
-        total_tips += record.tip_amount
-    
-    return {
-        'date': today.isoformat(),
-        'total_records': total_orders,
-        'total_sales': total_sales,
-        'total_tips': total_tips,
-        'waiter_breakdown': waiter_stats,
-        'raw_records': [
-            {
-                'waiter': waiters.get(r.waiter_id, f'Waiter {r.waiter_id}'),
-                'table': r.table_number,
-                'sales': r.total_price,
-                'tips': r.tip_amount,
-                'date': r.checkout_date.isoformat()
-            } for r in records[:10]  # Show first 10 records
-        ]
-    }
-
-@app.get("/export/sales-csv")
-async def export_sales_csv_simple(
-    request: Request,
-    period: str = "day",
-    target_date: str = None,
-    waiter_id: int = None,
-    db: Session = Depends(get_db)
-):
-    import csv
-    import io
-    from fastapi.responses import StreamingResponse
-    from models import AnalyticsRecord
-    from datetime import datetime
-    
-    if target_date is None:
-        # Get the most recent date with data (same logic as analytics dashboard)
-        from models import AnalyticsRecord
-        latest_date = db.query(func.max(func.date(AnalyticsRecord.checkout_date))).filter(
-            AnalyticsRecord.restaurant_id == restaurant_id
-        ).scalar()
-        if latest_date:
-            target_date = str(latest_date)
-        else:
-            from datetime import date
-            target_date = date.today().isoformat()
-    
-    target_date_obj = datetime.strptime(target_date, "%Y-%m-%d").date()
-    
-    # Get restaurant_id from request
-    restaurant_id = getattr(request.state, 'restaurant_id', None)
-    referer = request.headers.get('referer', '')
-    if '/r/' in referer:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-                print(f"CSV Export: Detected restaurant_id={restaurant_id} from subdomain {subdomain}")
-        except Exception as e:
-            print(f"CSV Export: Error parsing referer: {e}")
-    
-    if not restaurant_id:
-        restaurant_id = 1  # fallback
-    
-    try:
-        # Use analytics service (same as dashboard)
-        from analytics_service import get_analytics_for_period
-        analytics_data = get_analytics_for_period(db, target_date, period, waiter_id, restaurant_id)
-        
-        # Get individual order details from analytics records
-        from models import AnalyticsRecord, Waiter
-        from datetime import timedelta
-        
-        if period == "day":
-            start_date = target_date_obj
-            end_date = target_date_obj
-        elif period == "week":
-            start_date = target_date_obj - timedelta(days=target_date_obj.weekday())
-            end_date = start_date + timedelta(days=6)
-        elif period == "month":
-            start_date = target_date_obj.replace(day=1)
-            next_month = start_date.replace(month=start_date.month + 1) if start_date.month < 12 else start_date.replace(year=start_date.year + 1, month=1)
-            end_date = next_month - timedelta(days=1)
-        else:  # year
-            start_date = target_date_obj.replace(month=1, day=1)
-            end_date = target_date_obj.replace(month=12, day=31)
-        
-        # Get analytics records and group by order
-        records = db.query(AnalyticsRecord, Waiter.name.label('waiter_name')).outerjoin(Waiter, AnalyticsRecord.waiter_id == Waiter.id).filter(
-            func.date(AnalyticsRecord.checkout_date) >= start_date,
-            func.date(AnalyticsRecord.checkout_date) <= end_date,
-            AnalyticsRecord.restaurant_id == restaurant_id
-        )
-        
-        if waiter_id:
-            records = records.filter(AnalyticsRecord.waiter_id == waiter_id)
-        
-        records = records.all()
-        
-        # Group by order
-        order_groups = {}
-        for record, waiter_name in records:
-            order_key = record.item_name.split(' - ')[0] if ' - ' in record.item_name else record.item_name
-            if order_key not in order_groups:
-                order_groups[order_key] = {
-                    'order_id': order_key.replace('Order #', ''),
-                    'table_number': record.table_number,
-                    'waiter_name': waiter_name or 'Unknown',
-                    'total_sales': 0,
-                    'total_tips': 0,
-                    'created_at': record.checkout_date.strftime('%Y-%m-%d %H:%M')
-                }
-            order_groups[order_key]['total_sales'] += record.total_price
-            order_groups[order_key]['total_tips'] += record.tip_amount
-        
-        data = {
-            'summary': analytics_data.get('summary', {'total_orders': 0, 'total_sales': 0, 'total_tips': 0}),
-            'table_sales': list(order_groups.values())
-        }
-        
-        # Get analytics order count using same period logic as dashboard
-        from datetime import timedelta
-        
-        if period == "day":
-            start_date = target_date_obj
-            end_date = target_date_obj
-        elif period == "week":
-            start_date = target_date_obj - timedelta(days=target_date_obj.weekday())
-            end_date = start_date + timedelta(days=6)
-        elif period == "month":
-            start_date = target_date_obj.replace(day=1)
-            next_month = start_date.replace(month=start_date.month + 1) if start_date.month < 12 else start_date.replace(year=start_date.year + 1, month=1)
-            end_date = next_month - timedelta(days=1)
-        else:  # year
-            start_date = target_date_obj.replace(month=1, day=1)
-            end_date = target_date_obj.replace(month=12, day=31)
-        
-        analytics_orders = db.query(
-            func.count(func.distinct(AnalyticsRecord.checkout_date))
-        ).filter(
-            func.date(AnalyticsRecord.checkout_date) >= start_date,
-            func.date(AnalyticsRecord.checkout_date) <= end_date
-        ).scalar() or 0
-        
-        # Override order count with analytics count
-        data['summary']['total_orders'] = analytics_orders
-        
-        # If analytics shows fewer orders, limit the CSV data to match
-        if analytics_orders < len(data.get('table_sales', [])):
-            # Keep only the most recent orders to match analytics count
-            data['table_sales'] = data['table_sales'][:analytics_orders]
-        
-    except Exception as e:
-        data = {'summary': {'total_orders': 0, 'total_sales': 0, 'total_tips': 0}, 'table_sales': []}
-    
-    try:
-        import pandas as pd
-    except ImportError:
-        raise HTTPException(status_code=500, detail="Excel export not available")
-    
-    # Create DataFrame for orders
-    if data.get('table_sales'):
-        df = pd.DataFrame(data['table_sales'])
-        df = df[['order_id', 'table_number', 'waiter_name', 'total_sales', 'total_tips', 'created_at']]
-        df.columns = ['Order ID', 'Table Number', 'Waiter', 'Sales (€)', 'Tips (€)', 'Date']
-    else:
-        df = pd.DataFrame([['No sales data available', '', '', '', '', '']], 
-                         columns=['Order ID', 'Table Number', 'Waiter', 'Sales (€)', 'Tips (€)', 'Date'])
-    
-    # Create Excel file in memory
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Sales Data', index=False)
-        
-        # Add summary sheet
-        summary_df = pd.DataFrame([
-            ['Total Orders', data['summary']['total_orders']],
-            ['Total Sales (€)', data['summary']['total_sales']],
-            ['Total Tips (€)', data['summary']['total_tips']]
-        ], columns=['Metric', 'Value'])
-        summary_df.to_excel(writer, sheet_name='Summary', index=False)
-        
-    
-    output.seek(0)
-    
-    return StreamingResponse(
-        io.BytesIO(output.getvalue()),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename=sales_{period}_{target_date}.xlsx"}
-    )
-
-# Plan Check API
-@app.get("/business/plan-features")
-async def get_plan_features(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    restaurant_id = getattr(request.state, 'restaurant_id', 51)
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    
-    if not restaurant:
-        return {"bill_splitting": False, "advanced_analytics": False}
-    
-    return {
-        "bill_splitting": True,
-        "advanced_analytics": restaurant.plan_type in ["trial", "professional"],
-        "plan_type": restaurant.plan_type
-    }
-
-# Bill Split API Endpoints
-@app.get("/business/order/{order_id}/split-details")
-async def get_order_split_details_api(
-    request: Request,
-    order_id: int,
-    db: Session = Depends(get_db)
-):
-    # Get restaurant ID from middleware or detect from URL
-    restaurant_id = getattr(request.state, 'restaurant_id', None)
-    if not restaurant_id:
-        # Fallback: detect from referer header
-        referer = request.headers.get('referer', '')
-        if '/r/' in referer:
-            try:
-                subdomain = referer.split('/r/')[1].split('/')[0]
-                restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-                if restaurant:
-                    restaurant_id = restaurant.id
-            except:
-                pass
-        # Final fallback
-        if not restaurant_id:
-            restaurant_id = 1
-    
-    # Check plan access - only Trial and Professional
-    restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-    if not restaurant or restaurant.plan_type not in ["trial", "professional"]:
-        raise HTTPException(status_code=403, detail="Bill splitting requires Trial or Professional plan")
-    
-    from crud import get_order_split_details
-    details = get_order_split_details(db, order_id, restaurant_id)
-    if not details:
-        raise HTTPException(status_code=404, detail="Order not found")
-    return details
-
-@app.post("/business/order/{order_id}/partial-checkout")
-async def partial_checkout_api(
-    request: Request,
-    order_id: int,
-    items_data: str = Form(...),
-    waiter_id: int = Form(...),
-    tip_amount: float = Form(0.0),
-    db: Session = Depends(get_db)
-):
-    try:
-        # Get restaurant ID from middleware or detect from URL
-        restaurant_id = getattr(request.state, 'restaurant_id', None)
-        if not restaurant_id:
-            # Fallback: detect from referer header
-            referer = request.headers.get('referer', '')
-            if '/r/' in referer:
-                try:
-                    subdomain = referer.split('/r/')[1].split('/')[0]
-                    restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-                    if restaurant:
-                        restaurant_id = restaurant.id
-                except:
-                    pass
-            # Final fallback
-            if not restaurant_id:
-                restaurant_id = 1
-        
-        # Check plan access - only Trial and Professional
-        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-        if not restaurant or restaurant.plan_type not in ["trial", "professional"]:
-            raise HTTPException(status_code=403, detail="Bill splitting requires Trial or Professional plan")
-        
-        print(f"Partial checkout: order_id={order_id}, restaurant_id={restaurant_id}")
-        
-        import json
-        items_list = json.loads(items_data)
-        print(f"Items with quantities: {items_list}")
-        
-        from crud import partial_checkout_order_with_qty
-        result = partial_checkout_order_with_qty(db, order_id, items_list, waiter_id, tip_amount, restaurant_id)
-        print(f"Checkout result: {result}")
-        
-        if not result:
-            raise HTTPException(status_code=400, detail="Unable to process partial checkout")
-        
-        return result
-        
-    except Exception as e:
-        print(f"Partial checkout error: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-# PDF Receipt Endpoint
-@app.get("/client/pdf-receipt/{table_number}")
-async def download_pdf_receipt(
-    table_number: int,
-    db: Session = Depends(get_db)
-):
-    from datetime import datetime
-    from fastapi.responses import StreamingResponse
-    from crud import get_active_order_by_table, get_table_by_number
-    import io
-    
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.lib.units import inch
-        
-        # Get order and table
-        restaurant_id = 1
-        table = get_table_by_number(db, table_number, restaurant_id)
-        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-        
-        if not table:
-            raise HTTPException(status_code=404, detail="Table not found")
-        
-        # Get order
-        order = get_active_order_by_table(db, table_number, restaurant_id)
-        if not order:
-            from models import Order
-            order = db.query(Order).filter(
-                Order.table_number == table_number,
-                Order.restaurant_id == restaurant_id
-            ).order_by(Order.created_at.desc()).first()
-        
-        if not order:
-            raise HTTPException(status_code=404, detail="No orders found")
-        
-        # Build order details
-        order_details = {'order_id': order.id, 'items': [], 'total': 0}
-        for order_item in order.order_items:
-            item_total = order_item.menu_item.price * order_item.qty
-            order_details['items'].append({
-                'name': order_item.menu_item.name,
-                'qty': order_item.qty,
-                'total': item_total
-            })
-            order_details['total'] += item_total
-        
-        # Create PDF
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4)
-        styles = getSampleStyleSheet()
-        story = []
-        
-        # Header
-        story.append(Paragraph(f"<b>{restaurant.name if restaurant else 'Restaurant'}</b>", styles['Title']))
-        story.append(Paragraph("RECEIPT", styles['Title']))
-        story.append(Spacer(1, 0.2*inch))
-        
-        # Order info
-        story.append(Paragraph(f"<b>Table:</b> {table_number}", styles['Normal']))
-        story.append(Paragraph(f"<b>Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Normal']))
-        story.append(Paragraph(f"<b>Order #:</b> {order_details['order_id']}", styles['Normal']))
-        story.append(Spacer(1, 0.2*inch))
-        
-        # Items
-        for item in order_details['items']:
-            story.append(Paragraph(f"{item['name']} x{item['qty']} - €{item['total']:.2f}", styles['Normal']))
-        
-        story.append(Spacer(1, 0.2*inch))
-        
-        # Totals
-        order_total = order_details['total']
-        tip_amount = table.tip_amount or 0
-        total_with_tip = order_total + tip_amount
-        iva = total_with_tip * 0.21
-        subtotal = total_with_tip - iva
-        
-        story.append(Paragraph(f"Subtotal: €{order_total:.2f}", styles['Normal']))
-        story.append(Paragraph(f"Tip: €{tip_amount:.2f}", styles['Normal']))
-        story.append(Paragraph(f"Subtotal (excl. IVA): €{subtotal:.2f}", styles['Normal']))
-        story.append(Paragraph(f"IVA (21%): €{iva:.2f}", styles['Normal']))
-        story.append(Paragraph(f"<b>TOTAL: €{total_with_tip:.2f}</b>", styles['Heading2']))
-        
-        story.append(Spacer(1, 0.3*inch))
-        story.append(Paragraph("Thank you for dining with us!", styles['Normal']))
-        
-        doc.build(story)
-        buffer.seek(0)
-        
-        return StreamingResponse(
-            io.BytesIO(buffer.getvalue()),
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.pdf"}
-        )
-        
-    except ImportError:
-        # Fallback to text receipt if reportlab fails
-        raise HTTPException(status_code=500, detail="PDF generation not available")
-
-# Receipt from Analytics Data
-@app.get("/client/simple-receipt/{table_number}")
-async def download_simple_receipt(
-    request: Request,
-    table_number: int,
-    db: Session = Depends(get_db)
-):
-    from datetime import datetime
-    from fastapi.responses import Response
-    
-    # Get restaurant_id from request state
-    restaurant_id = getattr(request.state, 'restaurant_id', 1)
-    referer = request.headers.get('referer', '')
-    
-    # Detect from referer for AJAX requests
-    if '/r/' in referer:
-        try:
-            subdomain = referer.split('/r/')[1].split('/')[0]
-            restaurant = db.query(Restaurant).filter(Restaurant.subdomain == subdomain).first()
-            if restaurant:
-                restaurant_id = restaurant.id
-        except:
-            pass
-    
-    # Get restaurant name
-    restaurant_name = "Restaurant"
-    try:
-        from models import Restaurant
-        restaurant = db.query(Restaurant).filter(Restaurant.id == restaurant_id).first()
-        if restaurant:
-            restaurant_name = restaurant.name
-    except:
-        pass
-    
-    # Try to get order details first
-    from crud import get_order_details, get_table_by_number
-    order_details = get_order_details(db, table_number, restaurant_id)
-    table = get_table_by_number(db, table_number, restaurant_id)
-    
-    if order_details and order_details.get('items'):
-        # Show detailed receipt with actual items
-        receipt_text = f"""RECEIPT - {restaurant_name}
-{'='*40}
-Table: {table_number}
-Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-Order #: {order_details['order_id']}
-
---- ITEMS ---
-"""
-        
-        total_amount = 0
-        for item in order_details['items']:
-            item_total = item['price'] * item['qty']
-            receipt_text += f"{item['name']} x{item['qty']} - €{item_total:.2f}\n"
-            total_amount += item_total
-        
-        # Add tip if available
-        tip_amount = table.tip_amount if table else 0
-        products_plus_tip = total_amount + tip_amount
-        iva_amount = products_plus_tip * 0.21
-        subtotal_without_iva = products_plus_tip - iva_amount
-        
-        receipt_text += f"""\n--- TOTALS ---
-Subtotal: €{total_amount:.2f}
-Tip: €{tip_amount:.2f}
-Subtotal (excl. IVA): €{subtotal_without_iva:.2f}
-IVA (21%): €{iva_amount:.2f}
-TOTAL: €{products_plus_tip:.2f}
-
-Thank you for dining with us!
-{'='*40}"""
-    else:
-        # Fallback to simple receipt
-        receipt_text = f"""RECEIPT - {restaurant_name}
-{'='*40}
-Table: {table_number}
-Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-
---- ORDER RECEIPT ---
-Your order has been processed.
-
-Table: {table_number}
-Thank you for dining with us!
-
-For detailed itemization, please ask your waiter.
-{'='*40}"""
-    
-    return Response(
-        content=receipt_text,
-        media_type="text/plain",
-        headers={"Content-Disposition": f"attachment; filename=receipt_table_{table_number}.txt"}
-    )
+            "data": {
+                "client_name": booking.client_name,
+                "client_email": booking.client_email,
+                "client_phone": booking.client_phone,
+                "model_name": booking.model.name,
+                "event_type": booking.event_type,
+                "event_date": booking.event_date.strftime('%Y-%m-%d') if booking.event_date else None,
+                "message": booking.message,
+                "status": booking.status
+            }
+        })
+    return JSONResponse({"success": False})
 
 if __name__ == "__main__":
     import uvicorn
-    import os
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

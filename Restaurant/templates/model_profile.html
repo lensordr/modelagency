@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}{{ model.name }} - Elite Models Barcelona{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <h1 class="section-title">{{ model.name }}</h1>
+            
+            <!-- Model Photos -->
+            <div class="mb-5">
+                {% if model.photos %}
+                    {% set photos = model.photos | from_json %}
+                    {% if photos %}
+                        <div id="modelCarousel" class="carousel slide" data-bs-ride="carousel">
+                            <div class="carousel-inner">
+                                {% for photo in photos %}
+                                <div class="carousel-item {% if loop.first %}active{% endif %}">
+                                    <img src="{{ photo }}" class="d-block w-100" alt="{{ model.name }}" 
+                                         style="height: 500px; object-fit: cover; border-radius: 10px;">
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% if photos|length > 1 %}
+                            <button class="carousel-control-prev" type="button" data-bs-target="#modelCarousel" data-bs-slide="prev">
+                                <span class="carousel-control-prev-icon"></span>
+                            </button>
+                            <button class="carousel-control-next" type="button" data-bs-target="#modelCarousel" data-bs-slide="next">
+                                <span class="carousel-control-next-icon"></span>
+                            </button>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <img src="/static/placeholder-model.jpg" class="img-fluid" alt="{{ model.name }}" 
+                         style="height: 500px; width: 100%; object-fit: cover; border-radius: 10px;">
+                {% endif %}
+            </div>
+            
+            <!-- Model Details -->
+            <div class="filter-section">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 class="text-dark mb-3">Model Details</h4>
+                        <p><strong>Age:</strong> {{ model.age }} years</p>
+                        <p><strong>Height:</strong> {{ model.height }}cm</p>
+                        <p><strong>Hair Color:</strong> {{ model.hair_color }}</p>
+                        <p><strong>Eye Color:</strong> {{ model.eye_color }}</p>
+                        <p><strong>Location:</strong> {{ model.city.name if model.city else 'Barcelona' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h4 class="text-dark mb-3">Availability</h4>
+                        <p><strong>Status:</strong> 
+                            {% if model.available %}
+                            <span class="badge bg-success">Available</span>
+                            {% else %}
+                            <span class="badge bg-warning">Busy</span>
+                            {% endif %}
+                        </p>
+                        <button class="btn btn-luxury mt-3" onclick="openBookingModal({{ model.id }}, '{{ model.name }}')">
+                            <i class="fas fa-calendar-alt me-2"></i>Book This Model
+                        </button>
+                    </div>
+                </div>
+                
+                {% if model.bio %}
+                <div class="mt-4">
+                    <h4 class="text-dark mb-3">About {{ model.name }}</h4>
+                    <p class="text-muted">{{ model.bio }}</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="text-center mt-4">
+                <a href="/models" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Models
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Booking Modal -->
+<div class="modal fade" id="bookingModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="background-color: white; color: var(--text-dark);">
+            <div class="modal-header" style="border-bottom: 1px solid #ddd;">
+                <h5 class="modal-title">Book Model</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="bookingForm">
+                    <input type="hidden" id="modelId" name="model_id">
+                    <div class="mb-3">
+                        <label for="clientName" class="form-label">Your Name *</label>
+                        <input type="text" class="form-control" id="clientName" name="client_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="clientEmail" class="form-label">Email *</label>
+                        <input type="email" class="form-control" id="clientEmail" name="client_email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="clientPhone" class="form-label">Phone</label>
+                        <input type="tel" class="form-control" id="clientPhone" name="client_phone">
+                    </div>
+                    <div class="mb-3">
+                        <label for="eventDate" class="form-label">Event Date *</label>
+                        <input type="date" class="form-control" id="eventDate" name="event_date" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="eventType" class="form-label">Event Type *</label>
+                        <select class="form-control" id="eventType" name="event_type" required>
+                            <option value="">Select event type</option>
+                            <option value="Fashion Shoot">Fashion Shoot</option>
+                            <option value="Commercial Shoot">Commercial Shoot</option>
+                            <option value="Runway Show">Runway Show</option>
+                            <option value="Event Hosting">Event Hosting</option>
+                            <option value="Travel Companion">Travel Companion</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="message" class="form-label">Additional Details</label>
+                        <textarea class="form-control" id="message" name="message" rows="3" 
+                                  placeholder="Please provide details about your project, location, duration, etc."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid #ddd;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-luxury" onclick="submitBooking()">Submit Request</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openBookingModal(modelId, modelName) {
+    document.getElementById('modelId').value = modelId;
+    document.querySelector('#bookingModal .modal-title').textContent = `Book ${modelName}`;
+    new bootstrap.Modal(document.getElementById('bookingModal')).show();
+}
+
+async function submitBooking() {
+    const form = document.getElementById('bookingForm');
+    const formData = new FormData(form);
+    const modelId = document.getElementById('modelId').value;
+    
+    try {
+        const response = await fetch(`/book/${modelId}`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            bootstrap.Modal.getInstance(document.getElementById('bookingModal')).hide();
+            form.reset();
+        } else {
+            alert(result.message);
+        }
+    } catch (error) {
+        alert('Error submitting booking request. Please try again.');
+    }
+}
+
+// Set minimum date to today
+document.getElementById('eventDate').min = new Date().toISOString().split('T')[0];
+</script>
+{% endblock %}

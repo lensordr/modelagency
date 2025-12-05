@@ -1,145 +1,121 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, create_engine
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from datetime import datetime
 
 Base = declarative_base()
 
-class Restaurant(Base):
-    __tablename__ = "restaurants"
+class Agency(Base):
+    __tablename__ = "agencies"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     subdomain = Column(String(50), unique=True, nullable=False)
-    plan_type = Column(String(20), default='trial')  # trial, basic, professional
-    trial_ends_at = Column(DateTime)
-    subscription_status = Column(String(20), default='trial')  # trial, active, cancelled
-    admin_email = Column(String(255), nullable=True)  # For upgrade detection
+    description = Column(Text)
+    phone = Column(String(20))
+    email = Column(String(255))
+    address = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     active = Column(Boolean, default=True)
-    business_type = Column(String(20), default='restaurant')  # 'restaurant' or 'hotel'
-    room_prefix = Column(String(10), default='')  # e.g., 'RM', 'SUITE' for hotels
     
     # Relationships
-    users = relationship("User", back_populates="restaurant")
-    tables = relationship("Table", back_populates="restaurant")
-    menu_items = relationship("MenuItem", back_populates="restaurant")
-    waiters = relationship("Waiter", back_populates="restaurant")
-    orders = relationship("Order", back_populates="restaurant")
-    analytics_records = relationship("AnalyticsRecord", back_populates="restaurant")
+    users = relationship("User", back_populates="agency")
+    models = relationship("Model", back_populates="agency")
+    cities = relationship("City", back_populates="agency")
+    bookings = relationship("Booking", back_populates="agency")
 
 class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
+    agency_id = Column(Integer, ForeignKey('agencies.id'), nullable=False)
     username = Column(String(50), nullable=False)
     password_hash = Column(String(255), nullable=False)
-    role = Column(String(20), default='waiter')  # 'admin', 'waiter'
+    role = Column(String(20), default='admin')  # 'admin', 'staff'
     active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    restaurant = relationship("Restaurant", back_populates="users")
+    agency = relationship("Agency", back_populates="users")
     
     __table_args__ = (
-        # Username should be unique per restaurant
         {'sqlite_autoincrement': True}
     )
 
+class City(Base):
+    __tablename__ = "cities"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    agency_id = Column(Integer, ForeignKey('agencies.id'), nullable=False)
+    name = Column(String(100), nullable=False)
+    country = Column(String(50), default='Spain')
+    active = Column(Boolean, default=True)
+    
+    agency = relationship("Agency", back_populates="cities")
+    models = relationship("Model", back_populates="city")
+
+class Model(Base):
+    __tablename__ = "models"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    agency_id = Column(Integer, ForeignKey('agencies.id'), nullable=False)
+    city_id = Column(Integer, ForeignKey('cities.id'), nullable=True)
+    name = Column(String(100), nullable=False)
+    age = Column(Integer)
+    height = Column(Integer)  # in cm
+    hair_color = Column(String(50))
+    eye_color = Column(String(50))
+    bio = Column(Text)
+    photos = Column(Text)  # JSON array of photo URLs
+    status = Column(String(20), default='pending')  # pending, approved, rejected
+    available = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    agency = relationship("Agency", back_populates="models")
+    city = relationship("City", back_populates="models")
+    bookings = relationship("Booking", back_populates="model")
+
+class Booking(Base):
+    __tablename__ = "bookings"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    agency_id = Column(Integer, ForeignKey('agencies.id'), nullable=False)
+    model_id = Column(Integer, ForeignKey('models.id'), nullable=False)
+    client_name = Column(String(100), nullable=False)
+    client_email = Column(String(255), nullable=False)
+    client_phone = Column(String(20))
+    event_date = Column(DateTime)
+    event_type = Column(String(100))
+    message = Column(Text)
+    status = Column(String(20), default='pending')  # pending, confirmed, cancelled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    agency = relationship("Agency", back_populates="bookings")
+    model = relationship("Model", back_populates="bookings")
+
+# Legacy tables for compatibility (can be removed later)
 class Table(Base):
     __tablename__ = "tables"
+    id = Column(Integer, primary_key=True)
     
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
-    table_number = Column(Integer, nullable=False)
-    code = Column(String(3), nullable=False)
-    status = Column(String(10), default='free')  # 'free' or 'occupied'
-    has_extra_order = Column(Boolean, default=False)
-    checkout_requested = Column(Boolean, default=False)
-    checkout_method = Column(String(10))  # 'cash' or 'card'
-    tip_amount = Column(Float, default=0.0)
-    food_ready = Column(Boolean, default=False)
-    ready_notification = Column(Boolean, default=False)
-    
-    restaurant = relationship("Restaurant", back_populates="tables")
-    orders = relationship("Order", back_populates="table")
-
 class MenuItem(Base):
     __tablename__ = "menu_items"
+    id = Column(Integer, primary_key=True)
     
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
-    name = Column(String(100), nullable=False)
-    ingredients = Column(String(500))
-    price = Column(Float, nullable=False)
-    category = Column(String(50), default='Food')
-    language = Column(String(5), default='en')
-    active = Column(Boolean, default=True)
-    needs_kitchen = Column(Boolean, default=True)
-    
-    restaurant = relationship("Restaurant", back_populates="menu_items")
-    order_items = relationship("OrderItem", back_populates="menu_item")
-
 class Waiter(Base):
     __tablename__ = "waiters"
+    id = Column(Integer, primary_key=True)
     
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
-    name = Column(String(100), nullable=False)
-    active = Column(Boolean, default=True)
-    
-    restaurant = relationship("Restaurant", back_populates="waiters")
-    orders = relationship("Order", back_populates="waiter")
-
 class Order(Base):
     __tablename__ = "orders"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
-    table_id = Column(Integer, ForeignKey('tables.id'))
-    waiter_id = Column(Integer, ForeignKey('waiters.id'))
-    created_at = Column(DateTime, default=datetime.utcnow)
-    status = Column(String(10), default='active')  # 'active' or 'finished'
-    tip_amount = Column(Float, default=0.0)
-    kitchen_completed = Column(Boolean, default=False)
-    
-    restaurant = relationship("Restaurant", back_populates="orders")
-    table = relationship("Table", back_populates="orders")
-    waiter = relationship("Waiter", back_populates="orders")
-    order_items = relationship("OrderItem", back_populates="order")
+    id = Column(Integer, primary_key=True)
 
 class OrderItem(Base):
     __tablename__ = "order_items"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    order_id = Column(Integer, ForeignKey('orders.id'))
-    product_id = Column(Integer, ForeignKey('menu_items.id'))
-    qty = Column(Integer, nullable=False)
-    is_extra_item = Column(Boolean, default=False)
-    is_new_extra = Column(Boolean, default=False)
-    customizations = Column(String(1000))  # JSON string for ingredient modifications
-    paid = Column(Boolean, default=False)  # For bill splitting
-    
-    order = relationship("Order", back_populates="order_items")
-    menu_item = relationship("MenuItem", back_populates="order_items")
+    id = Column(Integer, primary_key=True)
 
 class AnalyticsRecord(Base):
     __tablename__ = "analytics_records"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    restaurant_id = Column(Integer, ForeignKey('restaurants.id'), nullable=False)
-    checkout_date = Column(DateTime, nullable=False)
-    table_number = Column(Integer, nullable=False)
-    waiter_id = Column(Integer, ForeignKey('waiters.id'))
-    item_name = Column(String(100), nullable=False)
-    item_category = Column(String(50), nullable=False)
-    quantity = Column(Integer, nullable=False)
-    unit_price = Column(Float, nullable=False)
-    total_price = Column(Float, nullable=False)
-    tip_amount = Column(Float, default=0.0)
-    
-    restaurant = relationship("Restaurant", back_populates="analytics_records")
-    waiter = relationship("Waiter")
+    id = Column(Integer, primary_key=True)
 
 # Database setup
 import os
@@ -149,34 +125,13 @@ from dotenv import load_dotenv
 if os.path.exists('.env.local'):
     load_dotenv('.env.local')
 
-# Use PostgreSQL in production, SQLite in development
-DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL:
-    # Production (Heroku) - Fix postgres:// to postgresql://
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(
-        DATABASE_URL,
-        pool_size=15,          # Keep 15 connections ready
-        max_overflow=25,       # Allow 25 more connections when needed
-        pool_timeout=30,       # Wait 30 seconds for connection
-        pool_recycle=3600,     # Refresh connections every hour
-        pool_pre_ping=True     # Verify connections before use
-    )
-else:
-    # Development (local)
-    DATABASE_URL = os.getenv("LOCAL_DATABASE_URL", "sqlite:///./database.db")
-    engine = create_engine(DATABASE_URL)
+# Use SQLite for development
+DATABASE_URL = "sqlite:///./agency.db"
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def create_tables():
     Base.metadata.create_all(bind=engine)
-    
-    # Create analytics table if it doesn't exist
-    from sqlalchemy import inspect
-    inspector = inspect(engine)
-    if 'analytics_records' not in inspector.get_table_names():
-        AnalyticsRecord.__table__.create(engine)
 
 def get_db():
     db = SessionLocal()

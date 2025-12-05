@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Elite Models Barcelona - Premier Modeling Agency{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="hero-content">
+        <p style="font-size: 2.5rem; margin-bottom: 30px; text-transform: uppercase; font-weight: 500; letter-spacing: 2px; color: white;">LUXURY MODELS & TRAVEL COMPANIONS</p>
+    </div>
+</section>
+
+<!-- About Agency Section -->
+<section class="py-5" style="background-color: var(--secondary-light);">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <h2 class="section-title">Elite Luxury Experiences</h2>
+                <div class="text-center mb-5">
+                    <p class="lead" style="font-size: 1.2rem; line-height: 1.8; color: var(--text-muted);">
+                        Welcome to Elite Models Barcelona, Spain's premier luxury modeling agency where sophistication meets excellence. 
+                        We represent the finest selection of professional models and elegant companions who embody the essence of 
+                        Mediterranean charm and international allure.
+                    </p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="filter-section h-100">
+                            <h4 class="text-dark mb-3"><i class="fas fa-crown me-2" style="color: var(--accent-pink);"></i>Luxury Lifestyle</h4>
+                            <p class="text-muted">
+                                Our models are more than just beautiful faces – they are cultured, multilingual professionals who 
+                                understand the art of refined companionship. From exclusive galas in Madrid to luxury yacht parties 
+                                in Ibiza, our companions bring elegance and sophistication to every occasion. Each model is carefully 
+                                selected for their poise, intelligence, and ability to adapt to any high-society environment.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="filter-section h-100">
+                            <h4 class="text-dark mb-3"><i class="fas fa-globe me-2" style="color: var(--accent-pink);"></i>International Presence</h4>
+                            <p class="text-muted">
+                                Based in Barcelona but operating internationally, we cater to discerning clients across Europe and beyond. 
+                                Our models are experienced in accompanying clients to business dinners, cultural events, fashion shows, 
+                                and private celebrations. Whether you need a sophisticated companion for a corporate event in London 
+                                or an elegant partner for a weekend in the French Riviera, we ensure impeccable service.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="filter-section h-100">
+                            <h4 class="text-dark mb-3"><i class="fas fa-gem me-2" style="color: var(--accent-pink);"></i>Exclusive Services</h4>
+                            <p class="text-muted">
+                                We specialize in providing exceptional companionship for exclusive events, luxury travel, and high-profile 
+                                occasions. Our models are trained in etiquette, conversation, and cultural awareness, ensuring they can 
+                                seamlessly integrate into any sophisticated environment. From art gallery openings to private jet travel, 
+                                they maintain the highest standards of professionalism and discretion.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="filter-section h-100">
+                            <h4 class="text-dark mb-3"><i class="fas fa-star me-2" style="color: var(--accent-pink);"></i>Classy Presentation</h4>
+                            <p class="text-muted">
+                                Every interaction with our agency reflects our commitment to excellence. Our models arrive impeccably 
+                                dressed, well-groomed, and prepared to represent both themselves and our clients with dignity and class. 
+                                We understand that first impressions matter, and our companions are trained to make every moment 
+                                memorable through their charm, intelligence, and sophisticated presence.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-4">
+                    <p class="lead" style="color: var(--text-dark); font-style: italic;">
+                        "Experience the pinnacle of luxury companionship with Elite Models Barcelona – 
+                        where every encounter is crafted to perfection."
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Featured Models Section -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="section-title">Featured Models</h2>
+        <div class="row">
+            {% for model in featured_models %}
+            <div class="col-lg-4 col-md-6">
+                <div class="model-card">
+                    {% if model.photos %}
+                        {% set photos = model.photos | from_json %}
+                        <img src="{{ photos[0] if photos else '/static/placeholder-model.jpg' }}" alt="{{ model.name }}">
+                    {% else %}
+                        <img src="/static/placeholder-model.jpg" alt="{{ model.name }}">
+                    {% endif %}
+                    <div class="model-card-body">
+                        <h4 class="model-name">{{ model.name }}</h4>
+                        <div class="model-details">
+                            <p><i class="fas fa-map-marker-alt me-2"></i>{{ model.city.name if model.city else 'Barcelona' }}</p>
+                            <p><i class="fas fa-ruler-vertical me-2"></i>{{ model.height }}cm | {{ model.age }} years</p>
+                            <p><i class="fas fa-palette me-2"></i>{{ model.hair_color }} hair</p>
+                        </div>
+                        <a href="/model/{{ model.id }}" class="btn btn-luxury btn-sm mt-3">View Profile</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="text-center mt-4">
+            <a href="/models" class="btn btn-outline-light">View All Models</a>
+        </div>
+    </div>
+</section>
+
+<!-- Services Section -->
+<section class="py-5" style="background-color: var(--secondary-dark);">
+    <div class="container">
+        <h2 class="section-title">Our Services</h2>
+        <div class="row">
+            <div class="col-md-4 text-center mb-4">
+                <i class="fas fa-camera fa-3x text-warning mb-3"></i>
+                <h4>Fashion Modeling</h4>
+                <p class="text-muted">High-end fashion shoots and runway shows with our professional models.</p>
+            </div>
+            <div class="col-md-4 text-center mb-4">
+                <i class="fas fa-tv fa-3x text-warning mb-3"></i>
+                <h4>Commercial Work</h4>
+                <p class="text-muted">Brand campaigns, advertisements, and commercial photography.</p>
+            </div>
+            <div class="col-md-4 text-center mb-4">
+                <i class="fas fa-star fa-3x text-warning mb-3"></i>
+                <h4>Event Hosting</h4>
+                <p class="text-muted">Professional models for events, exhibitions, and promotional activities.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Cities Section -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="section-title">Our Locations</h2>
+        <div class="row">
+            <div class="col-md-3 mb-4">
+                <div class="city-card">
+                    <h4>Barcelona</h4>
+                    <p class="text-muted">Fashion capital of Spain</p>
+                    <a href="/city/Barcelona" class="btn btn-luxury btn-sm">View Models</a>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="city-card">
+                    <h4>Madrid</h4>
+                    <p class="text-muted">Commercial hub</p>
+                    <a href="/city/Madrid" class="btn btn-luxury btn-sm">View Models</a>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="city-card">
+                    <h4>Valencia</h4>
+                    <p class="text-muted">Coastal beauty</p>
+                    <a href="/city/Valencia" class="btn btn-luxury btn-sm">View Models</a>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="city-card">
+                    <h4>Sevilla</h4>
+                    <p class="text-muted">Cultural heritage</p>
+                    <a href="/city/Sevilla" class="btn btn-luxury btn-sm">View Models</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-5" style="background: linear-gradient(45deg, var(--accent-gold), var(--accent-rose));">
+    <div class="container text-center">
+        <h2 style="color: var(--primary-dark);">Ready to Work With Us?</h2>
+        <p style="color: var(--primary-dark); font-size: 1.2rem;">Book our models for your next project or apply to join our agency.</p>
+        <div class="mt-4">
+            <a href="/models" class="btn btn-dark me-3">Book a Model</a>
+            <a href="/apply" class="btn btn-outline-dark">Become a Model</a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Add some interactive effects
+document.addEventListener('DOMContentLoaded', function() {
+    // Smooth scrolling for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            document.querySelector(this.getAttribute('href')).scrollIntoView({
+                behavior: 'smooth'
+            });
+        });
+    });
+});
+</script>
+{% endblock %}
