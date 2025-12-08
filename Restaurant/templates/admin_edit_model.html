@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Model - Admin{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="section-title mb-0">Edit Model: {{ model.name }}</h1>
+        <a href="/admin/models" class="btn btn-outline-secondary">Back to Models</a>
+    </div>
+    
+    <div class="filter-section">
+        <form id="editModelForm">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="name" class="form-label">Name *</label>
+                    <input type="text" class="form-control" id="name" name="name" value="{{ model.name }}" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="age" class="form-label">Age *</label>
+                    <input type="number" class="form-control" id="age" name="age" value="{{ model.age }}" min="18" max="50" required>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="height" class="form-label">Height (cm) *</label>
+                    <input type="number" class="form-control" id="height" name="height" value="{{ model.height }}" min="150" max="200" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="city_id" class="form-label">City *</label>
+                    <select class="form-control" id="city_id" name="city_id" required>
+                        {% for city in cities %}
+                        <option value="{{ city.id }}" {% if model.city_id == city.id %}selected{% endif %}>{{ city.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="hair_color" class="form-label">Hair Color *</label>
+                    <select class="form-control" id="hair_color" name="hair_color" required>
+                        <option value="Blonde" {% if model.hair_color == 'Blonde' %}selected{% endif %}>Blonde</option>
+                        <option value="Brunette" {% if model.hair_color == 'Brunette' %}selected{% endif %}>Brunette</option>
+                        <option value="Black" {% if model.hair_color == 'Black' %}selected{% endif %}>Black</option>
+                        <option value="Red" {% if model.hair_color == 'Red' %}selected{% endif %}>Red</option>
+                        <option value="Other" {% if model.hair_color == 'Other' %}selected{% endif %}>Other</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="eye_color" class="form-label">Eye Color *</label>
+                    <select class="form-control" id="eye_color" name="eye_color" required>
+                        <option value="Blue" {% if model.eye_color == 'Blue' %}selected{% endif %}>Blue</option>
+                        <option value="Brown" {% if model.eye_color == 'Brown' %}selected{% endif %}>Brown</option>
+                        <option value="Green" {% if model.eye_color == 'Green' %}selected{% endif %}>Green</option>
+                        <option value="Hazel" {% if model.eye_color == 'Hazel' %}selected{% endif %}>Hazel</option>
+                        <option value="Gray" {% if model.eye_color == 'Gray' %}selected{% endif %}>Gray</option>
+                        <option value="Other" {% if model.eye_color == 'Other' %}selected{% endif %}>Other</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="bio" class="form-label">Bio / Description</label>
+                <textarea class="form-control" id="bio" name="bio" rows="4">{{ model.bio or '' }}</textarea>
+            </div>
+            
+            <!-- Extended Fields -->
+            <h5 class="text-dark mt-4 mb-3">Extended Profile Information</h5>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="residence" class="form-label">Residence</label>
+                    <input type="text" class="form-control" id="residence" name="residence" value="{{ model.residence or '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="availability" class="form-label">Availability</label>
+                    <select class="form-control" id="availability" name="availability">
+                        <option value="Worldwide" {% if model.availability == 'Worldwide' %}selected{% endif %}>Worldwide</option>
+                        <option value="Europe" {% if model.availability == 'Europe' %}selected{% endif %}>Europe</option>
+                        <option value="Spain" {% if model.availability == 'Spain' %}selected{% endif %}>Spain only</option>
+                        <option value="Local" {% if model.availability == 'Local' %}selected{% endif %}>Local only</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="nationality" class="form-label">Nationality</label>
+                    <input type="text" class="form-control" id="nationality" name="nationality" value="{{ model.nationality or '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="job" class="form-label">Job/Profession</label>
+                    <input type="text" class="form-control" id="job" name="job" value="{{ model.job or '' }}">
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="body_measurements" class="form-label">Body Measurements</label>
+                    <input type="text" class="form-control" id="body_measurements" name="body_measurements" value="{{ model.body_measurements or '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="bra_size" class="form-label">Bra Size</label>
+                    <input type="text" class="form-control" id="bra_size" name="bra_size" value="{{ model.bra_size or '' }}">
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="languages" class="form-label">Languages</label>
+                <textarea class="form-control" id="languages" name="languages" rows="3">{% if model.languages %}{% set langs = model.languages | from_json %}{{ langs | join(', ') }}{% endif %}</textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="clothing_style" class="form-label">Clothing Style</label>
+                <textarea class="form-control" id="clothing_style" name="clothing_style" rows="3">{{ model.clothing_style or '' }}</textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="lingerie_style" class="form-label">Lingerie Style</label>
+                <textarea class="form-control" id="lingerie_style" name="lingerie_style" rows="3">{{ model.lingerie_style or '' }}</textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="favorite_cuisine" class="form-label">Favorite Cuisine & Drinks</label>
+                <textarea class="form-control" id="favorite_cuisine" name="favorite_cuisine" rows="3">{{ model.favorite_cuisine or '' }}</textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="favorite_perfume" class="form-label">Favorite Perfume</label>
+                <input type="text" class="form-control" id="favorite_perfume" name="favorite_perfume" value="{{ model.favorite_perfume or '' }}">
+            </div>
+            
+            <!-- Rates Section -->
+            <h5 class="text-dark mt-4 mb-3">Rates & Pricing</h5>
+            {% if model.rates %}
+                {% set rates = model.rates | from_json %}
+            {% endif %}
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="rate_short_price" class="form-label">Short Hours - Price</label>
+                    <input type="text" class="form-control" id="rate_short_price" name="rate_short_price" value="{{ rates.short_price if rates else 'On Request' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="rate_gentleman_price" class="form-label">Gentleman Date - Price</label>
+                    <input type="text" class="form-control" id="rate_gentleman_price" name="rate_gentleman_price" value="{{ rates.gentleman_price if rates else '1400.- / 1300.- (Member)' }}">
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="rate_overnight_price" class="form-label">Overnight Date - Price</label>
+                    <input type="text" class="form-control" id="rate_overnight_price" name="rate_overnight_price" value="{{ rates.overnight_price if rates else '2200.- / 2000.- (Member)' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="rate_luxury_price" class="form-label">Luxury Package - Price</label>
+                    <input type="text" class="form-control" id="rate_luxury_price" name="rate_luxury_price" value="{{ rates.luxury_price if rates else '3200.- / 3000.- (Member)' }}">
+                </div>
+            </div>
+            
+            <!-- Detailed Rates -->
+            <h6 class="text-dark mt-4 mb-3">Detailed Rates</h6>
+            {% set detailed = rates.detailed if rates and rates.detailed else {} %}
+            
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">1 Short, Sweet Hour</label>
+                    <input type="text" class="form-control" name="rate_1_short_hour" value="{{ detailed.get('1_short_hour', 'Members Only / On Request') }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">1.5 Short, Sweet Hours</label>
+                    <input type="text" class="form-control" name="rate_1_5_short_hours" value="{{ detailed.get('1_5_short_hours', 'Members Only / On Request') }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">2 Hours of Passion</label>
+                    <input type="text" class="form-control" name="rate_2_hours_passion" value="{{ detailed.get('2_hours_passion', '900.- / 800.- (Member)') }}">
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">3 Unforgettable Hours</label>
+                    <input type="text" class="form-control" name="rate_3_unforgettable" value="{{ detailed.get('3_unforgettable', '1200.- / 1100.- (Member)') }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">4 Intimate Hours or 5 incl. Dinner</label>
+                    <input type="text" class="form-control" name="rate_4_intimate_dinner" value="{{ detailed.get('4_intimate_dinner', '1400.- / 1300.- (Member)') }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">5 Intimate Hours or 6 incl. Dinner</label>
+                    <input type="text" class="form-control" name="rate_5_intimate_dinner" value="{{ detailed.get('5_intimate_dinner', '1600.- / 1500.- (Member)') }}">
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Short Overnight up to 8 Hours</label>
+                    <input type="text" class="form-control" name="rate_short_overnight_8h" value="{{ detailed.get('short_overnight_8h', '2200.- / 2000.- (Member)') }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Long Overnight up to 12 Hours</label>
+                    <input type="text" class="form-control" name="rate_long_overnight_12h" value="{{ detailed.get('long_overnight_12h', '2400.- / 2200.- (Member)') }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Long Overnight up to 18 Hours</label>
+                    <input type="text" class="form-control" name="rate_long_overnight_18h" value="{{ detailed.get('long_overnight_18h', '2800.- / 2600.- (Member)') }}">
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">For One Day (24 Hours)</label>
+                    <input type="text" class="form-control" name="rate_one_day_24h" value="{{ detailed.get('one_day_24h', '3200.- / 3000.- (Member)') }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">For two Days (48 hours)</label>
+                    <input type="text" class="form-control" name="rate_two_days_48h" value="{{ detailed.get('two_days_48h', '4500.- / 4300.- (Member)') }}">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Every additional Day</label>
+                    <input type="text" class="form-control" name="rate_additional_day" value="{{ detailed.get('additional_day', '1400.- / 1200.- (Member)') }}">
+                </div>
+            </div>
+            
+            <!-- Current Photos -->
+            <h5 class="text-dark mt-4 mb-3">Current Photos</h5>
+            {% if model.photos %}
+                {% set photos = model.photos | from_json %}
+                <div class="row mb-3" id="currentPhotos">
+                    {% for photo in photos %}
+                    <div class="col-md-3 mb-3" data-photo="{{ photo }}">
+                        <div class="position-relative">
+                            <img src="{{ photo }}" alt="Photo" class="img-fluid" style="width: 100%; height: 150px; object-fit: cover; border-radius: 5px;">
+                            <button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-1" 
+                                    onclick="removePhoto('{{ photo }}')">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            
+            <!-- Add New Photos -->
+            <div class="mb-3">
+                <label for="new_photos" class="form-label">Add New Photos</label>
+                <input type="file" class="form-control" id="new_photos" name="new_photos" multiple accept="image/*">
+                <div class="form-text text-muted">Upload additional photos (optional)</div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-control" id="status" name="status">
+                    <option value="approved" {% if model.status == 'approved' %}selected{% endif %}>Approved</option>
+                    <option value="pending" {% if model.status == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="rejected" {% if model.status == 'rejected' %}selected{% endif %}>Rejected</option>
+                </select>
+            </div>
+            
+            <!-- Hidden field to track removed photos -->
+            <input type="hidden" id="removedPhotos" name="removed_photos" value="">
+            
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-luxury">
+                    <i class="fas fa-save me-2"></i>Update Model
+                </button>
+                <a href="/admin/models" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let removedPhotos = [];
+
+function removePhoto(photoUrl) {
+    if (confirm('Are you sure you want to remove this photo?')) {
+        removedPhotos.push(photoUrl);
+        document.getElementById('removedPhotos').value = JSON.stringify(removedPhotos);
+        
+        // Remove the photo element from display
+        const photoElement = document.querySelector(`[data-photo="${photoUrl}"]`);
+        if (photoElement) {
+            photoElement.remove();
+        }
+    }
+}
+
+document.getElementById('editModelForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const submitBtn = this.querySelector('button[type="submit"]');
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Updating...';
+    
+    try {
+        const response = await fetch(`/admin/models/{{ model.id }}/edit`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Model updated successfully!');
+            window.location.href = '/admin/models';
+        } else {
+            alert(result.message);
+        }
+    } catch (error) {
+        alert('Error updating model. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>Update Model';
+    }
+});
+</script>
+{% endblock %}

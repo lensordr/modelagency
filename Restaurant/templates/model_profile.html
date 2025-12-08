@@ -3,79 +3,430 @@
 {% block title %}{{ model.name }} - Elite Models Barcelona{% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <h1 class="section-title">{{ model.name }}</h1>
-            
-            <!-- Model Photos -->
-            <div class="mb-5">
-                {% if model.photos %}
-                    {% set photos = model.photos | from_json %}
-                    {% if photos %}
-                        <div id="modelCarousel" class="carousel slide" data-bs-ride="carousel">
-                            <div class="carousel-inner">
-                                {% for photo in photos %}
-                                <div class="carousel-item {% if loop.first %}active{% endif %}">
-                                    <img src="{{ photo }}" class="d-block w-100" alt="{{ model.name }}" 
-                                         style="height: 500px; object-fit: cover; border-radius: 10px;">
-                                </div>
-                                {% endfor %}
-                            </div>
-                            {% if photos|length > 1 %}
-                            <button class="carousel-control-prev" type="button" data-bs-target="#modelCarousel" data-bs-slide="prev">
-                                <span class="carousel-control-prev-icon"></span>
-                            </button>
-                            <button class="carousel-control-next" type="button" data-bs-target="#modelCarousel" data-bs-slide="next">
-                                <span class="carousel-control-next-icon"></span>
-                            </button>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                {% else %}
-                    <img src="/static/placeholder-model.jpg" class="img-fluid" alt="{{ model.name }}" 
-                         style="height: 500px; width: 100%; object-fit: cover; border-radius: 10px;">
-                {% endif %}
+<!-- Full Page Profile -->
+<div class="model-profile-hero" style="background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('{% if model.photos %}{% set photos = model.photos | from_json %}{{ photos[0] if photos else '/static/placeholder-model.jpg' }}{% else %}/static/placeholder-model.jpg{% endif %}'); background-size: cover; background-position: center; height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: white;">
+    <div class="container">
+        <h1 style="font-size: 4rem; font-weight: 100; letter-spacing: 3px; margin-bottom: 20px;">{{ model.name }}</h1>
+        <p style="font-size: 1.5rem; letter-spacing: 2px; text-transform: uppercase;">{{ model.job or 'Model Sedcard' }}</p>
+    </div>
+</div>
+
+<!-- Profile Details Section -->
+<div class="container py-5">
+    <!-- Basic Info Grid -->
+    <div class="row mb-5">
+        <div class="col-md-3 mb-3">
+            <div class="info-card">
+                <div class="info-label">RESIDENCE</div>
+                <div class="info-value">{{ model.residence or model.city.name or 'Barcelona' }}</div>
             </div>
-            
-            <!-- Model Details -->
-            <div class="filter-section">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h4 class="text-dark mb-3">Model Details</h4>
-                        <p><strong>Age:</strong> {{ model.age }} years</p>
-                        <p><strong>Height:</strong> {{ model.height }}cm</p>
-                        <p><strong>Hair Color:</strong> {{ model.hair_color }}</p>
-                        <p><strong>Eye Color:</strong> {{ model.eye_color }}</p>
-                        <p><strong>Location:</strong> {{ model.city.name if model.city else 'Barcelona' }}</p>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="info-card">
+                <div class="info-label">AVAILABILITY</div>
+                <div class="info-value">{{ model.availability or 'Worldwide' }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="info-card">
+                <div class="info-label">NATIONALITY</div>
+                <div class="info-value">{{ model.nationality or 'Spanish' }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="info-card">
+                <div class="info-label">JOB</div>
+                <div class="info-value">{{ model.job or 'Personal Assistant' }}</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mb-5">
+        <div class="col-md-3 mb-3">
+            <div class="info-card">
+                <div class="info-label">AGE</div>
+                <div class="info-value">{{ model.age or 'Early 30' }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="info-card">
+                <div class="info-label">BODY</div>
+                <div class="info-value">{{ model.body_measurements or (model.height|string + 'cm / S (34)' if model.height else '170cm / S (34)') }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="info-card">
+                <div class="info-label">BRA SIZE</div>
+                <div class="info-value">{{ model.bra_size or '75B (Natural)' }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="info-card">
+                <div class="info-label">EYE COLOR</div>
+                <div class="info-value">{{ model.eye_color or 'Blue' }}</div>
+            </div>
+        </div>
+    </div>
+    
+    <hr class="my-5" style="border-color: var(--accent-pink);">
+    
+    <!-- Languages Section -->
+    <div class="text-center mb-5">
+        <h2 style="font-size: 2.5rem; font-weight: 100; margin-bottom: 30px;">Languages</h2>
+        {% if model.languages %}
+            {% set languages = model.languages | from_json %}
+            {% if languages %}
+                {% for language in languages %}
+                    <p>{{ language }}</p>
+                {% endfor %}
+            {% else %}
+                <p>English (fluent)</p>
+                <p>Spanish (fluent)</p>
+            {% endif %}
+        {% else %}
+            <p>English (fluent)</p>
+            <p>Spanish (fluent)</p>
+        {% endif %}
+    </div>
+    
+    <!-- Clothing Style Section -->
+    <div class="text-center mb-5">
+        <h2 style="font-size: 2.5rem; font-weight: 100; margin-bottom: 30px;">Clothing Style</h2>
+        <p class="lead">{{ model.clothing_style or 'Elegant and sophisticated style with attention to detail. Prefers classic cuts and luxury fabrics that enhance natural beauty.' }}</p>
+    </div>
+    
+    <!-- Lingerie Section -->
+    <div class="text-center mb-5">
+        <h2 style="font-size: 2.5rem; font-weight: 100; margin-bottom: 30px;">Lingerie</h2>
+        <p class="lead">{{ model.lingerie_style or 'Prefers elegant lace lingerie from luxury brands. Sophisticated and tasteful selection that complements her refined style.' }}</p>
+    </div>
+    
+    <!-- Favorite Cuisine Section -->
+    <div class="text-center mb-5">
+        <h2 style="font-size: 2.5rem; font-weight: 100; margin-bottom: 30px;">Favorite Cuisine & Drinks</h2>
+        <p class="lead">{{ model.favorite_cuisine or 'Enjoys fine dining with preference for Mediterranean cuisine, fresh seafood, and premium champagne.' }}</p>
+    </div>
+    
+    <!-- Favorite Perfume Section -->
+    <div class="text-center mb-5">
+        <h2 style="font-size: 2.5rem; font-weight: 100; margin-bottom: 30px;">Favourite Perfume</h2>
+        <p class="lead">{{ model.favorite_perfume or '"Chanel No. 5" by Chanel' }}</p>
+    </div>
+    
+    <!-- Rates Section -->
+    <div class="text-center mb-5" style="background: #2d2d2d; padding: 60px 20px; border-radius: 15px;">
+        <h2 style="font-size: 2.5rem; font-weight: 100; margin-bottom: 50px; color: var(--accent-pink);">{{ model.name }}'s Rates</h2>
+        
+        <div class="row mb-4">
+            <div class="col-md-3 mb-4">
+                <div class="rate-card">
+                    <div class="rate-icon">
+                        <i class="fas fa-heart"></i>
                     </div>
-                    <div class="col-md-6">
-                        <h4 class="text-dark mb-3">Availability</h4>
-                        <p><strong>Status:</strong> 
-                            {% if model.available %}
-                            <span class="badge bg-success">Available</span>
-                            {% else %}
-                            <span class="badge bg-warning">Busy</span>
-                            {% endif %}
-                        </p>
-                        <button class="btn btn-luxury mt-3" onclick="openBookingModal({{ model.id }}, '{{ model.name }}')">
-                            <i class="fas fa-calendar-alt me-2"></i>Book This Model
-                        </button>
+                    <h5>Short, But Sweet Hours</h5>
+                    <p class="rate-subtitle">Members Only</p>
+                    <p class="rate-price">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.short_price }}{% else %}On Request{% endif %}</p>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="rate-card">
+                    <div class="rate-icon">
+                        <i class="fas fa-glass-cheers"></i>
+                    </div>
+                    <h5>The Gentlemans Date</h5>
+                    <p class="rate-subtitle">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.gentleman_price }}{% else %}Start from 1400.- / Member 1300.-{% endif %}</p>
+                    <p class="rate-price"></p>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="rate-card">
+                    <div class="rate-icon">
+                        <i class="fas fa-moon"></i>
+                    </div>
+                    <h5>The Overnight Date</h5>
+                    <p class="rate-subtitle">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.overnight_price }}{% else %}Start from 2200.- / Member 2000.-{% endif %}</p>
+                    <p class="rate-price"></p>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="rate-card">
+                    <div class="rate-icon">
+                        <i class="fas fa-gem"></i>
+                    </div>
+                    <h5>The Luxury Package</h5>
+                    <p class="rate-subtitle">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.luxury_price }}{% else %}Start from 3200.- / Member 3000.-{% endif %}</p>
+                    <p class="rate-price"></p>
+                </div>
+            </div>
+        </div>
+        
+        <button class="btn" style="background: var(--accent-pink); color: white; padding: 15px 40px; font-size: 1.1rem; font-weight: 500; letter-spacing: 1px;" onclick="toggleRatesDetails()">
+            VIEW RATES
+        </button>
+    </div>
+    
+    <!-- Detailed Rates Section (Hidden by default) -->
+    <div id="detailedRates" class="text-center mb-5" style="background: #2d2d2d; padding: 60px 20px; border-radius: 15px; display: none;">
+        <hr style="border-color: var(--accent-pink); margin: 40px 0;">
+        
+        <!-- Detailed Rates Grid -->
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>1 Short, Sweet Hour</h6>
+                    <p class="rate-detail">Members Only / On Request</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>1.5 Short, Sweet Hours</h6>
+                    <p class="rate-detail">Members Only / On Request</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>2 Hours of Passion</h6>
+                    <p class="rate-detail">900.- / 800.- (Member)</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>3 Unforgettable Hours</h6>
+                    <p class="rate-detail">1200.- / 1100.- (Member)</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>4 Intimate Hours or 5 incl. Dinner</h6>
+                    <p class="rate-detail">1400.- / 1300.- (Member)</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>5 Intimate Hours or 6 incl. Dinner</h6>
+                    <p class="rate-detail">1600.- / 1500.- (Member)</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>Short Overnight up to 8 Hours</h6>
+                    <p class="rate-detail">2200.- / 2000.- (Member)</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>Long Overnight up to 12 Hours</h6>
+                    <p class="rate-detail">2400.- / 2200.- (Member)</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>Long Overnight up to 18 Hours</h6>
+                    <p class="rate-detail">2800.- / 2600.- (Member)</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>For One Day (24 Hours)</h6>
+                    <p class="rate-detail">3200.- / 3000.- (Member)</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>For two Days (48 hours)</h6>
+                    <p class="rate-detail">4500.- / 4300.- (Member)</p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="detailed-rate-card">
+                    <h6>Every additional Day</h6>
+                    <p class="rate-detail">1400.- / 1200.- (Member)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Photo Gallery Section -->
+    {% if model.photos %}
+        {% set photos = model.photos | from_json %}
+        {% if photos and photos|length > 1 %}
+        <div class="text-center mb-5">
+            <h2 style="font-size: 2.5rem; font-weight: 100; margin-bottom: 30px;">Photo Gallery</h2>
+            <div class="row">
+                {% for photo in photos %}
+                <div class="col-md-4 mb-4">
+                    <img src="{{ photo }}" alt="{{ model.name }}" class="img-fluid" 
+                         style="width: 100%; height: 300px; object-fit: cover; border-radius: 10px; cursor: pointer;"
+                         onclick="openPhotoModal('{{ photo }}')">
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    {% endif %}
+    
+    <!-- Booking Section -->
+    <div class="text-center mt-5">
+        <a href="#bookingModal" class="btn btn-luxury btn-lg" data-bs-toggle="modal">
+            <i class="fas fa-calendar-check me-2"></i>Book {{ model.name }}
+        </a>
+    </div>
+</div>
+
+<!-- Rates Modal -->
+<div class="modal fade" id="ratesModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="background: rgba(255, 255, 255, 0.95);">
+            <div class="modal-header border-0">
+                <h3 class="modal-title w-100 text-center" style="color: var(--accent-pink); font-weight: 100;">{{ model.name }}'s Rates</h3>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-5">
+                <!-- Rate Categories -->
+                <div class="row mb-5">
+                    <div class="col-md-3 mb-4">
+                        <div class="rate-card">
+                            <div class="rate-icon">
+                                <i class="fas fa-heart"></i>
+                            </div>
+                            <h5>Short, But Sweet Hours</h5>
+                            <p class="rate-subtitle">Members Only</p>
+                            <p class="rate-price">On Request</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="rate-card">
+                            <div class="rate-icon">
+                                <i class="fas fa-glass-cheers"></i>
+                            </div>
+                            <h5>The Gentlemans Date</h5>
+                            <p class="rate-subtitle">Start from 1400.-</p>
+                            <p class="rate-price">Member 1300.-</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="rate-card">
+                            <div class="rate-icon">
+                                <i class="fas fa-moon"></i>
+                            </div>
+                            <h5>The Overnight Date</h5>
+                            <p class="rate-subtitle">Start from 2200.-</p>
+                            <p class="rate-price">Member 2000.-</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="rate-card">
+                            <div class="rate-icon">
+                                <i class="fas fa-gem"></i>
+                            </div>
+                            <h5>The Luxury Package</h5>
+                            <p class="rate-subtitle">Start from 3200.-</p>
+                            <p class="rate-price">Member 3000.-</p>
+                        </div>
                     </div>
                 </div>
                 
-                {% if model.bio %}
-                <div class="mt-4">
-                    <h4 class="text-dark mb-3">About {{ model.name }}</h4>
-                    <p class="text-muted">{{ model.bio }}</p>
+                <hr style="border-color: var(--accent-pink); margin: 40px 0;">
+                
+                <!-- Detailed Rates Grid -->
+                <div class="row">
+                    {% if model.rates %}
+                        {% set rates = model.rates | from_json %}
+                        {% if rates and rates.detailed %}
+                            {% set detailed = rates.detailed %}
+                        {% else %}
+                            {% set detailed = {} %}
+                        {% endif %}
+                    {% else %}
+                        {% set detailed = {} %}
+                    {% endif %}
+                    
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>1 Short, Sweet Hour</h6>
+                            <p class="rate-detail">{{ detailed['1_short_hour'] if detailed and '1_short_hour' in detailed else 'Members Only / On Request' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>1.5 Short, Sweet Hours</h6>
+                            <p class="rate-detail">{{ detailed['1_5_short_hours'] if detailed and '1_5_short_hours' in detailed else 'Members Only / On Request' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>2 Hours of Passion</h6>
+                            <p class="rate-detail">{{ detailed['2_hours_passion'] if detailed and '2_hours_passion' in detailed else '900.- / 800.- (Member)' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>3 Unforgettable Hours</h6>
+                            <p class="rate-detail">{{ detailed['3_unforgettable'] if detailed and '3_unforgettable' in detailed else '1200.- / 1100.- (Member)' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>4 Intimate Hours or 5 incl. Dinner</h6>
+                            <p class="rate-detail">{{ detailed['4_intimate_dinner'] if detailed and '4_intimate_dinner' in detailed else '1400.- / 1300.- (Member)' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>5 Intimate Hours or 6 incl. Dinner</h6>
+                            <p class="rate-detail">{{ detailed['5_intimate_dinner'] if detailed and '5_intimate_dinner' in detailed else '1600.- / 1500.- (Member)' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>Short Overnight up to 8 Hours</h6>
+                            <p class="rate-detail">{{ detailed['short_overnight_8h'] if detailed and 'short_overnight_8h' in detailed else '2200.- / 2000.- (Member)' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>Long Overnight up to 12 Hours</h6>
+                            <p class="rate-detail">{{ detailed['long_overnight_12h'] if detailed and 'long_overnight_12h' in detailed else '2400.- / 2200.- (Member)' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>Long Overnight up to 18 Hours</h6>
+                            <p class="rate-detail">{{ detailed['long_overnight_18h'] if detailed and 'long_overnight_18h' in detailed else '2800.- / 2600.- (Member)' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>For One Day (24 Hours)</h6>
+                            <p class="rate-detail">{{ detailed['one_day_24h'] if detailed and 'one_day_24h' in detailed else '3200.- / 3000.- (Member)' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>For two Days (48 hours)</h6>
+                            <p class="rate-detail">{{ detailed['two_days_48h'] if detailed and 'two_days_48h' in detailed else '4500.- / 4300.- (Member)' }}</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="detailed-rate-card">
+                            <h6>Every additional Day</h6>
+                            <p class="rate-detail">{{ detailed['additional_day'] if detailed and 'additional_day' in detailed else '1400.- / 1200.- (Member)' }}</p>
+                        </div>
+                    </div>
                 </div>
-                {% endif %}
             </div>
-            
-            <div class="text-center mt-4">
-                <a href="/models" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left me-2"></i>Back to Models
-                </a>
+        </div>
+    </div>
+</div>
+
+<!-- Photo Modal -->
+<div class="modal fade" id="photoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background: transparent; border: none;">
+            <div class="modal-body p-0">
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" 
+                        style="position: absolute; top: 10px; right: 10px; z-index: 1000;"></button>
+                <img id="modalPhoto" src="" alt="" class="img-fluid w-100" style="border-radius: 10px;">
             </div>
         </div>
     </div>
@@ -83,93 +434,190 @@
 
 <!-- Booking Modal -->
 <div class="modal fade" id="bookingModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content" style="background-color: white; color: var(--text-dark);">
-            <div class="modal-header" style="border-bottom: 1px solid #ddd;">
-                <h5 class="modal-title">Book Model</h5>
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Book {{ model.name }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="bookingForm">
-                    <input type="hidden" id="modelId" name="model_id">
-                    <div class="mb-3">
-                        <label for="clientName" class="form-label">Your Name *</label>
-                        <input type="text" class="form-control" id="clientName" name="client_name" required>
+                <form id="bookingForm" onsubmit="submitBooking(event, {{ model.id }})">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Your Name</label>
+                            <input type="text" class="form-control" name="client_name" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="client_email" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Phone (Optional)</label>
+                            <input type="tel" class="form-control" name="client_phone">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Event Date</label>
+                            <input type="date" class="form-control" name="event_date" required>
+                        </div>
                     </div>
                     <div class="mb-3">
-                        <label for="clientEmail" class="form-label">Email *</label>
-                        <input type="email" class="form-control" id="clientEmail" name="client_email" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="clientPhone" class="form-label">Phone</label>
-                        <input type="tel" class="form-control" id="clientPhone" name="client_phone">
-                    </div>
-                    <div class="mb-3">
-                        <label for="eventDate" class="form-label">Event Date *</label>
-                        <input type="date" class="form-control" id="eventDate" name="event_date" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="eventType" class="form-label">Event Type *</label>
-                        <select class="form-control" id="eventType" name="event_type" required>
-                            <option value="">Select event type</option>
-                            <option value="Fashion Shoot">Fashion Shoot</option>
-                            <option value="Commercial Shoot">Commercial Shoot</option>
-                            <option value="Runway Show">Runway Show</option>
-                            <option value="Event Hosting">Event Hosting</option>
+                        <label class="form-label">Event Type</label>
+                        <select class="form-control" name="event_type" required>
+                            <option value="">Select Event Type</option>
+                            <option value="Business Dinner">Business Dinner</option>
+                            <option value="Social Event">Social Event</option>
+                            <option value="Fashion Show">Fashion Show</option>
+                            <option value="Private Party">Private Party</option>
                             <option value="Travel Companion">Travel Companion</option>
                             <option value="Other">Other</option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="message" class="form-label">Additional Details</label>
-                        <textarea class="form-control" id="message" name="message" rows="3" 
-                                  placeholder="Please provide details about your project, location, duration, etc."></textarea>
+                        <label class="form-label">Message</label>
+                        <textarea class="form-control" name="message" rows="3" placeholder="Tell us about your event and requirements..."></textarea>
                     </div>
+                    <button type="submit" class="btn btn-luxury w-100">
+                        <i class="fas fa-calendar-check me-2"></i>Request Booking
+                    </button>
                 </form>
-            </div>
-            <div class="modal-footer" style="border-top: 1px solid #ddd;">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-luxury" onclick="submitBooking()">Submit Request</button>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
-<script>
-function openBookingModal(modelId, modelName) {
-    document.getElementById('modelId').value = modelId;
-    document.querySelector('#bookingModal .modal-title').textContent = `Book ${modelName}`;
-    new bootstrap.Modal(document.getElementById('bookingModal')).show();
+<style>
+.info-card {
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    height: 100%;
 }
 
-async function submitBooking() {
-    const form = document.getElementById('bookingForm');
-    const formData = new FormData(form);
-    const modelId = document.getElementById('modelId').value;
-    
-    try {
-        const response = await fetch(`/book/${modelId}`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            alert(result.message);
-            bootstrap.Modal.getInstance(document.getElementById('bookingModal')).hide();
-            form.reset();
-        } else {
-            alert(result.message);
-        }
-    } catch (error) {
-        alert('Error submitting booking request. Please try again.');
+.info-label {
+    background: var(--accent-pink);
+    color: white;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 1px;
+    margin-bottom: 15px;
+    display: inline-block;
+}
+
+.info-value {
+    font-size: 1.1rem;
+    font-weight: 300;
+    color: var(--text-dark);
+}
+
+.rate-card {
+    text-align: center;
+    padding: 30px 20px;
+    border-radius: 15px;
+    background: #1a1a1a;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    height: 100%;
+}
+
+.rate-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255, 105, 180, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 2rem;
+    color: var(--accent-pink);
+}
+
+.rate-card h5 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 10px;
+    color: var(--text-dark);
+}
+
+.rate-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.rate-price {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.detailed-rate-card {
+    background: #1a1a1a;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    height: 100%;
+}
+
+.detailed-rate-card h6 {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 10px;
+    color: var(--text-dark);
+}
+
+.rate-detail {
+    font-size: 0.9rem;
+    color: var(--accent-pink);
+    font-weight: 500;
+    margin: 0;
+}
+</style>
+
+<script>
+function toggleRatesDetails() {
+    const detailedRates = document.getElementById('detailedRates');
+    if (detailedRates.style.display === 'none') {
+        detailedRates.style.display = 'block';
+        detailedRates.scrollIntoView({ behavior: 'smooth' });
+    } else {
+        detailedRates.style.display = 'none';
     }
 }
 
-// Set minimum date to today
-document.getElementById('eventDate').min = new Date().toISOString().split('T')[0];
+function openPhotoModal(photoUrl) {
+    document.getElementById('modalPhoto').src = photoUrl;
+    new bootstrap.Modal(document.getElementById('photoModal')).show();
+}
+
+function submitBooking(event, modelId) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    
+    fetch(`/book/${modelId}`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            event.target.reset();
+            bootstrap.Modal.getInstance(document.getElementById('bookingModal')).hide();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error submitting booking request');
+    });
+}
 </script>
 {% endblock %}

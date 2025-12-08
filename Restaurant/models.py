@@ -70,6 +70,22 @@ class Model(Base):
     available = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
+    # New fields from screenshots
+    residence = Column(String(100))
+    availability = Column(String(50))  # Worldwide, Local, etc
+    nationality = Column(String(50))
+    job = Column(String(100))
+    body_measurements = Column(String(50))  # e.g., "170cm / S (34)"
+    bra_size = Column(String(20))  # e.g., "75B (Natural)"
+    languages = Column(Text)  # JSON array of languages
+    clothing_style = Column(Text)
+    lingerie_style = Column(Text)
+    favorite_cuisine = Column(Text)
+    favorite_perfume = Column(String(100))
+    
+    # Rate fields
+    rates = Column(Text)  # JSON object with all rate information
+    
     agency = relationship("Agency", back_populates="models")
     city = relationship("City", back_populates="models")
     bookings = relationship("Booking", back_populates="model")

@@ -8,12 +8,12 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
-            --primary-white: #ffffff;
-            --secondary-light: #f8f9fa;
-            --accent-pink: #ff69b4;
-            --accent-rose: #ff1493;
-            --text-dark: #333333;
-            --text-muted: #666666;
+            --primary-white: #1a1a1a;
+            --secondary-light: #2d2d2d;
+            --accent-pink: #d4af37;
+            --accent-rose: #c9a961;
+            --text-dark: #d4af37;
+            --text-muted: #b8964f;
         }
 
         * {
@@ -22,15 +22,27 @@
             box-sizing: border-box;
         }
 
+        html {
+            background: linear-gradient(to bottom, 
+                #000000 0%, 
+                #000000 33%, 
+                #2d2d2d 33%, 
+                #2d2d2d 66%, 
+                #1a1a1a 66%, 
+                #1a1a1a 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+        
         body {
-            background-color: var(--primary-white);
+            background: transparent;
             color: var(--text-dark);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
         }
 
         .navbar {
-            background-color: white !important;
+            background-color: #1a1a1a !important;
         }
 
         .navbar-brand {
@@ -71,7 +83,7 @@
 
         .hero-section {
             height: 100vh;
-            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('/static/Main.png');
+            background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url('/static/hero-image.png');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
@@ -277,16 +289,16 @@
 </head>
 <body>
     <!-- Header -->
-    <div style="background-color: white; position: fixed; top: 0; width: 100%; z-index: 1000;">
+    <div style="background-color: #1a1a1a; position: fixed; top: 0; width: 100%; z-index: 1000;">
         <!-- Title -->
         <div class="text-center py-4">
-            <h1 style="color: var(--accent-pink); font-size: 2.2rem; font-weight: 300; letter-spacing: 3px; margin: 0;">ELITE MODELS</h1>
+            <h1 style="color: var(--accent-pink); font-size: 2.2rem; font-weight: 300; letter-spacing: 3px; margin: 0;">ELITE MODELS MARBELLA</h1>
         </div>
         
         <!-- Navigation -->
-        <div style="background-color: white; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd;">
+        <div style="background-color: #1a1a1a; border-top: 1px solid #444; border-bottom: 1px solid #444;">
             <div class="container">
-                <nav class="navbar navbar-expand-lg p-0" style="background-color: white;">
+                <nav class="navbar navbar-expand-lg p-0" style="background-color: #1a1a1a;">
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                         <i class="fas fa-bars" style="color: var(--accent-pink);"></i>
                     </button>
@@ -327,7 +339,7 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-4">
-                    <h5>Elite Models Barcelona</h5>
+                    <h5>Elite Models Marbella</h5>
                     <p class="text-muted">Premier modeling agency specializing in fashion and commercial modeling.</p>
                 </div>
                 <div class="col-md-4">
@@ -342,15 +354,15 @@
                 <div class="col-md-4">
                     <h5>Contact Info</h5>
                     <p class="text-muted">
-                        <i class="fas fa-map-marker-alt me-2"></i>Passeig de Gràcia 123, Barcelona<br>
-                        <i class="fas fa-phone me-2"></i>+34 93 123 4567<br>
+                        <i class="fas fa-map-marker-alt me-2"></i>Marbella, Spain<br>
+                        <i class="fas fa-phone me-2"></i>+34 64 232 8671<br>
                         <i class="fas fa-envelope me-2"></i>info@elitemodels.es
                     </p>
                 </div>
             </div>
             <hr class="my-4" style="border-color: #444;">
             <div class="text-center">
-                <p class="text-muted">&copy; 2024 Elite Models Barcelona. All rights reserved.</p>
+                <p class="text-muted">&copy; 2024 Elite Models Marbella. All rights reserved.</p>
             </div>
         </div>
     </footer>

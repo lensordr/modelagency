@@ -77,6 +77,7 @@ def init_sample_data(db: Session):
     
     # Create cities
     cities_data = [
+        {"name": "Marbella", "country": "Spain"},
         {"name": "Barcelona", "country": "Spain"},
         {"name": "Madrid", "country": "Spain"},
         {"name": "Valencia", "country": "Spain"},
@@ -272,7 +273,7 @@ async def submit_application(
                 
                 photo_urls.append(f"/static/uploads/{filename}")
         
-        # Create model application
+        # Create model application with default values for extended fields
         agency = db.query(Agency).first()
         model = Model(
             agency_id=agency.id,
@@ -284,7 +285,25 @@ async def submit_application(
             eye_color=eye_color,
             bio=bio,
             photos=json.dumps(photo_urls),
-            status="pending"
+            status="pending",
+            # Default values for extended fields
+            residence=None,
+            availability="Worldwide",
+            nationality=None,
+            job=None,
+            body_measurements=None,
+            bra_size=None,
+            languages=None,
+            clothing_style=None,
+            lingerie_style=None,
+            favorite_cuisine=None,
+            favorite_perfume=None,
+            rates=json.dumps({
+                "short_price": "On Request",
+                "gentleman_price": "1400.- / 1300.- (Member)",
+                "overnight_price": "2200.- / 2000.- (Member)",
+                "luxury_price": "3200.- / 3000.- (Member)"
+            })
         )
         
         db.add(model)
@@ -476,6 +495,21 @@ async def add_model_admin(
     city_id: int = Form(...),
     bio: str = Form(""),
     status: str = Form("approved"),
+    residence: str = Form(""),
+    availability: str = Form("Worldwide"),
+    nationality: str = Form(""),
+    job: str = Form(""),
+    body_measurements: str = Form(""),
+    bra_size: str = Form(""),
+    languages: str = Form(""),
+    clothing_style: str = Form(""),
+    lingerie_style: str = Form(""),
+    favorite_cuisine: str = Form(""),
+    favorite_perfume: str = Form(""),
+    rate_short_price: str = Form("On Request"),
+    rate_gentleman_price: str = Form("1400.- / 1300.- (Member)"),
+    rate_overnight_price: str = Form("2200.- / 2000.- (Member)"),
+    rate_luxury_price: str = Form("3200.- / 3000.- (Member)"),
     photos: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
@@ -493,8 +527,24 @@ async def add_model_admin(
                 
                 photo_urls.append(f"/static/uploads/{filename}")
         
-        # Create model
+        # Create model with all fields
         agency = db.query(Agency).first()
+        
+        # Convert languages to JSON if provided
+        languages_json = None
+        if languages:
+            lang_list = [lang.strip() for lang in languages.split(',') if lang.strip()]
+            languages_json = json.dumps(lang_list)
+        
+        # Create rates JSON
+        rates_data = {
+            "short_price": rate_short_price,
+            "gentleman_price": rate_gentleman_price,
+            "overnight_price": rate_overnight_price,
+            "luxury_price": rate_luxury_price
+        }
+        rates_json = json.dumps(rates_data)
+        
         model = Model(
             agency_id=agency.id,
             city_id=city_id,
@@ -506,7 +556,19 @@ async def add_model_admin(
             bio=bio,
             photos=json.dumps(photo_urls),
             status=status,
-            available=True
+            available=True,
+            residence=residence,
+            availability=availability,
+            nationality=nationality,
+            job=job,
+            body_measurements=body_measurements,
+            bra_size=bra_size,
+            languages=languages_json,
+            clothing_style=clothing_style,
+            lingerie_style=lingerie_style,
+            favorite_cuisine=favorite_cuisine,
+            favorite_perfume=favorite_perfume,
+            rates=rates_json
         )
         
         db.add(model)
@@ -550,6 +612,165 @@ async def cancel_booking(booking_id: int, db: Session = Depends(get_db)):
         booking.status = "cancelled"
         db.commit()
     return JSONResponse({"success": True})
+
+@app.get("/admin/models/{model_id}/edit", response_class=HTMLResponse)
+async def edit_model_page(request: Request, model_id: int, db: Session = Depends(get_db)):
+    if not request.cookies.get("admin_logged_in"):
+        return RedirectResponse(url="/admin/login")
+    
+    model = db.query(Model).filter(Model.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    cities = db.query(City).filter(City.active == True).all()
+    
+    return templates.TemplateResponse("admin_edit_model.html", {
+        "request": request,
+        "model": model,
+        "cities": cities
+    })
+
+@app.post("/admin/models/{model_id}/edit")
+async def update_model_admin(
+    model_id: int,
+    name: str = Form(...),
+    age: int = Form(...),
+    height: int = Form(...),
+    hair_color: str = Form(...),
+    eye_color: str = Form(...),
+    city_id: int = Form(...),
+    bio: str = Form(""),
+    status: str = Form("approved"),
+    residence: str = Form(""),
+    availability: str = Form("Worldwide"),
+    nationality: str = Form(""),
+    job: str = Form(""),
+    body_measurements: str = Form(""),
+    bra_size: str = Form(""),
+    languages: str = Form(""),
+    clothing_style: str = Form(""),
+    lingerie_style: str = Form(""),
+    favorite_cuisine: str = Form(""),
+    favorite_perfume: str = Form(""),
+    rate_short_price: str = Form("On Request"),
+    rate_gentleman_price: str = Form("1400.- / 1300.- (Member)"),
+    rate_overnight_price: str = Form("2200.- / 2000.- (Member)"),
+    rate_luxury_price: str = Form("3200.- / 3000.- (Member)"),
+    rate_1_short_hour: str = Form("Members Only / On Request"),
+    rate_1_5_short_hours: str = Form("Members Only / On Request"),
+    rate_2_hours_passion: str = Form("900.- / 800.- (Member)"),
+    rate_3_unforgettable: str = Form("1200.- / 1100.- (Member)"),
+    rate_4_intimate_dinner: str = Form("1400.- / 1300.- (Member)"),
+    rate_5_intimate_dinner: str = Form("1600.- / 1500.- (Member)"),
+    rate_short_overnight_8h: str = Form("2200.- / 2000.- (Member)"),
+    rate_long_overnight_12h: str = Form("2400.- / 2200.- (Member)"),
+    rate_long_overnight_18h: str = Form("2800.- / 2600.- (Member)"),
+    rate_one_day_24h: str = Form("3200.- / 3000.- (Member)"),
+    rate_two_days_48h: str = Form("4500.- / 4300.- (Member)"),
+    rate_additional_day: str = Form("1400.- / 1200.- (Member)"),
+    removed_photos: str = Form(""),
+    new_photos: List[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db)
+):
+    try:
+        model = db.query(Model).filter(Model.id == model_id).first()
+        if not model:
+            return JSONResponse({"success": False, "message": "Model not found"})
+        
+        # Convert languages to JSON if provided
+        languages_json = None
+        if languages:
+            lang_list = [lang.strip() for lang in languages.split(',') if lang.strip()]
+            languages_json = json.dumps(lang_list)
+        
+        # Create rates JSON with detailed rates
+        rates_data = {
+            "short_price": rate_short_price,
+            "gentleman_price": rate_gentleman_price,
+            "overnight_price": rate_overnight_price,
+            "luxury_price": rate_luxury_price,
+            "detailed": {
+                "1_short_hour": rate_1_short_hour,
+                "1_5_short_hours": rate_1_5_short_hours,
+                "2_hours_passion": rate_2_hours_passion,
+                "3_unforgettable": rate_3_unforgettable,
+                "4_intimate_dinner": rate_4_intimate_dinner,
+                "5_intimate_dinner": rate_5_intimate_dinner,
+                "short_overnight_8h": rate_short_overnight_8h,
+                "long_overnight_12h": rate_long_overnight_12h,
+                "long_overnight_18h": rate_long_overnight_18h,
+                "one_day_24h": rate_one_day_24h,
+                "two_days_48h": rate_two_days_48h,
+                "additional_day": rate_additional_day
+            }
+        }
+        rates_json = json.dumps(rates_data)
+        
+        # Update model fields
+        model.name = name
+        model.age = age
+        model.height = height
+        model.hair_color = hair_color
+        model.eye_color = eye_color
+        model.city_id = city_id
+        model.bio = bio
+        model.status = status
+        model.residence = residence
+        model.availability = availability
+        model.nationality = nationality
+        model.job = job
+        model.body_measurements = body_measurements
+        model.bra_size = bra_size
+        model.languages = languages_json
+        model.clothing_style = clothing_style
+        model.lingerie_style = lingerie_style
+        model.favorite_cuisine = favorite_cuisine
+        model.favorite_perfume = favorite_perfume
+        model.rates = rates_json
+        
+        # Handle photo updates
+        current_photos = []
+        if model.photos:
+            try:
+                current_photos = json.loads(model.photos)
+            except:
+                current_photos = []
+        
+        # Remove deleted photos
+        if removed_photos:
+            try:
+                removed_list = json.loads(removed_photos)
+                current_photos = [photo for photo in current_photos if photo not in removed_list]
+            except:
+                pass
+        
+        # Add new photos
+        for photo in new_photos:
+            if photo.filename:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{timestamp}_{photo.filename}"
+                file_path = os.path.join(uploads_dir, filename)
+                
+                with open(file_path, "wb") as buffer:
+                    shutil.copyfileobj(photo.file, buffer)
+                
+                current_photos.append(f"/static/uploads/{filename}")
+        
+        # Update photos
+        model.photos = json.dumps(current_photos)
+        
+        db.commit()
+        
+        return JSONResponse({
+            "success": True,
+            "message": "Model updated successfully!"
+        })
+        
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "message": f"Error updating model: {str(e)}"
+        })
 
 @app.get("/admin/bookings/{booking_id}/details")
 async def get_booking_details(booking_id: int, db: Session = Depends(get_db)):

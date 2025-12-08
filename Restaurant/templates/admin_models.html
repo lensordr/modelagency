@@ -77,6 +77,102 @@
                           placeholder="Model description, experience, specialties..."></textarea>
             </div>
             
+            <!-- New Extended Fields -->
+            <h5 class="text-dark mt-4 mb-3">Extended Profile Information</h5>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="residence" class="form-label">Residence</label>
+                    <input type="text" class="form-control" id="residence" name="residence" placeholder="e.g., Barcelona">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="availability" class="form-label">Availability</label>
+                    <select class="form-control" id="availability" name="availability">
+                        <option value="Worldwide">Worldwide</option>
+                        <option value="Europe">Europe</option>
+                        <option value="Spain">Spain only</option>
+                        <option value="Local">Local only</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="nationality" class="form-label">Nationality</label>
+                    <input type="text" class="form-control" id="nationality" name="nationality" placeholder="e.g., Spanish">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="job" class="form-label">Job/Profession</label>
+                    <input type="text" class="form-control" id="job" name="job" placeholder="e.g., Personal Assistant">
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="body_measurements" class="form-label">Body Measurements</label>
+                    <input type="text" class="form-control" id="body_measurements" name="body_measurements" placeholder="e.g., 170cm / S (34)">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="bra_size" class="form-label">Bra Size</label>
+                    <input type="text" class="form-control" id="bra_size" name="bra_size" placeholder="e.g., 75B (Natural)">
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="languages" class="form-label">Languages</label>
+                <textarea class="form-control" id="languages" name="languages" rows="3" 
+                          placeholder="Enter languages separated by commas: English (fluent), Spanish (native), Italian (basic)"></textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="clothing_style" class="form-label">Clothing Style</label>
+                <textarea class="form-control" id="clothing_style" name="clothing_style" rows="3" 
+                          placeholder="Describe clothing style and preferences..."></textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="lingerie_style" class="form-label">Lingerie Style</label>
+                <textarea class="form-control" id="lingerie_style" name="lingerie_style" rows="3" 
+                          placeholder="Describe lingerie preferences and style..."></textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="favorite_cuisine" class="form-label">Favorite Cuisine & Drinks</label>
+                <textarea class="form-control" id="favorite_cuisine" name="favorite_cuisine" rows="3" 
+                          placeholder="Describe favorite foods, drinks, and dining preferences..."></textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="favorite_perfume" class="form-label">Favorite Perfume</label>
+                <input type="text" class="form-control" id="favorite_perfume" name="favorite_perfume" 
+                       placeholder="e.g., 'Chanel No. 5' by Chanel">
+            </div>
+            
+            <!-- Rates Section -->
+            <h5 class="text-dark mt-4 mb-3">Rates & Pricing</h5>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="rate_short_price" class="form-label">Short Hours - Price</label>
+                    <input type="text" class="form-control" id="rate_short_price" name="rate_short_price" placeholder="On Request">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="rate_gentleman_price" class="form-label">Gentleman Date - Price</label>
+                    <input type="text" class="form-control" id="rate_gentleman_price" name="rate_gentleman_price" placeholder="1400.- / 1300.- (Member)">
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="rate_overnight_price" class="form-label">Overnight Date - Price</label>
+                    <input type="text" class="form-control" id="rate_overnight_price" name="rate_overnight_price" placeholder="2200.- / 2000.- (Member)">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="rate_luxury_price" class="form-label">Luxury Package - Price</label>
+                    <input type="text" class="form-control" id="rate_luxury_price" name="rate_luxury_price" placeholder="3200.- / 3000.- (Member)">
+                </div>
+            </div>
+            
             <div class="mb-4">
                 <label for="photos" class="form-label">Photos *</label>
                 <input type="file" class="form-control" id="photos" name="photos" multiple accept="image/*" required>
@@ -235,7 +331,7 @@ async function deleteModel(modelId) {
 }
 
 function editModel(modelId) {
-    alert('Edit functionality coming soon!');
+    window.location.href = `/admin/models/${modelId}/edit`;
 }
 </script>
 {% endblock %}
