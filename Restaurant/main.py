@@ -43,9 +43,27 @@ async def startup_event():
     
     # Create sample data if database is empty
     db = next(get_db())
-    if db.query(Agency).count() == 0:
-        init_sample_data(db)
-    db.close()
+    try:
+        if db.query(Agency).count() == 0:
+            init_sample_data(db)
+        
+        # Add Marbella city if it doesn't exist
+        agency = db.query(Agency).first()
+        if agency:
+            marbella = db.query(City).filter(City.name == "Marbella").first()
+            if not marbella:
+                marbella = City(
+                    agency_id=agency.id,
+                    name="Marbella",
+                    country="Spain",
+                    active=True
+                )
+                db.add(marbella)
+                db.commit()
+    except Exception as e:
+        print(f"Startup error: {e}")
+    finally:
+        db.close()
     print("🚀 Elite Models Agency started successfully")
 
 def init_sample_data(db: Session):
