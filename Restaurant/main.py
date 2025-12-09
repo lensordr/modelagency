@@ -9,11 +9,19 @@ import os
 import json
 import shutil
 from datetime import datetime
+import cloudinary
+import cloudinary.uploader
 
 from models import create_tables, get_db, Agency, User, Model, City, Booking
-import os
 
 app = FastAPI(title="Elite Models Barcelona")
+
+# Configure Cloudinary
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME", ""),
+    api_key=os.getenv("CLOUDINARY_API_KEY", ""),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET", "")
+)
 
 # Initialize templates and static files
 templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
@@ -277,19 +285,12 @@ async def submit_application(
     db: Session = Depends(get_db)
 ):
     try:
-        # Save uploaded photos
+        # Upload photos to Cloudinary
         photo_urls = []
         for photo in photos:
             if photo.filename:
-                # Generate unique filename
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"{timestamp}_{photo.filename}"
-                file_path = os.path.join(uploads_dir, filename)
-                
-                with open(file_path, "wb") as buffer:
-                    shutil.copyfileobj(photo.file, buffer)
-                
-                photo_urls.append(f"/static/uploads/{filename}")
+                result = cloudinary.uploader.upload(photo.file, folder="models")
+                photo_urls.append(result['secure_url'])
         
         # Create model application with default values for extended fields
         agency = db.query(Agency).first()
@@ -532,18 +533,12 @@ async def add_model_admin(
     db: Session = Depends(get_db)
 ):
     try:
-        # Save uploaded photos
+        # Upload photos to Cloudinary
         photo_urls = []
         for photo in photos:
             if photo.filename:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"{timestamp}_{photo.filename}"
-                file_path = os.path.join(uploads_dir, filename)
-                
-                with open(file_path, "wb") as buffer:
-                    shutil.copyfileobj(photo.file, buffer)
-                
-                photo_urls.append(f"/static/uploads/{filename}")
+                result = cloudinary.uploader.upload(photo.file, folder="models")
+                photo_urls.append(result['secure_url'])
         
         # Create model with all fields
         agency = db.query(Agency).first()
@@ -762,17 +757,11 @@ async def update_model_admin(
             except:
                 pass
         
-        # Add new photos
+        # Add new photos to Cloudinary
         for photo in new_photos:
             if photo.filename:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"{timestamp}_{photo.filename}"
-                file_path = os.path.join(uploads_dir, filename)
-                
-                with open(file_path, "wb") as buffer:
-                    shutil.copyfileobj(photo.file, buffer)
-                
-                current_photos.append(f"/static/uploads/{filename}")
+                result = cloudinary.uploader.upload(photo.file, folder="models")
+                current_photos.append(result['secure_url'])
         
         # Update photos
         model.photos = json.dumps(current_photos)
