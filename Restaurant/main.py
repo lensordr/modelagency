@@ -762,9 +762,14 @@ async def update_model_admin(
         # Add new photos to Cloudinary
         for photo in new_photos:
             if photo.filename:
-                photo.file.seek(0)
-                result = cloudinary.uploader.upload(photo.file, folder="models")
-                current_photos.append(result['secure_url'])
+                try:
+                    photo.file.seek(0)
+                    print(f"Uploading {photo.filename} to Cloudinary...")
+                    result = cloudinary.uploader.upload(photo.file, folder="models")
+                    print(f"Upload result: {result.get('secure_url', 'NO URL')}")
+                    current_photos.append(result['secure_url'])
+                except Exception as upload_error:
+                    print(f"Cloudinary upload error: {upload_error}")
         
         # Update photos
         model.photos = json.dumps(current_photos)
