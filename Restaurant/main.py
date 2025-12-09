@@ -289,6 +289,7 @@ async def submit_application(
         photo_urls = []
         for photo in photos:
             if photo.filename:
+                photo.file.seek(0)
                 result = cloudinary.uploader.upload(photo.file, folder="models")
                 photo_urls.append(result['secure_url'])
         
@@ -537,6 +538,7 @@ async def add_model_admin(
         photo_urls = []
         for photo in photos:
             if photo.filename:
+                photo.file.seek(0)
                 result = cloudinary.uploader.upload(photo.file, folder="models")
                 photo_urls.append(result['secure_url'])
         
@@ -760,6 +762,7 @@ async def update_model_admin(
         # Add new photos to Cloudinary
         for photo in new_photos:
             if photo.filename:
+                photo.file.seek(0)
                 result = cloudinary.uploader.upload(photo.file, folder="models")
                 current_photos.append(result['secure_url'])
         
