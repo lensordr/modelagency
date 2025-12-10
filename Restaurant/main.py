@@ -14,7 +14,7 @@ import cloudinary.uploader
 
 from models import create_tables, get_db, Agency, User, Model, City, Booking
 
-app = FastAPI(title="Elite Models Barcelona")
+app = FastAPI(title="RED MARBS")
 
 # Configure Cloudinary
 cloudinary.config(
@@ -72,18 +72,18 @@ async def startup_event():
         print(f"Startup error: {e}")
     finally:
         db.close()
-    print("🚀 Elite Models Agency started successfully")
+    print("🚀 RED MARBS Agency started successfully")
 
 def init_sample_data(db: Session):
     try:
         # Create sample agency
         agency = Agency(
-            name="Elite Models Barcelona",
-            subdomain="elite",
-            description="Premier modeling agency in Barcelona specializing in fashion and commercial modeling.",
+            name="RED MARBS",
+            subdomain="redmarbs",
+            description="Premier modeling agency in Marbella specializing in luxury and commercial modeling.",
             phone="+34 93 123 4567",
-            email="info@elitemodels.es",
-            address="Passeig de Gràcia 123, Barcelona, Spain"
+            email="info@redmarbs.es",
+            address="Puerto Banús, Marbella, Spain"
         )
         db.add(agency)
         db.flush()
