@@ -9,7 +9,7 @@
     <style>
         :root {
             --primary-white: #1a1a1a;
-            --secondary-light: #2d2d2d;
+            --secondary-light: #000000;
             --accent-pink: #d4af37;
             --accent-rose: #c9a961;
             --text-dark: #d4af37;
@@ -21,16 +21,19 @@
             padding: 0;
             box-sizing: border-box;
         }
+        
+        /* Hide scrollbar */
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        
+        html {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
 
         html {
-            background: linear-gradient(to bottom, 
-                #000000 0%, 
-                #000000 33%, 
-                #2d2d2d 33%, 
-                #2d2d2d 66%, 
-                #1a1a1a 66%, 
-                #1a1a1a 100%);
-            background-attachment: fixed;
+            background-color: #000000;
             min-height: 100vh;
         }
         
@@ -296,7 +299,7 @@
     <div style="background-color: #1a1a1a; position: fixed; top: 0; width: 100%; z-index: 1000;">
         <!-- Title -->
         <div class="text-center py-4">
-            <h1 style="font-size: 2.2rem; font-weight: 300; letter-spacing: 3px; margin: 0; font-family: 'Moglan', serif;"><span style="color: #DC143C;">RED</span> <span style="color: var(--accent-pink);">MARBS</span></h1>
+            <h1 style="color: var(--accent-pink); font-size: 2.2rem; font-weight: 300; letter-spacing: 3px; margin: 0; font-family: 'Moglan', serif;">REDMARBS</h1>
         </div>
         
         <!-- Navigation -->
@@ -343,7 +346,7 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-4">
-                    <h5>RED MARBS</h5>
+                    <h5>REDMARBS</h5>
                     <p class="text-muted">Premier companions agency specializing in luxury and exclusive experiences.</p>
                 </div>
                 <div class="col-md-4">
@@ -366,7 +369,7 @@
             </div>
             <hr class="my-4" style="border-color: #444;">
             <div class="text-center">
-                <p class="text-muted">&copy; 2024 RED MARBS. All rights reserved.</p>
+                <p class="text-muted">&copy; 2024 REDMARBS. All rights reserved.</p>
             </div>
         </div>
     </footer>
