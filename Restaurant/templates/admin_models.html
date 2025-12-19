@@ -46,7 +46,15 @@
             </div>
             
             <div class="row">
-                <div class="col-md-6 mb-3">
+                <div class="col-md-4 mb-3">
+                    <label for="gender" class="form-label">Gender *</label>
+                    <select class="form-control" id="gender" name="gender" required>
+                        <option value="">Select gender</option>
+                        <option value="female">Female</option>
+                        <option value="male">Male</option>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
                     <label for="hair_color" class="form-label">Hair Color *</label>
                     <select class="form-control" id="hair_color" name="hair_color" required>
                         <option value="">Select hair color</option>
@@ -57,7 +65,7 @@
                         <option value="Other">Other</option>
                     </select>
                 </div>
-                <div class="col-md-6 mb-3">
+                <div class="col-md-4 mb-3">
                     <label for="eye_color" class="form-label">Eye Color *</label>
                     <select class="form-control" id="eye_color" name="eye_color" required>
                         <option value="">Select eye color</option>
@@ -210,6 +218,7 @@
                         <th>Name</th>
                         <th>Age</th>
                         <th>Height</th>
+                        <th>Gender</th>
                         <th>City</th>
                         <th>Hair</th>
                         <th>Status</th>
@@ -232,6 +241,13 @@
                         <td>{{ model.name }}</td>
                         <td>{{ model.age }}</td>
                         <td>{{ model.height }}cm</td>
+                        <td>
+                            {% if model.gender == 'male' %}
+                            <span class="badge bg-info">Male</span>
+                            {% else %}
+                            <span class="badge bg-pink">Female</span>
+                            {% endif %}
+                        </td>
                         <td>{{ model.city.name if model.city else 'N/A' }}</td>
                         <td>{{ model.hair_color }}</td>
                         <td>

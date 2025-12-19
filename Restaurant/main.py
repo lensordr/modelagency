@@ -279,6 +279,7 @@ async def submit_application(
     height: int = Form(...),
     hair_color: str = Form(...),
     eye_color: str = Form(...),
+    gender: str = Form(...),
     city_id: int = Form(...),
     bio: str = Form(""),
     photos: List[UploadFile] = File(...),
@@ -303,6 +304,7 @@ async def submit_application(
             height=height,
             hair_color=hair_color,
             eye_color=eye_color,
+            gender=gender,
             bio=bio,
             photos=json.dumps(photo_urls),
             status="pending",
@@ -512,6 +514,7 @@ async def add_model_admin(
     height: int = Form(...),
     hair_color: str = Form(...),
     eye_color: str = Form(...),
+    gender: str = Form(...),
     city_id: int = Form(...),
     bio: str = Form(""),
     status: str = Form("approved"),
@@ -568,6 +571,7 @@ async def add_model_admin(
             height=height,
             hair_color=hair_color,
             eye_color=eye_color,
+            gender=gender,
             bio=bio,
             photos=json.dumps(photo_urls),
             status=status,
@@ -653,6 +657,7 @@ async def update_model_admin(
     height: int = Form(...),
     hair_color: str = Form(...),
     eye_color: str = Form(...),
+    gender: str = Form(...),
     city_id: int = Form(...),
     bio: str = Form(""),
     status: str = Form("approved"),
@@ -727,6 +732,7 @@ async def update_model_admin(
         model.height = height
         model.hair_color = hair_color
         model.eye_color = eye_color
+        model.gender = gender
         model.city_id = city_id
         model.bio = bio
         model.status = status
