@@ -39,6 +39,13 @@
             
             <div class="row">
                 <div class="col-md-6 mb-3">
+                    <label for="gender" class="form-label">Gender *</label>
+                    <select class="form-control" id="gender" name="gender" required>
+                        <option value="female" {% if model.gender == 'female' %}selected{% endif %}>Female</option>
+                        <option value="male" {% if model.gender == 'male' %}selected{% endif %}>Male</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
                     <label for="hair_color" class="form-label">Hair Color *</label>
                     <select class="form-control" id="hair_color" name="hair_color" required>
                         <option value="Blonde" {% if model.hair_color == 'Blonde' %}selected{% endif %}>Blonde</option>

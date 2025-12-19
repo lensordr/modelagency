@@ -103,6 +103,29 @@
 </div>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+.nav-pills .nav-link {
+    background-color: rgba(26, 26, 26, 0.6);
+    color: var(--text-muted);
+    border: 1px solid #444;
+    margin: 0 5px;
+    padding: 12px 25px;
+}
+
+.nav-pills .nav-link.active {
+    background: linear-gradient(45deg, var(--accent-pink), var(--accent-rose));
+    color: white;
+    border-color: var(--accent-pink);
+}
+
+.nav-pills .nav-link:hover {
+    background-color: rgba(230, 199, 156, 0.2);
+    color: var(--accent-pink);
+}
+</style>
+{% endblock %}
+
 {% block extra_js %}
 <script>
 function openBookingModal(modelId, modelName) {

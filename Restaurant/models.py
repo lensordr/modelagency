@@ -64,6 +64,7 @@ class Model(Base):
     height = Column(Integer)  # in cm
     hair_color = Column(String(50))
     eye_color = Column(String(50))
+    gender = Column(String(10), default='female')  # 'female', 'male'
     bio = Column(Text)
     photos = Column(Text)  # JSON array of photo URLs
     status = Column(String(20), default='pending')  # pending, approved, rejected
