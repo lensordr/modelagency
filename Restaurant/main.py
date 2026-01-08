@@ -104,10 +104,10 @@ def init_sample_data(db: Session):
     # Create cities
     cities_data = [
         {"name": "Marbella", "country": "Spain"},
-        {"name": "Barcelona", "country": "Spain"},
-        {"name": "Madrid", "country": "Spain"},
-        {"name": "Valencia", "country": "Spain"},
-        {"name": "Sevilla", "country": "Spain"}
+        {"name": "Estepona", "country": "Spain"},
+        {"name": "Fuengirola", "country": "Spain"},
+        {"name": "Torremolinos", "country": "Spain"},
+        {"name": "Malaga", "country": "Spain"}
     ]
     
     for city_data in cities_data:
