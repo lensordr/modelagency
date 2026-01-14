@@ -689,6 +689,7 @@ async def update_model_admin(
     rate_two_days_48h: str = Form("4500.- / 4300.- (Member)"),
     rate_additional_day: str = Form("1400.- / 1200.- (Member)"),
     removed_photos: str = Form(""),
+    photo_order: str = Form(""),
     new_photos: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db)
 ):
@@ -756,6 +757,13 @@ async def update_model_admin(
                 current_photos = json.loads(model.photos)
             except:
                 current_photos = []
+        
+        # Use photo_order if provided (from reordering)
+        if photo_order:
+            try:
+                current_photos = json.loads(photo_order)
+            except:
+                pass
         
         # Remove deleted photos
         if removed_photos:

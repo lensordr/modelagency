@@ -239,11 +239,20 @@
                     {% for photo in photos %}
                     <div class="col-md-3 mb-3" data-photo="{{ photo }}">
                         <div class="position-relative">
-                            <img src="{{ photo }}" alt="Photo" class="img-fluid" style="width: 100%; height: 150px; object-fit: cover; border-radius: 5px;">
+                            <img src="{{ photo }}" alt="Photo" class="img-fluid" style="width: 100%; height: 150px; object-fit: cover; border-radius: 5px; {% if loop.index0 == 0 %}border: 3px solid var(--accent-pink);{% endif %}">
+                            {% if loop.index0 == 0 %}
+                            <span class="badge bg-success position-absolute top-0 start-0 m-1">Main Photo</span>
+                            {% endif %}
                             <button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-1" 
                                     onclick="removePhoto('{{ photo }}')">
                                 <i class="fas fa-times"></i>
                             </button>
+                            {% if loop.index0 != 0 %}
+                            <button type="button" class="btn btn-primary btn-sm position-absolute bottom-0 start-50 translate-middle-x mb-1" 
+                                    onclick="setAsMain('{{ photo }}')">
+                                Set as Main
+                            </button>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
@@ -297,10 +306,81 @@ function removePhoto(photoUrl) {
     }
 }
 
+function setAsMain(photoUrl) {
+    const container = document.getElementById('currentPhotos');
+    const allPhotos = Array.from(container.querySelectorAll('[data-photo]'));
+    const selectedPhoto = container.querySelector(`[data-photo="${photoUrl}"]`);
+    
+    if (selectedPhoto) {
+        // Move to first position
+        container.insertBefore(selectedPhoto, container.firstChild);
+        
+        // Update visual indicators
+        allPhotos.forEach(photo => {
+            const img = photo.querySelector('img');
+            const badge = photo.querySelector('.badge');
+            const mainBtn = photo.querySelector('.btn-primary');
+            
+            img.style.border = '';
+            if (badge) badge.remove();
+            if (mainBtn) mainBtn.remove();
+        });
+        
+        // Add main indicator to selected photo
+        const img = selectedPhoto.querySelector('img');
+        img.style.border = '3px solid var(--accent-pink)';
+        
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-success position-absolute top-0 start-0 m-1';
+        badge.textContent = 'Main Photo';
+        selectedPhoto.querySelector('.position-relative').insertBefore(badge, selectedPhoto.querySelector('.btn-danger'));
+    }
+}
+
 document.getElementById('editModelForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
     const formData = new FormData(this);
+    
+    // Get current photo order from DOM
+    const photoElements = document.querySelectorAll('#currentPhotos [data-photo]');
+    const orderedPhotos = Array.from(photoElements).map(el => el.getAttribute('data-photo'));
+    formData.append('photo_order', JSON.stringify(orderedPhotos));
+    
+    const submitBtn = this.querySelector('button[type="submit"]');
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Updating...';
+    
+    try {
+        const response = await fetch(`/admin/models/{{ model.id }}/edit`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Model updated successfully!');
+            window.location.href = '/admin/models';
+        } else {
+            alert(result.message);
+        }
+    } catch (error) {
+        alert('Error updating model. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>Update Model';
+    }
+});
+    
+    const formData = new FormData(this);
+    
+    // Get current photo order from DOM
+    const photoElements = document.querySelectorAll('#currentPhotos [data-photo]');
+    const orderedPhotos = Array.from(photoElements).map(el => el.getAttribute('data-photo'));
+    formData.append('photo_order', JSON.stringify(orderedPhotos));
+    
     const submitBtn = this.querySelector('button[type="submit"]');
     
     submitBtn.disabled = true;
