@@ -758,13 +758,6 @@ async def update_model_admin(
             except:
                 current_photos = []
         
-        # Use photo_order if provided (from reordering)
-        if photo_order:
-            try:
-                current_photos = json.loads(photo_order)
-            except:
-                pass
-        
         # Remove deleted photos
         if removed_photos:
             try:
@@ -784,6 +777,16 @@ async def update_model_admin(
                     current_photos.append(result['secure_url'])
                 except Exception as upload_error:
                     print(f"Cloudinary upload error: {upload_error}")
+        
+        # Apply photo order if provided (from reordering)
+        if photo_order:
+            try:
+                ordered_photos = json.loads(photo_order)
+                # Only reorder if the ordered list matches current photos (no new uploads)
+                if set(ordered_photos) == set(current_photos) and len(ordered_photos) == len(current_photos):
+                    current_photos = ordered_photos
+            except:
+                pass
         
         # Update photos
         model.photos = json.dumps(current_photos)
