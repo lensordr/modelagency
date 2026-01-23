@@ -126,8 +126,7 @@ def init_sample_data(db: Session):
 async def home(request: Request, db: Session = Depends(get_db)):
     agency = db.query(Agency).first()
     models = db.query(Model).filter(
-        Model.status == "approved",
-        Model.available == True
+        Model.status == "approved"
     ).limit(6).all()
     
     return templates.TemplateResponse("home.html", {
@@ -147,8 +146,7 @@ async def models_page(
     db: Session = Depends(get_db)
 ):
     query = db.query(Model).filter(
-        Model.status == "approved",
-        Model.available == True
+        Model.status == "approved"
     )
     
     if city:
@@ -202,8 +200,7 @@ async def cities_page(request: Request, db: Session = Depends(get_db)):
     for city in cities:
         model_count = db.query(Model).filter(
             Model.city_id == city.id,
-            Model.status == "approved",
-            Model.available == True
+            Model.status == "approved"
         ).count()
         city_stats.append({
             "city": city,
@@ -223,8 +220,7 @@ async def city_models(request: Request, city_name: str, db: Session = Depends(ge
     
     models = db.query(Model).filter(
         Model.city_id == city.id,
-        Model.status == "approved",
-        Model.available == True
+        Model.status == "approved"
     ).all()
     
     return templates.TemplateResponse("city_models.html", {
