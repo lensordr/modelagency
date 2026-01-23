@@ -43,6 +43,7 @@
                                 <p><i class="fas fa-map-marker-alt me-2"></i>{{ model.city.name if model.city else 'Barcelona' }}</p>
                                 <p><i class="fas fa-ruler-vertical me-2"></i>{{ model.height }}cm | {{ model.age }} years</p>
                                 <p><i class="fas fa-palette me-2"></i>{{ model.hair_color }} hair | {{ model.eye_color }} eyes</p>
+                                <p><i class="fas fa-circle me-2" style="color: {{ 'green' if model.available else 'grey' }};"></i><span style="color: {{ 'green' if model.available else 'grey' }};">Available</span></p>
                                 {% if model.bio %}
                                 <p class="text-muted small">{{ model.bio[:100] }}{% if model.bio|length > 100 %}...{% endif %}</p>
                                 {% endif %}
@@ -80,6 +81,7 @@
                                 <p><i class="fas fa-map-marker-alt me-2"></i>{{ model.city.name if model.city else 'Barcelona' }}</p>
                                 <p><i class="fas fa-ruler-vertical me-2"></i>{{ model.height }}cm | {{ model.age }} years</p>
                                 <p><i class="fas fa-palette me-2"></i>{{ model.hair_color }} hair | {{ model.eye_color }} eyes</p>
+                                <p><i class="fas fa-circle me-2" style="color: {{ 'green' if model.available else 'grey' }};"></i><span style="color: {{ 'green' if model.available else 'grey' }};">Available</span></p>
                                 {% if model.bio %}
                                 <p class="text-muted small">{{ model.bio[:100] }}{% if model.bio|length > 100 %}...{% endif %}</p>
                                 {% endif %}

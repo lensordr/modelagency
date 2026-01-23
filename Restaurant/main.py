@@ -804,6 +804,18 @@ async def update_model_admin(
             "message": f"Error updating model: {str(e)}"
         })
 
+@app.post("/admin/models/{model_id}/toggle-available")
+async def toggle_model_available(model_id: int, request: Request, db: Session = Depends(get_db)):
+    if not request.cookies.get("admin_logged_in"):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    data = await request.json()
+    model = db.query(Model).filter(Model.id == model_id).first()
+    if model:
+        model.available = data.get('available', True)
+        db.commit()
+    return JSONResponse({"success": True})
+
 @app.get("/admin/bookings/{booking_id}/details")
 async def get_booking_details(booking_id: int, db: Session = Depends(get_db)):
     booking = db.query(Booking).filter(Booking.id == booking_id).first()
