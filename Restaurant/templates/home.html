@@ -202,19 +202,24 @@ document.addEventListener('DOMContentLoaded', function() {
     // Ensure video loops continuously
     const video = document.getElementById('heroVideo');
     if (video) {
+        // Mobile-specific loop handling
         video.addEventListener('ended', function() {
-            video.currentTime = 0;
-            video.play();
+            this.currentTime = 0;
+            this.play().catch(e => console.log('Video play failed:', e));
         });
         
-        // Force play if paused
-        video.addEventListener('pause', function() {
-            setTimeout(() => {
-                if (video.paused) {
-                    video.play();
-                }
-            }, 100);
+        // Additional mobile support
+        video.addEventListener('loadeddata', function() {
+            this.play().catch(e => console.log('Video autoplay failed:', e));
         });
+        
+        // Force continuous loop on mobile
+        setInterval(() => {
+            if (video.ended || video.paused) {
+                video.currentTime = 0;
+                video.play().catch(e => {});
+            }
+        }, 1000);
     }
     
     // Smooth scrolling for anchor links
