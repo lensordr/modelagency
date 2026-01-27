@@ -199,6 +199,24 @@ function toggleSound() {
 
 // Add some interactive effects
 document.addEventListener('DOMContentLoaded', function() {
+    // Ensure video loops continuously
+    const video = document.getElementById('heroVideo');
+    if (video) {
+        video.addEventListener('ended', function() {
+            video.currentTime = 0;
+            video.play();
+        });
+        
+        // Force play if paused
+        video.addEventListener('pause', function() {
+            setTimeout(() => {
+                if (video.paused) {
+                    video.play();
+                }
+            }, 100);
+        });
+    }
+    
     // Smooth scrolling for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
