@@ -178,4 +178,39 @@
             <a href="/models" class="btn btn-dark me-3">Book Experience</a>
             <a href="/apply" class="btn btn-outline-dark">Work with us</a>
         </div>
-    <
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSound() {
+    const video = document.getElementById('heroVideo');
+    const icon = document.getElementById('soundIcon');
+    const text = document.getElementById('soundText');
+    
+    if (video.muted) {
+        video.muted = false;
+        icon.className = 'fas fa-volume-up';
+        text.textContent = 'Mute';
+    } else {
+        video.muted = true;
+        icon.className = 'fas fa-volume-mute';
+        text.textContent = 'Unmute';
+    }
+}
+
+// Add some interactive effects
+document.addEventListener('DOMContentLoaded', function() {
+    // Smooth scrolling for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            document.querySelector(this.getAttribute('href')).scrollIntoView({
+                behavior: 'smooth'
+            });
+        });
+    });
+});
+</script>
+{% endblock %}
