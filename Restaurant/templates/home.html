@@ -11,14 +11,14 @@
 <!-- Hero Section -->
 <section class="hero-section">
     <video autoplay muted loop id="heroVideo" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1;">
-        <source src="https://res.cloudinary.com/dzowvr6xu/video/upload/v1769549056/hero-video_q1lzaw.mov" type="video/mp4">
+        <source src="https://res.cloudinary.com/dzowvr6xu/video/upload/v1769549984/0127_1_iupwsd.mov" type="video/mp4">
         Your browser does not support the video tag.
     </video>
-    <div class="hero-content">
+    <button onclick="toggleSound()" class="btn btn-outline-light" id="soundBtn" style="position: absolute; top: 20px; left: 20px; z-index: 10; padding: 8px 12px;">
+        <i class="fas fa-volume-mute" id="soundIcon"></i>
+    </button>
+    <div class="hero-content" style="position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); text-align: center;">
         <p style="font-size: 2.5rem; margin-bottom: 30px; text-transform: uppercase; font-weight: 500; letter-spacing: 2px; color: white;">YOUR PRIVATE WORLD OF EXCLUSIVE EXPERIENCES</p>
-        <button onclick="toggleSound()" class="btn btn-outline-light mt-3" id="soundBtn">
-            <i class="fas fa-volume-mute" id="soundIcon"></i> <span id="soundText">Unmute</span>
-        </button>
     </div>
 </section>
 
@@ -187,16 +187,13 @@
 function toggleSound() {
     const video = document.getElementById('heroVideo');
     const icon = document.getElementById('soundIcon');
-    const text = document.getElementById('soundText');
     
     if (video.muted) {
         video.muted = false;
         icon.className = 'fas fa-volume-up';
-        text.textContent = 'Mute';
     } else {
         video.muted = true;
         icon.className = 'fas fa-volume-mute';
-        text.textContent = 'Unmute';
     }
 }
 
