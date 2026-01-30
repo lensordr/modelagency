@@ -49,6 +49,29 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 async def startup_event():
     create_tables()
     
+    # Add featured column migration
+    try:
+        from sqlalchemy import text
+        db = next(get_db())
+        # Check if featured column exists, if not add it
+        result = db.execute(text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name='models' AND column_name='featured'
+        """))
+        
+        if not result.fetchone():
+            db.execute(text("ALTER TABLE models ADD COLUMN featured BOOLEAN DEFAULT FALSE"))
+            db.commit()
+            print("✅ Added featured column to models table")
+        else:
+            print("ℹ️  Featured column already exists")
+        db.close()
+    except Exception as migration_error:
+        print(f"Migration error: {migration_error}")
+        if 'db' in locals():
+            db.close()
+    
     # Create sample data if database is empty
     db = next(get_db())
     try:
@@ -125,9 +148,15 @@ def init_sample_data(db: Session):
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, db: Session = Depends(get_db)):
     agency = db.query(Agency).first()
-    models = db.query(Model).filter(
-        Model.status == "approved"
-    ).order_by(Model.featured.desc(), Model.created_at.desc()).limit(6).all()
+    try:
+        models = db.query(Model).filter(
+            Model.status == "approved"
+        ).order_by(Model.featured.desc(), Model.created_at.desc()).limit(6).all()
+    except Exception:
+        # Fallback if featured column doesn't exist yet
+        models = db.query(Model).filter(
+            Model.status == "approved"
+        ).order_by(Model.created_at.desc()).limit(6).all()
     
     return templates.TemplateResponse("home.html", {
         "request": request,
@@ -321,7 +350,8 @@ async def submit_application(
                 "gentleman_price": "1400.- / 1300.- (Member)",
                 "overnight_price": "2200.- / 2000.- (Member)",
                 "luxury_price": "3200.- / 3000.- (Member)"
-            })
+            }),
+            featured=False
         )
         
         db.add(model)
@@ -494,7 +524,19 @@ async def admin_models_page(request: Request, db: Session = Depends(get_db)):
     if not request.cookies.get("admin_logged_in"):
         return RedirectResponse(url="/admin/login")
     
-    models = db.query(Model).order_by(Model.created_at.desc()).all()
+    try:
+        models = db.query(Model).order_by(Model.created_at.desc()).all()
+    except Exception:
+        # If there's an issue with the query, try to add featured column
+        try:
+            from sqlalchemy import text
+            db.execute(text("ALTER TABLE models ADD COLUMN featured BOOLEAN DEFAULT FALSE"))
+            db.commit()
+            models = db.query(Model).order_by(Model.created_at.desc()).all()
+        except:
+            # If that fails too, just get models without featured ordering
+            models = db.query(Model).order_by(Model.created_at.desc()).all()
+    
     cities = db.query(City).filter(City.active == True).all()
     
     return templates.TemplateResponse("admin_models.html", {
@@ -583,7 +625,8 @@ async def add_model_admin(
             lingerie_style=lingerie_style,
             favorite_cuisine=favorite_cuisine,
             favorite_perfume=favorite_perfume,
-            rates=rates_json
+            rates=rates_json,
+            featured=False
         )
         
         db.add(model)
@@ -817,12 +860,15 @@ async def toggle_model_featured(model_id: int, request: Request, db: Session = D
     if not request.cookies.get("admin_logged_in"):
         raise HTTPException(status_code=401, detail="Unauthorized")
     
-    data = await request.json()
-    model = db.query(Model).filter(Model.id == model_id).first()
-    if model:
-        model.featured = data.get('featured', False)
-        db.commit()
-    return JSONResponse({"success": True})
+    try:
+        data = await request.json()
+        model = db.query(Model).filter(Model.id == model_id).first()
+        if model:
+            model.featured = data.get('featured', False)
+            db.commit()
+        return JSONResponse({"success": True})
+    except Exception as e:
+        return JSONResponse({"success": False, "message": str(e)})
 
 @app.get("/admin/bookings/{booking_id}/details")
 async def get_booking_details(booking_id: int, db: Session = Depends(get_db)):
