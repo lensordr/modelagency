@@ -127,7 +127,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
     agency = db.query(Agency).first()
     models = db.query(Model).filter(
         Model.status == "approved"
-    ).limit(6).all()
+    ).order_by(Model.featured.desc(), Model.created_at.desc()).limit(6).all()
     
     return templates.TemplateResponse("home.html", {
         "request": request,
@@ -809,6 +809,18 @@ async def toggle_model_available(model_id: int, request: Request, db: Session = 
     model = db.query(Model).filter(Model.id == model_id).first()
     if model:
         model.available = data.get('available', True)
+        db.commit()
+    return JSONResponse({"success": True})
+
+@app.post("/admin/models/{model_id}/toggle-featured")
+async def toggle_model_featured(model_id: int, request: Request, db: Session = Depends(get_db)):
+    if not request.cookies.get("admin_logged_in"):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    data = await request.json()
+    model = db.query(Model).filter(Model.id == model_id).first()
+    if model:
+        model.featured = data.get('featured', False)
         db.commit()
     return JSONResponse({"success": True})
 

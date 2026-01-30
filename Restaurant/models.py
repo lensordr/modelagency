@@ -87,6 +87,9 @@ class Model(Base):
     # Rate fields
     rates = Column(Text)  # JSON object with all rate information
     
+    # Featured field for homepage display
+    featured = Column(Boolean, default=False)
+    
     agency = relationship("Agency", back_populates="models")
     city = relationship("City", back_populates="models")
     bookings = relationship("Booking", back_populates="model")

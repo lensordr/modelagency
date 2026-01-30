@@ -224,6 +224,7 @@
                         <th>Hair</th>
                         <th>Status</th>
                         <th>Available</th>
+                        <th>Featured</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -265,6 +266,12 @@
                             <button class="btn btn-sm {{ 'btn-success' if model.available else 'btn-secondary' }}" 
                                     onclick="toggleAvailable({{ model.id }}, {{ 'false' if model.available else 'true' }})">
                                 {{ 'Available' if model.available else 'Inactive' }}
+                            </button>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm {{ 'btn-warning' if model.featured else 'btn-outline-warning' }}" 
+                                    onclick="toggleFeatured({{ model.id }}, {{ 'false' if model.featured else 'true' }})">
+                                {{ 'Featured' if model.featured else 'Set Featured' }}
                             </button>
                         </td>
                         <td>
@@ -413,6 +420,26 @@ async function toggleAvailable(modelId, available) {
         }
     } catch (error) {
         alert('Error updating availability');
+    }
+}
+
+async function toggleFeatured(modelId, featured) {
+    try {
+        const response = await fetch(`/admin/models/${modelId}/toggle-featured`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ featured: featured })
+        });
+        
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Error updating featured status');
+        }
+    } catch (error) {
+        alert('Error updating featured status');
     }
 }
 </script>
