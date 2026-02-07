@@ -396,7 +396,33 @@
         </div>
     </footer>
 
+    <!-- Age Verification Modal -->
+    <div class="modal fade" id="ageModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background-color: #1a1a1a; border: 2px solid var(--accent-pink);">
+                <div class="modal-body text-center p-5">
+                    <h3 style="color: var(--accent-pink); font-family: 'Cormorant Garamond', serif; margin-bottom: 20px;">Age Verification</h3>
+                    <p style="color: var(--text-muted); margin-bottom: 30px;">You must be 18 years or older to access this website.</p>
+                    <button type="button" class="btn btn-luxury me-3" onclick="confirmAge()">I am 18+</button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="window.location.href='https://www.google.com'">Exit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function confirmAge() {
+            sessionStorage.setItem('ageVerified', 'true');
+            bootstrap.Modal.getInstance(document.getElementById('ageModal')).hide();
+        }
+        
+        window.addEventListener('DOMContentLoaded', function() {
+            if (!sessionStorage.getItem('ageVerified')) {
+                new bootstrap.Modal(document.getElementById('ageModal')).show();
+            }
+        });
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>
