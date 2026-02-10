@@ -235,7 +235,8 @@
                             {% if model.photos %}
                                 {% set photos = model.photos | from_json %}
                                 <img src="{{ photos[0] if photos else '/static/placeholder-model.jpg' }}" 
-                                     alt="{{ model.name }}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 5px;">
+                                     alt="{{ model.name }}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 5px; cursor: pointer;"
+                                     onclick="openPhotoModal('{{ photos[0] if photos else '/static/placeholder-model.jpg' }}', {{ photos | tojson }})">
                             {% else %}
                                 <img src="/static/placeholder-model.jpg" alt="{{ model.name }}" 
                                      style="width: 50px; height: 50px; object-fit: cover; border-radius: 5px;">
@@ -288,6 +289,30 @@
                     {% endfor %}
                 </tbody>
             </table>
+        </div>
+    </div>
+</div>
+
+<!-- Photo Modal -->
+<div class="modal fade" id="photoModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="background: #1a1a1a;">
+            <div class="modal-header border-0">
+                <h5 class="modal-title" style="color: var(--accent-pink);">Model Photos</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="photoCarousel" class="carousel slide" data-bs-ride="carousel">
+                    <div class="carousel-inner" id="carouselContent">
+                    </div>
+                    <button class="carousel-control-prev" type="button" data-bs-target="#photoCarousel" data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon"></span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#photoCarousel" data-bs-slide="next">
+                        <span class="carousel-control-next-icon"></span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -441,6 +466,20 @@ async function toggleFeatured(modelId, featured) {
     } catch (error) {
         alert('Error updating featured status');
     }
+}
+
+function openPhotoModal(mainPhoto, allPhotos) {
+    const carouselContent = document.getElementById('carouselContent');
+    carouselContent.innerHTML = '';
+    
+    allPhotos.forEach((photo, index) => {
+        const item = document.createElement('div');
+        item.className = `carousel-item ${index === 0 ? 'active' : ''}`;
+        item.innerHTML = `<img src="${photo}" class="d-block w-100" style="max-height: 80vh; object-fit: contain;">`;
+        carouselContent.appendChild(item);
+    });
+    
+    new bootstrap.Modal(document.getElementById('photoModal')).show();
 }
 </script>
 {% endblock %}
