@@ -123,130 +123,32 @@
     <div class="text-center mb-5" style="background: #2d2d2d; padding: 60px 20px; border-radius: 15px;">
         <h2 style="font-size: 2.5rem; font-weight: 100; margin-bottom: 50px; color: var(--accent-pink);">{{ model.name }}'s Rates</h2>
         
-        <div class="row mb-4">
-            <div class="col-md-3 mb-4">
+        <div class="row justify-content-center">
+            <div class="col-md-4 mb-4">
                 <div class="rate-card">
                     <div class="rate-icon">
                         <i class="fas fa-heart"></i>
                     </div>
-                    <h5>Short, But Sweet Hours</h5>
-                    <p class="rate-subtitle">Members Only</p>
-                    <p class="rate-price">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.short_price }}{% else %}On Request{% endif %}</p>
+                    <h5>1 Short Sweet Hour</h5>
+                    <p class="rate-price">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.short_sweet_hour if rates.short_sweet_hour else 'On Request' }}{% else %}On Request{% endif %}</p>
                 </div>
             </div>
-            <div class="col-md-3 mb-4">
+            <div class="col-md-4 mb-4">
                 <div class="rate-card">
                     <div class="rate-icon">
-                        <i class="fas fa-glass-cheers"></i>
+                        <i class="fas fa-clock"></i>
                     </div>
-                    <h5>The Gentlemans Date</h5>
-                    <p class="rate-subtitle">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.gentleman_price }}{% else %}Start from 1400.- / Member 1300.-{% endif %}</p>
-                    <p class="rate-price"></p>
+                    <h5>2 Hours of Passion</h5>
+                    <p class="rate-price">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.two_hours_passion if rates.two_hours_passion else 'On Request' }}{% else %}On Request{% endif %}</p>
                 </div>
             </div>
-            <div class="col-md-3 mb-4">
+            <div class="col-md-4 mb-4">
                 <div class="rate-card">
                     <div class="rate-icon">
                         <i class="fas fa-moon"></i>
                     </div>
-                    <h5>The Overnight Date</h5>
-                    <p class="rate-subtitle">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.overnight_price }}{% else %}Start from 2200.- / Member 2000.-{% endif %}</p>
-                    <p class="rate-price"></p>
-                </div>
-            </div>
-            <div class="col-md-3 mb-4">
-                <div class="rate-card">
-                    <div class="rate-icon">
-                        <i class="fas fa-gem"></i>
-                    </div>
-                    <h5>The Luxury Package</h5>
-                    <p class="rate-subtitle">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.luxury_price }}{% else %}Start from 3200.- / Member 3000.-{% endif %}</p>
-                    <p class="rate-price"></p>
-                </div>
-            </div>
-        </div>
-        
-        <button class="btn" style="background: var(--accent-pink); color: white; padding: 15px 40px; font-size: 1.1rem; font-weight: 500; letter-spacing: 1px;" onclick="toggleRatesDetails()">
-            VIEW RATES
-        </button>
-    </div>
-    
-    <!-- Detailed Rates Section (Hidden by default) -->
-    <div id="detailedRates" class="text-center mb-5" style="background: #2d2d2d; padding: 60px 20px; border-radius: 15px; display: none;">
-        <hr style="border-color: var(--accent-pink); margin: 40px 0;">
-        
-        <!-- Detailed Rates Grid -->
-        <div class="row">
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>1 Short, Sweet Hour</h6>
-                    <p class="rate-detail">Members Only / On Request</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>1.5 Short, Sweet Hours</h6>
-                    <p class="rate-detail">Members Only / On Request</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>2 Hours of Passion</h6>
-                    <p class="rate-detail">900.- / 800.- (Member)</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>3 Unforgettable Hours</h6>
-                    <p class="rate-detail">1200.- / 1100.- (Member)</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>4 Intimate Hours or 5 incl. Dinner</h6>
-                    <p class="rate-detail">1400.- / 1300.- (Member)</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>5 Intimate Hours or 6 incl. Dinner</h6>
-                    <p class="rate-detail">1600.- / 1500.- (Member)</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>Short Overnight up to 8 Hours</h6>
-                    <p class="rate-detail">2200.- / 2000.- (Member)</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>Long Overnight up to 12 Hours</h6>
-                    <p class="rate-detail">2400.- / 2200.- (Member)</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>Long Overnight up to 18 Hours</h6>
-                    <p class="rate-detail">2800.- / 2600.- (Member)</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>For One Day (24 Hours)</h6>
-                    <p class="rate-detail">3200.- / 3000.- (Member)</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>For two Days (48 hours)</h6>
-                    <p class="rate-detail">4500.- / 4300.- (Member)</p>
-                </div>
-            </div>
-            <div class="col-md-4 mb-3">
-                <div class="detailed-rate-card">
-                    <h6>Every additional Day</h6>
-                    <p class="rate-detail">1400.- / 1200.- (Member)</p>
+                    <h5>Overnight</h5>
+                    <p class="rate-price">{% if model.rates %}{% set rates = model.rates | from_json %}{{ rates.overnight if rates.overnight else 'On Request' }}{% else %}On Request{% endif %}</p>
                 </div>
             </div>
         </div>
@@ -276,152 +178,6 @@
         <a href="#bookingModal" class="btn btn-luxury btn-lg" data-bs-toggle="modal">
             <i class="fas fa-calendar-check me-2"></i>Book {{ model.name }}
         </a>
-    </div>
-</div>
-
-<!-- Rates Modal -->
-<div class="modal fade" id="ratesModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content" style="background: rgba(255, 255, 255, 0.95);">
-            <div class="modal-header border-0">
-                <h3 class="modal-title w-100 text-center" style="color: var(--accent-pink); font-weight: 100;">{{ model.name }}'s Rates</h3>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body p-5">
-                <!-- Rate Categories -->
-                <div class="row mb-5">
-                    <div class="col-md-3 mb-4">
-                        <div class="rate-card">
-                            <div class="rate-icon">
-                                <i class="fas fa-heart"></i>
-                            </div>
-                            <h5>Short, But Sweet Hours</h5>
-                            <p class="rate-subtitle">Members Only</p>
-                            <p class="rate-price">On Request</p>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-4">
-                        <div class="rate-card">
-                            <div class="rate-icon">
-                                <i class="fas fa-glass-cheers"></i>
-                            </div>
-                            <h5>The Gentlemans Date</h5>
-                            <p class="rate-subtitle">Start from 1400.-</p>
-                            <p class="rate-price">Member 1300.-</p>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-4">
-                        <div class="rate-card">
-                            <div class="rate-icon">
-                                <i class="fas fa-moon"></i>
-                            </div>
-                            <h5>The Overnight Date</h5>
-                            <p class="rate-subtitle">Start from 2200.-</p>
-                            <p class="rate-price">Member 2000.-</p>
-                        </div>
-                    </div>
-                    <div class="col-md-3 mb-4">
-                        <div class="rate-card">
-                            <div class="rate-icon">
-                                <i class="fas fa-gem"></i>
-                            </div>
-                            <h5>The Luxury Package</h5>
-                            <p class="rate-subtitle">Start from 3200.-</p>
-                            <p class="rate-price">Member 3000.-</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <hr style="border-color: var(--accent-pink); margin: 40px 0;">
-                
-                <!-- Detailed Rates Grid -->
-                <div class="row">
-                    {% if model.rates %}
-                        {% set rates = model.rates | from_json %}
-                        {% if rates and rates.detailed %}
-                            {% set detailed = rates.detailed %}
-                        {% else %}
-                            {% set detailed = {} %}
-                        {% endif %}
-                    {% else %}
-                        {% set detailed = {} %}
-                    {% endif %}
-                    
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>1 Short, Sweet Hour</h6>
-                            <p class="rate-detail">{{ detailed['1_short_hour'] if detailed and '1_short_hour' in detailed else 'Members Only / On Request' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>1.5 Short, Sweet Hours</h6>
-                            <p class="rate-detail">{{ detailed['1_5_short_hours'] if detailed and '1_5_short_hours' in detailed else 'Members Only / On Request' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>2 Hours of Passion</h6>
-                            <p class="rate-detail">{{ detailed['2_hours_passion'] if detailed and '2_hours_passion' in detailed else '900.- / 800.- (Member)' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>3 Unforgettable Hours</h6>
-                            <p class="rate-detail">{{ detailed['3_unforgettable'] if detailed and '3_unforgettable' in detailed else '1200.- / 1100.- (Member)' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>4 Intimate Hours or 5 incl. Dinner</h6>
-                            <p class="rate-detail">{{ detailed['4_intimate_dinner'] if detailed and '4_intimate_dinner' in detailed else '1400.- / 1300.- (Member)' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>5 Intimate Hours or 6 incl. Dinner</h6>
-                            <p class="rate-detail">{{ detailed['5_intimate_dinner'] if detailed and '5_intimate_dinner' in detailed else '1600.- / 1500.- (Member)' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>Short Overnight up to 8 Hours</h6>
-                            <p class="rate-detail">{{ detailed['short_overnight_8h'] if detailed and 'short_overnight_8h' in detailed else '2200.- / 2000.- (Member)' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>Long Overnight up to 12 Hours</h6>
-                            <p class="rate-detail">{{ detailed['long_overnight_12h'] if detailed and 'long_overnight_12h' in detailed else '2400.- / 2200.- (Member)' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>Long Overnight up to 18 Hours</h6>
-                            <p class="rate-detail">{{ detailed['long_overnight_18h'] if detailed and 'long_overnight_18h' in detailed else '2800.- / 2600.- (Member)' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>For One Day (24 Hours)</h6>
-                            <p class="rate-detail">{{ detailed['one_day_24h'] if detailed and 'one_day_24h' in detailed else '3200.- / 3000.- (Member)' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>For two Days (48 hours)</h6>
-                            <p class="rate-detail">{{ detailed['two_days_48h'] if detailed and 'two_days_48h' in detailed else '4500.- / 4300.- (Member)' }}</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="detailed-rate-card">
-                            <h6>Every additional Day</h6>
-                            <p class="rate-detail">{{ detailed['additional_day'] if detailed and 'additional_day' in detailed else '1400.- / 1200.- (Member)' }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -587,16 +343,6 @@
 </style>
 
 <script>
-function toggleRatesDetails() {
-    const detailedRates = document.getElementById('detailedRates');
-    if (detailedRates.style.display === 'none') {
-        detailedRates.style.display = 'block';
-        detailedRates.scrollIntoView({ behavior: 'smooth' });
-    } else {
-        detailedRates.style.display = 'none';
-    }
-}
-
 function openPhotoModal(photoUrl) {
     document.getElementById('modalPhoto').src = photoUrl;
     new bootstrap.Modal(document.getElementById('photoModal')).show();
