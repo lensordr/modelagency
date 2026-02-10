@@ -72,6 +72,7 @@ class Model(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # New fields from screenshots
+    phone = Column(String(20))  # Model contact phone
     residence = Column(String(100))
     availability = Column(String(50))  # Worldwide, Local, etc
     nationality = Column(String(50))

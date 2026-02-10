@@ -300,6 +300,7 @@ async def apply_page(request: Request, db: Session = Depends(get_db)):
 @app.post("/apply")
 async def submit_application(
     name: str = Form(...),
+    phone: str = Form(...),
     age: int = Form(...),
     height: int = Form(...),
     hair_color: str = Form(...),
@@ -325,6 +326,7 @@ async def submit_application(
             agency_id=agency.id,
             city_id=city_id,
             name=name,
+            phone=phone,
             age=age,
             height=height,
             hair_color=hair_color,
@@ -346,10 +348,9 @@ async def submit_application(
             favorite_cuisine=None,
             favorite_perfume=None,
             rates=json.dumps({
-                "short_price": "On Request",
-                "gentleman_price": "1400.- / 1300.- (Member)",
-                "overnight_price": "2200.- / 2000.- (Member)",
-                "luxury_price": "3200.- / 3000.- (Member)"
+                "short_sweet_hour": "",
+                "two_hours_passion": "",
+                "overnight": ""
             }),
             featured=False
         )
@@ -548,6 +549,7 @@ async def admin_models_page(request: Request, db: Session = Depends(get_db)):
 @app.post("/admin/models/add")
 async def add_model_admin(
     name: str = Form(...),
+    phone: str = Form(""),
     age: int = Form(...),
     height: int = Form(...),
     hair_color: str = Form(...),
@@ -567,10 +569,9 @@ async def add_model_admin(
     lingerie_style: str = Form(""),
     favorite_cuisine: str = Form(""),
     favorite_perfume: str = Form(""),
-    rate_short_price: str = Form("On Request"),
-    rate_gentleman_price: str = Form("1400.- / 1300.- (Member)"),
-    rate_overnight_price: str = Form("2200.- / 2000.- (Member)"),
-    rate_luxury_price: str = Form("3200.- / 3000.- (Member)"),
+    rate_short_sweet_hour: str = Form(""),
+    rate_two_hours_passion: str = Form(""),
+    rate_overnight: str = Form(""),
     photos: List[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
@@ -594,10 +595,9 @@ async def add_model_admin(
         
         # Create rates JSON
         rates_data = {
-            "short_price": rate_short_price,
-            "gentleman_price": rate_gentleman_price,
-            "overnight_price": rate_overnight_price,
-            "luxury_price": rate_luxury_price
+            "short_sweet_hour": rate_short_sweet_hour,
+            "two_hours_passion": rate_two_hours_passion,
+            "overnight": rate_overnight
         }
         rates_json = json.dumps(rates_data)
         
@@ -605,6 +605,7 @@ async def add_model_admin(
             agency_id=agency.id,
             city_id=city_id,
             name=name,
+            phone=phone,
             age=age,
             height=height,
             hair_color=hair_color,
@@ -692,6 +693,7 @@ async def edit_model_page(request: Request, model_id: int, db: Session = Depends
 async def update_model_admin(
     model_id: int,
     name: str = Form(...),
+    phone: str = Form(""),
     age: int = Form(...),
     height: int = Form(...),
     hair_color: str = Form(...),
@@ -711,22 +713,9 @@ async def update_model_admin(
     lingerie_style: str = Form(""),
     favorite_cuisine: str = Form(""),
     favorite_perfume: str = Form(""),
-    rate_short_price: str = Form("On Request"),
-    rate_gentleman_price: str = Form("1400.- / 1300.- (Member)"),
-    rate_overnight_price: str = Form("2200.- / 2000.- (Member)"),
-    rate_luxury_price: str = Form("3200.- / 3000.- (Member)"),
-    rate_1_short_hour: str = Form("Members Only / On Request"),
-    rate_1_5_short_hours: str = Form("Members Only / On Request"),
-    rate_2_hours_passion: str = Form("900.- / 800.- (Member)"),
-    rate_3_unforgettable: str = Form("1200.- / 1100.- (Member)"),
-    rate_4_intimate_dinner: str = Form("1400.- / 1300.- (Member)"),
-    rate_5_intimate_dinner: str = Form("1600.- / 1500.- (Member)"),
-    rate_short_overnight_8h: str = Form("2200.- / 2000.- (Member)"),
-    rate_long_overnight_12h: str = Form("2400.- / 2200.- (Member)"),
-    rate_long_overnight_18h: str = Form("2800.- / 2600.- (Member)"),
-    rate_one_day_24h: str = Form("3200.- / 3000.- (Member)"),
-    rate_two_days_48h: str = Form("4500.- / 4300.- (Member)"),
-    rate_additional_day: str = Form("1400.- / 1200.- (Member)"),
+    rate_short_sweet_hour: str = Form(""),
+    rate_two_hours_passion: str = Form(""),
+    rate_overnight: str = Form(""),
     removed_photos: str = Form(""),
     photo_order: str = Form(""),
     new_photos: List[UploadFile] = File(default=[]),
@@ -743,31 +732,17 @@ async def update_model_admin(
             lang_list = [lang.strip() for lang in languages.split(',') if lang.strip()]
             languages_json = json.dumps(lang_list)
         
-        # Create rates JSON with detailed rates
+        # Create rates JSON
         rates_data = {
-            "short_price": rate_short_price,
-            "gentleman_price": rate_gentleman_price,
-            "overnight_price": rate_overnight_price,
-            "luxury_price": rate_luxury_price,
-            "detailed": {
-                "1_short_hour": rate_1_short_hour,
-                "1_5_short_hours": rate_1_5_short_hours,
-                "2_hours_passion": rate_2_hours_passion,
-                "3_unforgettable": rate_3_unforgettable,
-                "4_intimate_dinner": rate_4_intimate_dinner,
-                "5_intimate_dinner": rate_5_intimate_dinner,
-                "short_overnight_8h": rate_short_overnight_8h,
-                "long_overnight_12h": rate_long_overnight_12h,
-                "long_overnight_18h": rate_long_overnight_18h,
-                "one_day_24h": rate_one_day_24h,
-                "two_days_48h": rate_two_days_48h,
-                "additional_day": rate_additional_day
-            }
+            "short_sweet_hour": rate_short_sweet_hour,
+            "two_hours_passion": rate_two_hours_passion,
+            "overnight": rate_overnight
         }
         rates_json = json.dumps(rates_data)
         
         # Update model fields
         model.name = name
+        model.phone = phone
         model.age = age
         model.height = height
         model.hair_color = hair_color
