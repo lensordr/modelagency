@@ -733,7 +733,7 @@ async def update_model_admin(
     rate_overnight: str = Form(""),
     removed_photos: str = Form(""),
     photo_order: str = Form(""),
-    profile_video_url: str = Form(""),
+    profile_video_file: UploadFile = File(default=None),
     remove_video: str = Form(""),
     new_photos: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db)
@@ -825,8 +825,14 @@ async def update_model_admin(
         # Update profile video
         if remove_video == "1":
             model.profile_video = None
-        elif profile_video_url:
-            model.profile_video = profile_video_url
+        elif profile_video_file and profile_video_file.filename:
+            profile_video_file.file.seek(0)
+            video_result = cloudinary.uploader.upload(
+                profile_video_file.file,
+                folder="models/videos",
+                resource_type="video"
+            )
+            model.profile_video = video_result['secure_url']
         
         db.commit()
         

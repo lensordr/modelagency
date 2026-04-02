@@ -211,10 +211,9 @@
             </div>
             {% endif %}
             <div class="mb-3">
-                <label for="profile_video_url" class="form-label">Video URL (Cloudinary or direct link)</label>
-                <input type="url" class="form-control" id="profile_video_url" name="profile_video_url" 
-                       value="{{ model.profile_video or '' }}" placeholder="https://res.cloudinary.com/...">
-                <div class="form-text text-muted">Paste a video URL to loop in the profile header (like the home page hero). Leave empty to use the main photo instead.</div>
+                <label for="profile_video_file" class="form-label">Upload Video</label>
+                <input type="file" class="form-control" id="profile_video_file" name="profile_video_file" accept="video/*">
+                <div class="form-text text-muted">Upload an MP4 video to loop in the profile header. Replaces the current video if one exists.</div>
             </div>
             
             <div class="mb-3">
