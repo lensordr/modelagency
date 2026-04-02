@@ -288,4 +288,41 @@ function setAsMain(photoUrl) {
     }
 }
 
-document.getElementById('editModelForm').addEventListener('sub
+document.getElementById('editModelForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    
+    // Get current photo order from DOM
+    const photoElements = document.querySelectorAll('#currentPhotos [data-photo]');
+    const orderedPhotos = Array.from(photoElements).map(el => el.getAttribute('data-photo'));
+    formData.append('photo_order', JSON.stringify(orderedPhotos));
+    
+    const submitBtn = this.querySelector('button[type="submit"]');
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Updating...';
+    
+    try {
+        const response = await fetch(`/admin/models/{{ model.id }}/edit`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Model updated successfully!');
+            window.location.href = '/admin/models';
+        } else {
+            alert(result.message);
+        }
+    } catch (error) {
+        alert('Error updating model. Please try again.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>Update Model';
+    }
+});
+</script>
+{% endblock %}
