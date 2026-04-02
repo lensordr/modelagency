@@ -364,27 +364,4 @@ function openPhotoModal(photoUrl) {
 }
 
 function submitBooking(event, modelId) {
-    event.preventDefault();
-    
-    const formData = new FormData(event.target);
-    
-    fetch(`/book/${modelId}`, {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            event.target.reset();
-            bootstrap.Modal.getInstance(document.getElementById('bookingModal')).hide();
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(error => {
-        alert('Error submitting booking request');
-    });
-}
-</script>
-{% endblock %}
+    event.preventDefault(

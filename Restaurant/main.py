@@ -869,25 +869,4 @@ async def toggle_model_featured(model_id: int, request: Request, db: Session = D
         return JSONResponse({"success": False, "message": str(e)})
 
 @app.get("/admin/bookings/{booking_id}/details")
-async def get_booking_details(booking_id: int, db: Session = Depends(get_db)):
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
-    if booking:
-        return JSONResponse({
-            "success": True,
-            "data": {
-                "client_name": booking.client_name,
-                "client_email": booking.client_email,
-                "client_phone": booking.client_phone,
-                "model_name": booking.model.name,
-                "event_type": booking.event_type,
-                "event_date": booking.event_date.strftime('%Y-%m-%d') if booking.event_date else None,
-                "message": booking.message,
-                "status": booking.status
-            }
-        })
-    return JSONResponse({"success": False})
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+async def get_booki
