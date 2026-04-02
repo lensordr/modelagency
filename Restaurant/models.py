@@ -91,6 +91,9 @@ class Model(Base):
     # Featured field for homepage display
     featured = Column(Boolean, default=False)
     
+    # Profile video URL (loops in hero section like home page)
+    profile_video = Column(String(500))
+    
     agency = relationship("Agency", back_populates="models")
     city = relationship("City", back_populates="models")
     bookings = relationship("Booking", back_populates="model")

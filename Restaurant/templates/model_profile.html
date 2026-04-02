@@ -4,8 +4,17 @@
 
 {% block content %}
 <!-- Full Page Profile -->
-<div class="model-profile-hero" style="background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('{% if model.photos %}{% set photos = model.photos | from_json %}{{ photos[0] if photos else '/static/placeholder-model.jpg' }}{% else %}/static/placeholder-model.jpg{% endif %}'); background-size: cover; background-position: center; height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: white;">
-    <div class="container">
+<div class="model-profile-hero" style="position: relative; height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: white; overflow: hidden;">
+    {% if model.profile_video %}
+    <video autoplay muted loop playsinline webkit-playsinline id="profileVideo"
+           style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0;">
+        <source src="{{ model.profile_video }}" type="video/mp4">
+    </video>
+    <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); z-index: 1;"></div>
+    {% else %}
+    <div style="position: absolute; inset: 0; background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('{% if model.photos %}{% set photos = model.photos | from_json %}{{ photos[0] if photos else '/static/placeholder-model.jpg' }}{% else %}/static/placeholder-model.jpg{% endif %}'); background-size: cover; background-position: center; z-index: 0;"></div>
+    {% endif %}
+    <div class="container" style="position: relative; z-index: 2;">
         <h1 style="font-size: 4rem; font-weight: 100; letter-spacing: 3px; margin-bottom: 20px;">{{ model.name }}</h1>
         <p style="font-size: 1.5rem; letter-spacing: 2px; text-transform: uppercase;">{{ model.job or 'Model Sedcard' }}</p>
     </div>

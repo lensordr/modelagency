@@ -66,6 +66,21 @@ async def startup_event():
             print("✅ Added featured column to models table")
         else:
             print("ℹ️  Featured column already exists")
+        
+        # Add profile_video column if missing
+        try:
+            result2 = db.execute(text("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name='models' AND column_name='profile_video'
+            """))
+            if not result2.fetchone():
+                db.execute(text("ALTER TABLE models ADD COLUMN profile_video VARCHAR(500)"))
+                db.commit()
+                print("✅ Added profile_video column to models table")
+        except Exception as e2:
+            print(f"profile_video migration error: {e2}")
+        
         db.close()
     except Exception as migration_error:
         print(f"Migration error: {migration_error}")
@@ -718,6 +733,8 @@ async def update_model_admin(
     rate_overnight: str = Form(""),
     removed_photos: str = Form(""),
     photo_order: str = Form(""),
+    profile_video_url: str = Form(""),
+    remove_video: str = Form(""),
     new_photos: List[UploadFile] = File(default=[]),
     db: Session = Depends(get_db)
 ):
@@ -804,6 +821,12 @@ async def update_model_admin(
         
         # Update photos
         model.photos = json.dumps(current_photos)
+        
+        # Update profile video
+        if remove_video == "1":
+            model.profile_video = None
+        elif profile_video_url:
+            model.profile_video = profile_video_url
         
         db.commit()
         
